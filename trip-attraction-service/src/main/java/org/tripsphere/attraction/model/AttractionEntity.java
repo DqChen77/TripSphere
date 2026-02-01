@@ -22,7 +22,7 @@ import lombok.experimental.Accessors;
 @Data
 @Document("attractions")
 @JsonInclude(JsonInclude.Include.ALWAYS)
-public class Attraction implements Serializable {
+public class AttractionEntity implements Serializable {
     @Id private String id;
     private String name;
     private Address address;

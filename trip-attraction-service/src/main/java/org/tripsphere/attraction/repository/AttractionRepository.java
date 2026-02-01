@@ -8,11 +8,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
-import org.tripsphere.attraction.model.Attraction;
+import org.tripsphere.attraction.model.AttractionEntity;
 
 @Repository
-public interface AttractionRepository extends MongoRepository<Attraction, String> {
-    public Optional<Attraction> findById(String id);
+public interface AttractionRepository extends MongoRepository<AttractionEntity, String> {
+    public Optional<AttractionEntity> findById(String id);
 
     @Query(
             """
@@ -25,7 +25,7 @@ public interface AttractionRepository extends MongoRepository<Attraction, String
               }
             }
             """)
-    List<Attraction> findByLocationNear(double lng, double lat, double maxDistanceMeters);
+    List<AttractionEntity> findByLocationNear(double lng, double lat, double maxDistanceMeters);
 
     @Query(
             """
@@ -39,7 +39,7 @@ public interface AttractionRepository extends MongoRepository<Attraction, String
               'tags': { $all: ?4 }
             }
             """)
-    List<Attraction> findByLocationWithinWithFilters(
+    List<AttractionEntity> findByLocationWithinWithFilters(
             double lng, double lat, double radiusInRadians, String nameRegex, List<String> tags);
 
     @Query(
@@ -55,7 +55,7 @@ public interface AttractionRepository extends MongoRepository<Attraction, String
               'tags': { $all: ?4 }
             }
             """)
-    Page<Attraction> findByLocationNearWithFilters(
+    Page<AttractionEntity> findByLocationNearWithFilters(
             double lng,
             double lat,
             double maxDistanceMeters,
@@ -75,7 +75,7 @@ public interface AttractionRepository extends MongoRepository<Attraction, String
               'tags': { $all: ?4 }
             }
             """)
-    Page<Attraction> findByLocationWithinWithFilters(
+    Page<AttractionEntity> findByLocationWithinWithFilters(
             double lng,
             double lat,
             double radiusInRadians,
