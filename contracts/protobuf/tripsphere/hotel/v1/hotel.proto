@@ -44,14 +44,6 @@ message Hotel {
   tripsphere.common.v1.Location location = 7;
 }
 
-message AddHotelRequest {
-  Hotel hotel = 1;
-}
-
-message AddHotelResponse {
-  string id = 1; //hotel id
-}
-
 message FindHotelByIdRequest {
   string id = 1;
 }
@@ -65,17 +57,6 @@ message DeleteHotelRequest {
 }
 
 message DeleteHotelResponse {}
-
-message HotelPage {
-  repeated Hotel content = 1; // content of page
-  int32 total_pages = 2; //total number of pages
-  int64 total_elements = 3; // total number of hotels
-  int32 size = 4; // the size of page
-  int32 number = 5; // size number, start from 0
-  bool first = 6; // if this page is first page
-  bool last = 7; // if this page is last page
-  int32 number_of_elements = 8; // the actual number of hotel on this page
-}
 
 message FindHotelWithinRadiusRequest {
   tripsphere.common.v1.Location location = 1;

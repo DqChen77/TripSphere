@@ -6,11 +6,11 @@ import java.util.Optional;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
-import org.tripsphere.attraction.model.AttractionEntity;
+import org.tripsphere.attraction.model.AttractionDoc;
 
 @Repository
-public interface AttractionRepository extends MongoRepository<AttractionEntity, String> {
-    public Optional<AttractionEntity> findById(String id);
+public interface AttractionRepository extends MongoRepository<AttractionDoc, String> {
+    public Optional<AttractionDoc> findById(String id);
 
     @Query(
             """
@@ -23,6 +23,6 @@ public interface AttractionRepository extends MongoRepository<AttractionEntity, 
               }
             }
             """)
-    List<AttractionEntity> findByLocationNear(
+    List<AttractionDoc> findByLocationNear(
             double longitude, double latitude, double maxDistanceMeters);
 }

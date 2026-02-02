@@ -2,13 +2,13 @@ package org.tripsphere.attraction.service;
 
 import java.util.List;
 
-import org.tripsphere.attraction.model.AttractionEntity;
+import org.tripsphere.attraction.model.AttractionDoc;
 
 public interface AttractionService {
     boolean deleteAttraction(String id);
 
-    AttractionEntity findAttractionById(String id);
+    AttractionDoc findAttractionById(String id);
 
-    List<AttractionEntity> findAttractionsLocationNear(
+    List<AttractionDoc> findAttractionsLocationNear(
             double longitude, double latitude, double radiusKm, List<String> tags);
 }

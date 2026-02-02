@@ -1,6 +1,6 @@
 package org.tripsphere.attraction.grpc;
 
-import org.tripsphere.attraction.model.AttractionEntity;
+import org.tripsphere.attraction.model.AttractionDoc;
 import org.tripsphere.attraction.service.AttractionService;
 import org.tripsphere.attraction.v1.*;
 import org.tripsphere.attraction.v1.AttractionServiceGrpc.AttractionServiceImplBase;
@@ -34,7 +34,7 @@ public class AttractionGrpcService extends AttractionServiceImplBase {
     public void findAttractionById(
             FindAttractionByIdRequest request,
             StreamObserver<FindAttractionByIdResponse> responseObserver) {
-        AttractionEntity attraction = attractionService.findAttractionById(request.getId());
+        AttractionDoc attraction = attractionService.findAttractionById(request.getId());
         if (attraction == null) {
             responseObserver.onError(
                     io.grpc.Status.NOT_FOUND

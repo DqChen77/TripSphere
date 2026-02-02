@@ -1,4 +1,4 @@
-package org.tripsphere.hotel.model;
+package org.tripsphere.attraction.model;
 
 import java.io.Serializable;
 import java.util.List;
@@ -20,17 +20,15 @@ import lombok.experimental.Accessors;
 @AllArgsConstructor
 @Accessors(chain = true)
 @Data
-@Document("Hotels")
-@JsonInclude(JsonInclude.Include.ALWAYS)
-public class Hotel implements Serializable {
+@Document("attractions")
+@JsonInclude()
+public class AttractionDoc implements Serializable {
     @Id private String id;
     private String name;
-
     private Address address;
-
     private String introduction;
     private List<String> tags;
-    private List<Room> rooms;
+    private List<String> images;
 
     @GeoSpatialIndexed(type = GeoSpatialIndexType.GEO_2DSPHERE)
     private GeoJsonPoint location;

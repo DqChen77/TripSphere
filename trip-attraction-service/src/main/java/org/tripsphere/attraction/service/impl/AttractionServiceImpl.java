@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
-import org.tripsphere.attraction.model.AttractionEntity;
+import org.tripsphere.attraction.model.AttractionDoc;
 import org.tripsphere.attraction.repository.AttractionRepository;
 import org.tripsphere.attraction.service.AttractionService;
 
@@ -27,9 +27,9 @@ public class AttractionServiceImpl implements AttractionService {
      */
     @Override
     public boolean deleteAttraction(String id) {
-        Optional<AttractionEntity> attractionOptional = attractionRepository.findById(id);
+        Optional<AttractionDoc> attractionOptional = attractionRepository.findById(id);
         if (attractionOptional.isPresent()) {
-            AttractionEntity attraction = attractionOptional.get();
+            AttractionDoc attraction = attractionOptional.get();
             attractionRepository.delete(attraction);
         } else return false;
         return true;
@@ -42,8 +42,8 @@ public class AttractionServiceImpl implements AttractionService {
      * @return If found, return attraction, else return null
      */
     @Override
-    public AttractionEntity findAttractionById(String id) {
-        Optional<AttractionEntity> attractionOptional = attractionRepository.findById(id);
+    public AttractionDoc findAttractionById(String id) {
+        Optional<AttractionDoc> attractionOptional = attractionRepository.findById(id);
         return attractionOptional.orElse(null);
     }
 
@@ -57,7 +57,7 @@ public class AttractionServiceImpl implements AttractionService {
      * @return The list of attractions
      */
     @Override
-    public List<AttractionEntity> findAttractionsLocationNear(
+    public List<AttractionDoc> findAttractionsLocationNear(
             double longitude, double latitude, double radiusKm, List<String> tags) {
         double maxDistanceMeters = radiusKm * 1000; // MongoDB expects meters for $nearSphere
         return attractionRepository.findByLocationNear(longitude, latitude, maxDistanceMeters);

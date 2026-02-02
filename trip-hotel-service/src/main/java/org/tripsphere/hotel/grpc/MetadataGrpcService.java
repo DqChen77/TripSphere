@@ -2,19 +2,19 @@ package org.tripsphere.hotel.grpc;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.info.BuildProperties;
-import org.tripsphere.hotel.GetVersionRequest;
-import org.tripsphere.hotel.GetVersionResponse;
-import org.tripsphere.hotel.MetadataServiceGrpc;
+import org.tripsphere.hotel.v1.GetVersionRequest;
+import org.tripsphere.hotel.v1.GetVersionResponse;
+import org.tripsphere.hotel.v1.MetadataServiceGrpc.MetadataServiceImplBase;
 
 import io.grpc.stub.StreamObserver;
 
 import net.devh.boot.grpc.server.service.GrpcService;
 
 @GrpcService
-public class MetadataServiceImpl extends MetadataServiceGrpc.MetadataServiceImplBase {
+public class MetadataGrpcService extends MetadataServiceImplBase {
     private final BuildProperties buildProperties;
 
-    public MetadataServiceImpl(@Autowired(required = false) BuildProperties buildProperties) {
+    public MetadataGrpcService(@Autowired(required = false) BuildProperties buildProperties) {
         this.buildProperties = buildProperties;
     }
 

@@ -10,6 +10,16 @@ tasks:
     silent: true
 
   gen-proto:
+    desc: Generate protobuf and gRPC codes using buf
+    sources:
+      - ../contracts/protobuf/**/*.proto
+    generates:
+      - target/generated-sources/protobuf/java/**/*.java
+      - target/generated-sources/protobuf/grpc-java/**/*.java
+    cmds:
+      - buf generate
+
+  protoc-gen:
     desc: Generate protobuf and gRPC codes
     sources:
       - ../contracts/protobuf/**/*.proto
