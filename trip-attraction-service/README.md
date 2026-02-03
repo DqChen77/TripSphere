@@ -1,20 +1,18 @@
 To generate the gRPC java code:
 
 ```bash
-./mvnw clean
-./mvnw protobuf:compile
-./mvnw protobuf:compile-custom
+task gen-proto
 ```
 
 Then, build jar package:
 
 ```bash
-./mvnw package
+./mvnw package -DskipTests
 ```
 
 Finally, start the server:
 
 ```bash
-java -jar target/attraction-0.1.0.jar
+java -jar target/attraction-${project.version}.jar
 ```
 
