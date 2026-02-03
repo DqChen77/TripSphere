@@ -1,4 +1,4 @@
-import { Reason as PbReason } from "@/lib/grpc/gen/tripsphere/common/details";
+import { Reason as PbReason } from "@/lib/grpc/gen/tripsphere/common/v1/details";
 
 export enum ResponseCode {
   SUCCESS = "Success",

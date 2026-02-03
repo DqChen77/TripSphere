@@ -61,7 +61,11 @@ services:
       otel-collector:
         condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:24210/health"]
+      test:
+        - "CMD" 
+        - "python"
+        - "-c"
+        - "import urllib.request; urllib.request.urlopen('http://localhost:24210/health').read()"
       interval: 30s
       timeout: 10s
       retries: 3
@@ -199,7 +203,7 @@ services:
       - GRPC_USER_URL=trip-user-service:50056
     depends_on:
       trip-chat-service:
-        condition: service_started
+        condition: service_healthy
       trip-itinerary-planner:
         condition: service_started
       trip-review-service:
