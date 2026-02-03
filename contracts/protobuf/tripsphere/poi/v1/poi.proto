@@ -8,29 +8,9 @@ option go_package = "tripsphere/poi/v1";
 option java_multiple_files = true;
 option java_package = "org.tripsphere.poi.v1";
 
-// ===================================================================
-// Service Interfaces
-// ===================================================================
-
 service PoiService {
   rpc GetPoiById(GetPoiByIdRequest) returns (GetPoiByIdResponse);
 }
-
-// ===================================================================
-// Request/Response Messages
-// ===================================================================
-
-message GetPoiByIdRequest {
-  string id = 1;
-}
-
-message GetPoiByIdResponse {
-  Poi poi = 1;
-}
-
-// ===================================================================
-// Data Structures
-// ===================================================================
 
 message Poi {
   string id = 1;
@@ -41,4 +21,12 @@ message Poi {
   string amap_id = 6;
   repeated string categories = 7;
   repeated string images = 8;
+}
+
+message GetPoiByIdRequest {
+  string id = 1;
+}
+
+message GetPoiByIdResponse {
+  Poi poi = 1;
 }

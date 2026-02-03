@@ -9,162 +9,31 @@ option go_package = "tripsphere/itinerary/v1";
 option java_multiple_files = true;
 option java_package = "org.tripsphere.itinerary.v1";
 
-// ===================================================================
-// Service Interfaces
-// ===================================================================
-
 service ItineraryService {
-  // Itinerary CRUD
   rpc CreateItinerary(CreateItineraryRequest) returns (CreateItineraryResponse);
+
   rpc GetItinerary(GetItineraryRequest) returns (GetItineraryResponse);
+
   rpc UpdateItinerary(UpdateItineraryRequest) returns (UpdateItineraryResponse);
+
   rpc DeleteItinerary(DeleteItineraryRequest) returns (DeleteItineraryResponse);
+
   rpc ListUserItineraries(ListUserItinerariesRequest) returns (ListUserItinerariesResponse);
 
-  // DayPlan operations
   rpc AddDayPlan(AddDayPlanRequest) returns (AddDayPlanResponse);
+
   rpc UpdateDayPlan(UpdateDayPlanRequest) returns (UpdateDayPlanResponse);
+
   rpc DeleteDayPlan(DeleteDayPlanRequest) returns (DeleteDayPlanResponse);
 
-  // Activity operations
   rpc AddActivity(AddActivityRequest) returns (AddActivityResponse);
+
   rpc UpdateActivity(UpdateActivityRequest) returns (UpdateActivityResponse);
+
   rpc DeleteActivity(DeleteActivityRequest) returns (DeleteActivityResponse);
+
   rpc ReorderActivities(ReorderActivitiesRequest) returns (ReorderActivitiesResponse);
 }
-
-// ===================================================================
-// Request/Response Messages
-// ===================================================================
-
-// CreateItinerary
-message CreateItineraryRequest {
-  Itinerary itinerary = 1;
-}
-
-message CreateItineraryResponse {
-  string itinerary_id = 1;
-  Itinerary itinerary = 2;
-}
-
-// GetItinerary
-message GetItineraryRequest {
-  string itinerary_id = 1;
-}
-
-message GetItineraryResponse {
-  Itinerary itinerary = 1;
-}
-
-// UpdateItinerary
-message UpdateItineraryRequest {
-  Itinerary itinerary = 1;
-}
-
-message UpdateItineraryResponse {
-  Itinerary itinerary = 1;
-}
-
-// DeleteItinerary
-message DeleteItineraryRequest {
-  string itinerary_id = 1;
-}
-
-message DeleteItineraryResponse {}
-
-// ListUserItineraries
-message ListUserItinerariesRequest {
-  string user_id = 1;
-  int32 page_number = 2;
-  int32 page_size = 3;
-}
-
-message ListUserItinerariesResponse {
-  repeated Itinerary itineraries = 1;
-  int32 total_count = 2;
-  int32 page_number = 3;
-  int32 page_size = 4;
-}
-
-// AddDayPlan
-message AddDayPlanRequest {
-  string itinerary_id = 1;
-  DayPlan day_plan = 2;
-}
-
-message AddDayPlanResponse {
-  string day_plan_id = 1;
-  DayPlan day_plan = 2;
-}
-
-// UpdateDayPlan
-message UpdateDayPlanRequest {
-  string itinerary_id = 1;
-  DayPlan day_plan = 2;
-}
-
-message UpdateDayPlanResponse {
-  DayPlan day_plan = 1;
-}
-
-// DeleteDayPlan
-message DeleteDayPlanRequest {
-  string itinerary_id = 1;
-  string day_plan_id = 2;
-}
-
-message DeleteDayPlanResponse {
-  bool success = 1;
-}
-
-// AddActivity
-message AddActivityRequest {
-  string itinerary_id = 1;
-  string day_plan_id = 2;
-  Activity activity = 3;
-}
-
-message AddActivityResponse {
-  string activity_id = 1;
-  Activity activity = 2;
-}
-
-// UpdateActivity
-message UpdateActivityRequest {
-  string itinerary_id = 1;
-  string day_plan_id = 2;
-  Activity activity = 3;
-}
-
-message UpdateActivityResponse {
-  Activity activity = 1;
-}
-
-// DeleteActivity
-message DeleteActivityRequest {
-  string itinerary_id = 1;
-  string day_plan_id = 2;
-  string activity_id = 3;
-}
-
-message DeleteActivityResponse {
-  bool success = 1;
-}
-
-// ReorderActivities
-message ReorderActivitiesRequest {
-  string itinerary_id = 1;
-  string day_plan_id = 2;
-  repeated string activity_ids = 3; // New order
-}
-
-message ReorderActivitiesResponse {
-  DayPlan day_plan = 1;
-}
-
-// ===================================================================
-// Data Structures
-// ===================================================================
 
 message Activity {
   string activity_id = 1;
@@ -259,4 +128,117 @@ enum BudgetLevel {
   BUDGET_LEVEL_BUDGET = 1;
   BUDGET_LEVEL_MODERATE = 2;
   BUDGET_LEVEL_LUXURY = 3;
+}
+
+message CreateItineraryRequest {
+  Itinerary itinerary = 1;
+}
+
+message CreateItineraryResponse {
+  string itinerary_id = 1;
+  Itinerary itinerary = 2;
+}
+
+message GetItineraryRequest {
+  string itinerary_id = 1;
+}
+
+message GetItineraryResponse {
+  Itinerary itinerary = 1;
+}
+
+message UpdateItineraryRequest {
+  Itinerary itinerary = 1;
+}
+
+message UpdateItineraryResponse {
+  Itinerary itinerary = 1;
+}
+
+message DeleteItineraryRequest {
+  string itinerary_id = 1;
+}
+
+message DeleteItineraryResponse {}
+
+message ListUserItinerariesRequest {
+  string user_id = 1;
+  int32 page_number = 2;
+  int32 page_size = 3;
+}
+
+message ListUserItinerariesResponse {
+  repeated Itinerary itineraries = 1;
+  int32 total_count = 2;
+  int32 page_number = 3;
+  int32 page_size = 4;
+}
+
+message AddDayPlanRequest {
+  string itinerary_id = 1;
+  DayPlan day_plan = 2;
+}
+
+message AddDayPlanResponse {
+  string day_plan_id = 1;
+  DayPlan day_plan = 2;
+}
+
+message UpdateDayPlanRequest {
+  string itinerary_id = 1;
+  DayPlan day_plan = 2;
+}
+
+message UpdateDayPlanResponse {
+  DayPlan day_plan = 1;
+}
+
+message DeleteDayPlanRequest {
+  string itinerary_id = 1;
+  string day_plan_id = 2;
+}
+
+message DeleteDayPlanResponse {
+  bool success = 1;
+}
+
+message AddActivityRequest {
+  string itinerary_id = 1;
+  string day_plan_id = 2;
+  Activity activity = 3;
+}
+
+message AddActivityResponse {
+  string activity_id = 1;
+  Activity activity = 2;
+}
+
+message UpdateActivityRequest {
+  string itinerary_id = 1;
+  string day_plan_id = 2;
+  Activity activity = 3;
+}
+
+message UpdateActivityResponse {
+  Activity activity = 1;
+}
+
+message DeleteActivityRequest {
+  string itinerary_id = 1;
+  string day_plan_id = 2;
+  string activity_id = 3;
+}
+
+message DeleteActivityResponse {
+  bool success = 1;
+}
+
+message ReorderActivitiesRequest {
+  string itinerary_id = 1;
+  string day_plan_id = 2;
+  repeated string activity_ids = 3; // New order
+}
+
+message ReorderActivitiesResponse {
+  DayPlan day_plan = 1;
 }

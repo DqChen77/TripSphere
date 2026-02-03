@@ -13,11 +13,11 @@ service HotelService {
 
   rpc DeleteHotel(DeleteHotelRequest) returns (DeleteHotelResponse);
 
-  //Find hotels located at the specified location and within the specified distance range
-  //and list them in order from near to far
+  // Find hotels located at the specified location and within the specified distance range
+  // and list them in order from near to far
   rpc FindHotelWithinRadius(FindHotelWithinRadiusRequest) returns (FindHotelWithinRadiusResponse);
 
-  //Find hotels located at the specified location and within the specified distance range
+  // Find hotels located at the specified location and within the specified distance range
   rpc FindHotelsWithinCircle(FindHotelsWithinCircleRequest) returns (FindHotelsWithinCircleResponse);
 }
 
@@ -33,7 +33,6 @@ message Room {
   repeated string tags = 9;
 }
 
-// hotel info
 message Hotel {
   string id = 1;
   string name = 2;
@@ -53,7 +52,7 @@ message FindHotelByIdResponse {
 }
 
 message DeleteHotelRequest {
-  string id = 1; //hotel id
+  string id = 1; // Hotel ID
 }
 
 message DeleteHotelResponse {}

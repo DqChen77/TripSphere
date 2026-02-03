@@ -8,10 +8,6 @@ option go_package = "tripsphere/attraction/v1";
 option java_multiple_files = true;
 option java_package = "org.tripsphere.attraction.v1";
 
-// ===================================================================
-// Service Interfaces
-// ===================================================================
-
 service AttractionService {
   rpc FindAttractionById(FindAttractionByIdRequest) returns (FindAttractionByIdResponse);
 
@@ -21,9 +17,15 @@ service AttractionService {
   rpc FindAttractionsLocationNear(FindAttractionsLocationNearRequest) returns (FindAttractionsLocationNearResponse);
 }
 
-// ===================================================================
-// Request/Response Messages
-// ===================================================================
+message Attraction {
+  string id = 1;
+  string name = 2;
+  tripsphere.common.v1.Address address = 3;
+  string introduction = 4;
+  repeated string tags = 5;
+  repeated string images = 6;
+  tripsphere.common.v1.GeoPoint location = 7;
+}
 
 message DeleteAttractionRequest {
   string id = 1;
@@ -47,18 +49,4 @@ message FindAttractionsLocationNearRequest {
 
 message FindAttractionsLocationNearResponse {
   repeated Attraction attractions = 1;
-}
-
-// ===================================================================
-// Data Structures
-// ===================================================================
-
-message Attraction {
-  string id = 1;
-  string name = 2;
-  tripsphere.common.v1.Address address = 3;
-  string introduction = 4;
-  repeated string tags = 5;
-  repeated string images = 6;
-  tripsphere.common.v1.GeoPoint location = 7;
 }
