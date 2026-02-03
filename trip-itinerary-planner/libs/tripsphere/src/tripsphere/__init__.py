@@ -1,2 +1,1 @@
-"""Tripsphere protobuf package."""
 
