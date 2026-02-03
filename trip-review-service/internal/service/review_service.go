@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 	"time"
-	pd "trip-review-service/api/grpc/gen/tripsphere/review"
+	pd "trip-review-service/api/grpc/gen/tripsphere/review/v1"
 	"trip-review-service/internal/domain"
 	mq "trip-review-service/internal/handler/middleware"
 	"trip-review-service/internal/repository"
@@ -78,12 +78,12 @@ func (r *ReviewService) DeleteReview(ctx context.Context, request *pd.DeleteRevi
 	id := request.Id
 	err := reviewService.db.Delete(ctx, id)
 	if err != nil {
-		return &pd.DeleteReviewResponse{Status: false}, status.Error(codes.Internal, "failed to delete")
+		return &pd.DeleteReviewResponse{}, status.Error(codes.Internal, "failed to delete")
 	}
 
 	r.mq.AddMessage("ReviewTopic", id, "DeleteReview")
 
-	return &pd.DeleteReviewResponse{Status: true}, nil
+	return &pd.DeleteReviewResponse{}, nil
 }
 
 func (r *ReviewService) GetReviewByTargetID(ctx context.Context, request *pd.GetReviewByTargetIDRequest) (*pd.GetReviewByTargetIDResponse, error) {

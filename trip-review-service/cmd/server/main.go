@@ -12,7 +12,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	pd "trip-review-service/api/grpc/gen/tripsphere/review"
+	pd "trip-review-service/api/grpc/gen/tripsphere/review/v1"
 	"trip-review-service/config"
 	"trip-review-service/internal/service"
 	"trip-review-service/pkg/nacos"

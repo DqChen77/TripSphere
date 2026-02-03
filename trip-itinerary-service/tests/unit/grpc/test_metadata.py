@@ -5,7 +5,7 @@ import grpc
 import pytest
 import pytest_asyncio
 import pytest_mock
-from tripsphere.itinerary import metadata_pb2, metadata_pb2_grpc
+from tripsphere.itinerary.v1 import metadata_pb2, metadata_pb2_grpc  # pyright: ignore
 
 from itinerary.grpc.metadata import MetadataServiceServicer
 

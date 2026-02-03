@@ -4,17 +4,15 @@ from typing import Any
 import grpc
 from httpx import AsyncClient
 from pymongo import AsyncMongoClient
-from tripsphere.itinerary import (
+from tripsphere.itinerary.v1 import (  # pyright: ignore
     itinerary_pb2_grpc,
     metadata_pb2_grpc,
-    planning_pb2_grpc,
 )
 
 from itinerary.config.logging import setup_logging
 from itinerary.config.settings import get_settings
 from itinerary.grpc.itinerary import ItineraryServiceServicer
 from itinerary.grpc.metadata import MetadataServiceServicer
-from itinerary.grpc.planning import PlanningServiceServicer
 from itinerary.itinerary.repositories import MongoItineraryRepository
 from itinerary.nacos.ai import NacosAI
 from itinerary.nacos.naming import NacosNaming
@@ -56,10 +54,6 @@ async def serve() -> None:
 
         metadata_pb2_grpc.add_MetadataServiceServicer_to_server(
             MetadataServiceServicer(), server
-        )
-        planning_pb2_grpc.add_PlanningServiceServicer_to_server(
-            PlanningServiceServicer(httpx_client, itinerary_repository, nacos_ai),
-            server,
         )
         itinerary_pb2_grpc.add_ItineraryServiceServicer_to_server(
             ItineraryServiceServicer(itinerary_repository), server

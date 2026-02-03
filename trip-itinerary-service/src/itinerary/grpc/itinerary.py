@@ -2,7 +2,9 @@ import logging
 from datetime import date, datetime
 
 import grpc
-from tripsphere.itinerary import itinerary_pb2, itinerary_pb2_grpc
+
+# from google.protobuf.proto_json import serialize  # pyright: ignore
+from tripsphere.itinerary.v1 import itinerary_pb2, itinerary_pb2_grpc  # pyright: ignore
 
 from itinerary.itinerary.models import (
     Activity,
@@ -113,9 +115,9 @@ class ItineraryServiceServicer(itinerary_pb2_grpc.ItineraryServiceServicer):
         ],
     ) -> itinerary_pb2.DeleteItineraryResponse:
         try:
-            success = await self.repository.delete_by_id(request.itinerary_id)
+            await self.repository.delete_by_id(request.itinerary_id)
 
-            return itinerary_pb2.DeleteItineraryResponse(success=success)
+            return itinerary_pb2.DeleteItineraryResponse()
 
         except Exception as e:
             logger.error(f"Failed to delete itinerary: {e}", exc_info=True)
@@ -442,12 +444,8 @@ class ItineraryServiceServicer(itinerary_pb2_grpc.ItineraryServiceServicer):
         """Convert proto to ActivityLocation"""
 
         coordinates = Coordinates(
-            longitude=proto.coordinates.longitude
-            if proto.HasField("coordinates")
-            else 0.0,
-            latitude=proto.coordinates.latitude
-            if proto.HasField("coordinates")
-            else 0.0,
+            longitude=proto.location.longitude if proto.HasField("location") else 0.0,
+            latitude=proto.location.latitude if proto.HasField("location") else 0.0,
         )
 
         return ActivityLocation(
@@ -460,11 +458,11 @@ class ItineraryServiceServicer(itinerary_pb2_grpc.ItineraryServiceServicer):
         self, location: ActivityLocation
     ) -> itinerary_pb2.ActivityLocation:
         """Convert ActivityLocation to proto"""
-        from tripsphere.common import geo_pb2
+        from tripsphere.common.v1 import map_pb2  # pyright: ignore
 
         return itinerary_pb2.ActivityLocation(
             name=location.name,
-            coordinates=geo_pb2.Location(
+            location=map_pb2.GeoPoint(
                 longitude=location.coordinates.longitude,
                 latitude=location.coordinates.latitude,
             ),
