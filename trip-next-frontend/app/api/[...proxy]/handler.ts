@@ -5,11 +5,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { mapGrpcCodeToHttp } from "@/app/api/[...proxy]/code";
 import { grpcProxyMap, RpcProxyRule } from "@/app/api/[...proxy]/proxy-map";
 import { grpcClient } from "@/lib/grpc/client";
-import { Details } from "@/lib/grpc/gen/tripsphere/common/details";
+import { Details } from "@/lib/grpc/gen/tripsphere/common/v1/details";
 import {
   GetCurrentUserRequest,
   GetCurrentUserResponse,
-} from "@/lib/grpc/gen/tripsphere/user/user";
+} from "@/lib/grpc/gen/tripsphere/user/v1/user";
 import { Reason, ResponseCode } from "@/lib/requests/base/code";
 import { ResponseWrap } from "@/lib/requests/base/request";
 

@@ -3,8 +3,8 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useAuth } from "@/lib/hooks/use-auth";
-import { useItineraryPlanner } from "@/lib/hooks/use-itinerary-planner";
+import { useAuth } from "@/hooks/use-auth";
+import { useItineraryPlanner } from "@/hooks/use-itinerary-planner";
 import type { Itinerary } from "@/lib/types";
 import {
   Calendar,

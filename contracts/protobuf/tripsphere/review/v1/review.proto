@@ -6,13 +6,25 @@ option go_package = "tripsphere/review/v1";
 option java_multiple_files = true;
 option java_package = "org.tripsphere.review.v1";
 
+// ===================================================================
+// Service Interfaces
+// ===================================================================
+
 service ReviewService {
   rpc CreateReview(CreateReviewRequest) returns (CreateReviewResponse);
+
   rpc UpdateReview(UpdateReviewRequest) returns (UpdateReviewResponse);
+
   rpc DeleteReview(DeleteReviewRequest) returns (DeleteReviewResponse);
+
   rpc GetReviewByTargetID(GetReviewByTargetIDRequest) returns (GetReviewByTargetIDResponse);
+
   rpc GetReviewByTargetIDWithCursor(GetReviewByTargetIDWithCursorRequest) returns (GetReviewByTargetIDWithCursorResponse);
 }
+
+// ===================================================================
+// Request/Response Messages
+// ===================================================================
 
 message GetReviewByTargetIDWithCursorRequest {
   string target_type = 1;
@@ -71,6 +83,10 @@ message GetReviewByTargetIDResponse {
   int64 total_reviews = 2;
   bool status = 3;
 }
+
+// ===================================================================
+// Data Structures
+// ===================================================================
 
 message Review {
   string id = 1;

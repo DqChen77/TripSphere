@@ -3,9 +3,9 @@ import {
   Attraction,
   FindAttractionByIdRequest,
   FindAttractionByIdResponse,
-  FindAttractionsWithinRadiusRequest,
-  FindAttractionsWithinRadiusResponse,
-} from "@/lib/grpc/gen/tripsphere/attraction/attraction";
+  FindAttractionsLocationNearRequest,
+  FindAttractionsLocationNearResponse,
+} from "@/lib/grpc/gen/tripsphere/attraction/v1/attraction";
 import {
   CreateReviewRequest,
   CreateReviewResponse,
@@ -16,7 +16,7 @@ import {
   Review,
   UpdateReviewRequest,
   UpdateReviewResponse,
-} from "@/lib/grpc/gen/tripsphere/review/review";
+} from "@/lib/grpc/gen/tripsphere/review/v1/review";
 import {
   GetCurrentUserRequest,
   GetCurrentUserResponse,
@@ -24,7 +24,7 @@ import {
   LoginResponse,
   RegisterRequest,
   RegisterResponse,
-} from "@/lib/grpc/gen/tripsphere/user/user";
+} from "@/lib/grpc/gen/tripsphere/user/v1/user";
 import { ResponseData } from "@/lib/requests";
 import { User } from "@/lib/types";
 import type { NextRequest } from "next/server";
@@ -81,9 +81,9 @@ export interface RpcProxyMap {
     Attraction
   >;
   "POST /api/v1/attractions/nearby": RpcProxyRule<
-    FindAttractionsWithinRadiusRequest,
-    FindAttractionsWithinRadiusResponse,
-    FindAttractionsWithinRadiusRequest,
+    FindAttractionsLocationNearRequest,
+    FindAttractionsLocationNearResponse,
+    FindAttractionsLocationNearRequest,
     Attraction[]
   >;
 
@@ -189,13 +189,13 @@ export const grpcProxyMap: RpcProxyMap = {
     },
   },
   "POST /api/v1/attractions/nearby": {
-    method: grpcClient.attraction.findAttractionsWithinRadius.bind(
+    method: grpcClient.attraction.findAttractionsLocationNear.bind(
       grpcClient.attraction,
     ),
-    buildRPCRequest: (request: FindAttractionsWithinRadiusRequest) =>
-      FindAttractionsWithinRadiusRequest.create(request),
-    buildHttpResponse: (response: FindAttractionsWithinRadiusResponse) => {
-      return response.content;
+    buildRPCRequest: (request: FindAttractionsLocationNearRequest) =>
+      FindAttractionsLocationNearRequest.create(request),
+    buildHttpResponse: (response: FindAttractionsLocationNearResponse) => {
+      return response.attractions;
     },
   },
   "GET /api/v1/reviews": {
@@ -239,7 +239,7 @@ export const grpcProxyMap: RpcProxyMap = {
     buildRPCRequest: (request: { id: string }) =>
       DeleteReviewRequest.create({ id: request.id }),
     buildHttpResponse: (response: DeleteReviewResponse) => ({
-      status: response.status,
+      status: true,
     }),
   },
 };

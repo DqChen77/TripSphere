@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useAuth } from "@/lib/hooks/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import { AlertCircle, Lock, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";

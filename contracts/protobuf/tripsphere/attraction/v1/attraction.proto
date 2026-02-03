@@ -50,7 +50,7 @@ message FindAttractionsLocationNearResponse {
 }
 
 // ===================================================================
-// Core Data Structures
+// Data Structures
 // ===================================================================
 
 message Attraction {

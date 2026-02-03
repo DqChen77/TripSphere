@@ -1,14 +1,13 @@
-import type { Attraction as GrpcAttraction } from "@/lib/grpc/gen/tripsphere/attraction/attraction";
-import type { Location } from "@/lib/grpc/gen/tripsphere/common/geo";
+import type { Attraction as GrpcAttraction } from "@/lib/grpc/gen/tripsphere/attraction/v1/attraction";
+import type { GeoPoint } from "@/lib/grpc/gen/tripsphere/common/v1/map";
 import { get, post } from "@/lib/requests/base/request";
 
 /**
  * Request type for searching attractions within a radius
  */
 export interface FindAttractionsWithinRadiusRequest {
-  location: Location;
-  radiusKm: number;
-  name?: string;
+  location: GeoPoint;
+  radius_km: number;
   tags?: string[];
 }
 

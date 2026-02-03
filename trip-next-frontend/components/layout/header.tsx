@@ -1,8 +1,8 @@
 "use client";
 
 import { Avatar } from "@/components/ui/avatar";
-import { useAuth } from "@/lib/hooks/use-auth";
-import { useChatSidebar } from "@/lib/hooks/use-chat-sidebar";
+import { useAuth } from "@/hooks/use-auth";
+import { useChatSidebar } from "@/hooks/use-chat-sidebar";
 import {
   Bot,
   Calendar,

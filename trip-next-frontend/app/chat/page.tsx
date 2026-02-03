@@ -2,8 +2,8 @@
 
 import { ChatWindow } from "@/components/chat/chat-window";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/lib/hooks/use-auth";
-import { useChat } from "@/lib/hooks/use-chat";
+import { useAuth } from "@/hooks/use-auth";
+import { useChat } from "@/hooks/use-chat";
 import type { Conversation } from "@/lib/types";
 import { formatRelativeTime } from "@/lib/utils";
 import { Clock, MessageSquare, Plus, Trash2 } from "lucide-react";

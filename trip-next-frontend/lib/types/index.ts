@@ -31,32 +31,31 @@ export type {
   User as GrpcUser,
   LoginRequest,
   RegisterRequest,
-} from "@/lib/grpc/gen/tripsphere/user/user";
+} from "@/lib/grpc/gen/tripsphere/user/v1/user";
 
 // Hotel types
 import type {
   Hotel as GrpcHotel,
-  HotelPage,
   Room,
-} from "@/lib/grpc/gen/tripsphere/hotel/hotel";
+} from "@/lib/grpc/gen/tripsphere/hotel/v1/hotel";
 
-export type { GrpcHotel, HotelPage, Room };
+export type { GrpcHotel, Room };
 
 // Attraction types
-export type { Attraction as GrpcAttraction } from "@/lib/grpc/gen/tripsphere/attraction/attraction";
+export type { Attraction as GrpcAttraction } from "@/lib/grpc/gen/tripsphere/attraction/v1/attraction";
 
 // Itinerary types
 export type {
   Activity as GrpcActivity,
   DayPlan as GrpcDayPlan,
   Itinerary as GrpcItinerary,
-} from "@/lib/grpc/gen/tripsphere/itinerary/itinerary";
+} from "@/lib/grpc/gen/tripsphere/itinerary/v1/itinerary";
 
 // Common types
 import type {
   Address,
-  Location as GrpcLocation,
-} from "@/lib/grpc/gen/tripsphere/common/geo";
+  GeoPoint as GrpcLocation,
+} from "@/lib/grpc/gen/tripsphere/common/v1/map";
 
 export type { Address, GrpcLocation };
 
@@ -66,7 +65,7 @@ import type {
   CreateReviewRequest as GrpcCreateReviewRequest,
   Review as GrpcReview,
   UpdateReviewRequest as GrpcUpdateReviewRequest,
-} from "@/lib/grpc/gen/tripsphere/review/review";
+} from "@/lib/grpc/gen/tripsphere/review/v1/review";
 
 export type {
   GetReviewByTargetIDWithCursorResponse,

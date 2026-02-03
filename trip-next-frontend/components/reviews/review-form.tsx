@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useReviews } from "@/lib/hooks/use-reviews";
+import { useReviews } from "@/hooks/use-reviews";
 import type { Review } from "@/lib/types";
 import { Star, Upload, X } from "lucide-react";
 import { useState } from "react";

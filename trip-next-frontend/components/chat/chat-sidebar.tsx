@@ -1,9 +1,9 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/lib/hooks/use-auth";
-import { useChat } from "@/lib/hooks/use-chat";
-import { useChatSidebar } from "@/lib/hooks/use-chat-sidebar";
+import { useAuth } from "@/hooks/use-auth";
+import { useChat } from "@/hooks/use-chat";
+import { useChatSidebar } from "@/hooks/use-chat-sidebar";
 import type { ChatContext, Conversation, Message } from "@/lib/types";
 import { cn, generateId } from "@/lib/utils";
 import { Send, Sparkles, X } from "lucide-react";

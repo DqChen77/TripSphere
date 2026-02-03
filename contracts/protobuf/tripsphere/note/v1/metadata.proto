@@ -6,10 +6,18 @@ option go_package = "tripsphere/note/v1";
 option java_multiple_files = true;
 option java_package = "org.tripsphere.note.v1";
 
+// ===================================================================
+// Service Interfaces
+// ===================================================================
+
 service MetadataService {
   // Get the version of note service.
   rpc GetVersion(GetVersionRequest) returns (GetVersionResponse) {}
 }
+
+// ===================================================================
+// Request/Response Messages
+// ===================================================================
 
 message GetVersionRequest {}
 

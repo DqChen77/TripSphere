@@ -3,10 +3,10 @@
 import { ReviewForm } from "@/components/reviews/review-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useAttractions } from "@/lib/hooks/use-attractions";
-import { useAuth } from "@/lib/hooks/use-auth";
-import { useChatSidebar } from "@/lib/hooks/use-chat-sidebar";
-import { useReviews, type GrpcReview } from "@/lib/hooks/use-reviews";
+import { useAttractions } from "@/hooks/use-attractions";
+import { useAuth } from "@/hooks/use-auth";
+import { useChatSidebar } from "@/hooks/use-chat-sidebar";
+import { useReviews, type GrpcReview } from "@/hooks/use-reviews";
 import type { Attraction, ChatContext, Review } from "@/lib/types";
 import {
   ChevronLeft,

@@ -9,7 +9,9 @@ option go_package = "tripsphere/itinerary/v1";
 option java_multiple_files = true;
 option java_package = "org.tripsphere.itinerary.v1";
 
-// ========== Service interfaces ==========
+// ===================================================================
+// Service Interfaces
+// ===================================================================
 
 service ItineraryService {
   // Itinerary CRUD
@@ -31,106 +33,9 @@ service ItineraryService {
   rpc ReorderActivities(ReorderActivitiesRequest) returns (ReorderActivitiesResponse);
 }
 
-// ========== Helper message types ==========
-
-message ActivityLocation {
-  string name = 1;
-  tripsphere.common.v1.GeoPoint location = 2;
-  string address = 3;
-}
-
-message Cost {
-  double amount = 1;
-  string currency = 2; // ISO 4217 (CNY, USD, etc.)
-}
-
-enum BudgetLevel {
-  BUDGET_LEVEL_UNSPECIFIED = 0;
-  BUDGET_LEVEL_BUDGET = 1;
-  BUDGET_LEVEL_MODERATE = 2;
-  BUDGET_LEVEL_LUXURY = 3;
-}
-
-// ========== Core data structures ==========
-
-message Activity {
-  string activity_id = 1;
-  string kind = 2; // attraction_visit, dining, hotel_stay, transport, custom
-
-  // Basic information
-  string name = 3;
-  string description = 4;
-
-  // Time information
-  string start_time = 5; // HH:MM
-  string end_time = 6;
-
-  // Location information
-  ActivityLocation location = 7;
-
-  // Category
-  string category = 8; // sightseeing, dining, shopping, entertainment, etc.
-
-  // Cost
-  Cost cost = 9;
-
-  // Resource associations
-  string attraction_id = 10; // Associated attraction ID
-  string hotel_id = 11; // Associated hotel ID
-
-  // Extension fields
-  google.protobuf.Struct metadata = 12;
-}
-
-message DayPlan {
-  string day_plan_id = 1;
-  int32 day_number = 2;
-  string date = 3; // YYYY-MM-DD
-  string title = 4;
-  repeated Activity activities = 5;
-  string notes = 6;
-  google.protobuf.Struct metadata = 7;
-}
-
-message ItinerarySummary {
-  double total_estimated_cost = 1;
-  string currency = 2;
-  int32 total_activities = 3;
-  repeated string highlights = 4;
-}
-
-message Itinerary {
-  string itinerary_id = 1;
-  string title = 2;
-  string user_id = 3;
-
-  // Destination information
-  string destination = 4;
-
-  // Dates
-  string start_date = 5; // YYYY-MM-DD
-  string end_date = 6;
-
-  // Daily schedule
-  repeated DayPlan day_plans = 7;
-
-  // Summary information
-  ItinerarySummary summary = 8;
-
-  // Timestamps
-  string created_at = 9;
-  string updated_at = 10;
-
-  // Preference information (for future modifications)
-  repeated string interests = 11;
-  BudgetLevel budget_level = 12;
-  int32 num_travelers = 13;
-
-  // Extension fields
-  google.protobuf.Struct metadata = 14;
-}
-
-// ========== Request/Response messages ==========
+// ===================================================================
+// Request/Response Messages
+// ===================================================================
 
 // CreateItinerary
 message CreateItineraryRequest {
@@ -255,4 +160,103 @@ message ReorderActivitiesRequest {
 
 message ReorderActivitiesResponse {
   DayPlan day_plan = 1;
+}
+
+// ===================================================================
+// Data Structures
+// ===================================================================
+
+message Activity {
+  string activity_id = 1;
+  string kind = 2; // attraction_visit, dining, hotel_stay, transport, custom
+
+  // Basic information
+  string name = 3;
+  string description = 4;
+
+  // Time information
+  string start_time = 5; // HH:MM
+  string end_time = 6;
+
+  // Location information
+  ActivityLocation location = 7;
+
+  // Category
+  string category = 8; // sightseeing, dining, shopping, entertainment, etc.
+
+  // Cost
+  Cost cost = 9;
+
+  // Resource associations
+  string attraction_id = 10; // Associated attraction ID
+  string hotel_id = 11; // Associated hotel ID
+
+  // Extension fields
+  google.protobuf.Struct metadata = 12;
+}
+
+message DayPlan {
+  string day_plan_id = 1;
+  int32 day_number = 2;
+  string date = 3; // YYYY-MM-DD
+  string title = 4;
+  repeated Activity activities = 5;
+  string notes = 6;
+  google.protobuf.Struct metadata = 7;
+}
+
+message ItinerarySummary {
+  double total_estimated_cost = 1;
+  string currency = 2;
+  int32 total_activities = 3;
+  repeated string highlights = 4;
+}
+
+message Itinerary {
+  string itinerary_id = 1;
+  string title = 2;
+  string user_id = 3;
+
+  // Destination information
+  string destination = 4;
+
+  // Dates
+  string start_date = 5; // YYYY-MM-DD
+  string end_date = 6;
+
+  // Daily schedule
+  repeated DayPlan day_plans = 7;
+
+  // Summary information
+  ItinerarySummary summary = 8;
+
+  // Timestamps
+  string created_at = 9;
+  string updated_at = 10;
+
+  // Preference information (for future modifications)
+  repeated string interests = 11;
+  BudgetLevel budget_level = 12;
+  int32 num_travelers = 13;
+
+  // Extension fields
+  google.protobuf.Struct metadata = 14;
+}
+
+message ActivityLocation {
+  string name = 1;
+  tripsphere.common.v1.GeoPoint location = 2;
+  string address = 3;
+}
+
+message Cost {
+  double amount = 1;
+  string currency = 2; // ISO 4217 (CNY, USD, etc.)
+}
+
+enum BudgetLevel {
+  BUDGET_LEVEL_UNSPECIFIED = 0;
+  BUDGET_LEVEL_BUDGET = 1;
+  BUDGET_LEVEL_MODERATE = 2;
+  BUDGET_LEVEL_LUXURY = 3;
 }

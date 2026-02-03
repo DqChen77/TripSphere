@@ -6,26 +6,24 @@ option go_package = "tripsphere/user/v1";
 option java_multiple_files = true;
 option java_package = "org.tripsphere.user.v1";
 
-// User service
+// ===================================================================
+// Service Interfaces
+// ===================================================================
+
 service UserService {
-  // User registration
   rpc Register(RegisterRequest) returns (RegisterResponse);
-  // User login
+
   rpc Login(LoginRequest) returns (LoginResponse);
-  // Change password
+
   rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
-  // Get current user
+
   rpc GetCurrentUser(GetCurrentUserRequest) returns (GetCurrentUserResponse);
 }
 
-// User
-message User {
-  string id = 1;
-  string username = 2;
-  repeated string roles = 3;
-}
+// ===================================================================
+// Request/Response Messages
+// ===================================================================
 
-// Register request
 message RegisterRequest {
   string username = 1;
   string password = 2;
@@ -33,19 +31,16 @@ message RegisterRequest {
 
 message RegisterResponse {}
 
-// Login request
 message LoginRequest {
   string username = 1;
   string password = 2;
 }
 
-// Login response
 message LoginResponse {
   User user = 1;
   string token = 2;
 }
 
-// Change password request
 message ChangePasswordRequest {
   string username = 1;
   string old_password = 2;
@@ -56,7 +51,16 @@ message ChangePasswordResponse {}
 
 message GetCurrentUserRequest {}
 
-// Get current user response
 message GetCurrentUserResponse {
   User user = 1;
+}
+
+// ===================================================================
+// Data Structures
+// ===================================================================
+
+message User {
+  string id = 1;
+  string username = 2;
+  repeated string roles = 3;
 }

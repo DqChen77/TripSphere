@@ -2,7 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { useAttractions } from "@/lib/hooks/use-attractions";
+import { useAttractions } from "@/hooks/use-attractions";
 import type { Attraction } from "@/lib/types";
 import { Clock, MapPin, Star, Ticket } from "lucide-react";
 import Image from "next/image";

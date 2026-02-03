@@ -2,7 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { useAuth } from "@/lib/hooks/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import type { Note } from "@/lib/types";
 import { formatRelativeTime } from "@/lib/utils";
 import {
