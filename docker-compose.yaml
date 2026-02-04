@@ -251,7 +251,6 @@ services:
       - MYSQL_PORT=3306
       - MYSQL_USER=root
       - MYSQL_PASSWORD=fudanse
-      - MYSQL_DATABASE=review_db
       - MYSQL_MAX_OPEN_CONN=100
       - MYSQL_MAX_IDLE_CONN=10
       - MYSQL_CONN_MAX_LIFETIME=1h
