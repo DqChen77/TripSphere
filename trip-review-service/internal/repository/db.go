@@ -1,58 +1,61 @@
 package repository
 
 import (
+	"context"
 	"fmt"
-	"log"
-	"strings"
+	"log/slog"
+	"time"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"trip-review-service/config"
 )
 
-var db *gorm.DB
-
-func GetDB() *gorm.DB {
-	return db
-}
-
-func init() {
-	// Initialize config first
-	config.Init()
-
-	// Build DSN (Data Source Name)
-	// Format: username:password@tcp(host:port)/dbname?parseTime=true&charset=utf8mb4
-	builder := strings.Builder{}
-	builder.Grow(128)
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4",
-		config.MySQLUser,
-		config.MySQLPassword,
-		config.MySQLHost,
-		config.MySQLPort,
-		config.MySQLDatabase)
-	builder.WriteString(dsn)
-
-	// Open database connection
-	var err error
-	db, err = gorm.Open(mysql.Open(builder.String()), &gorm.Config{})
+// NewDB creates a new database connection with the given configuration
+func NewDB(ctx context.Context, cfg config.MySQLConfig) (*gorm.DB, error) {
+	db, err := gorm.Open(mysql.Open(cfg.DSN()), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
-		log.Println("database connect failed", err)
-		return
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get database instance: %w", err)
 	}
 
 	// Configure connection pool
-	sqlDB, err := db.DB()
-	if err != nil {
-		log.Println("failed to get database instance", err)
-		return
+	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
+	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
+	sqlDB.SetConnMaxLifetime(cfg.ConnMaxLifetime)
+
+	// Verify connection
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := sqlDB.PingContext(pingCtx); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	sqlDB.SetMaxOpenConns(config.MySQLMaxOpenConn)
-	sqlDB.SetMaxIdleConns(config.MySQLMaxIdleConn)
-	sqlDB.SetConnMaxLifetime(config.MySQLConnMaxLifeTime)
+	slog.Info("connected to database successfully",
+		"host", cfg.Host,
+		"port", cfg.Port,
+		"database", cfg.Database,
+	)
 
-	log.Println("connect to database successfully")
+	return db, nil
+}
 
-	reviewRepo = NewReviewRepo(db)
+// CloseDB closes the database connection
+func CloseDB(db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
 }

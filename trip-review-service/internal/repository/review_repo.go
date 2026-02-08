@@ -3,30 +3,28 @@ package repository
 import (
 	"context"
 	"errors"
-	"gorm.io/gorm"
+	"fmt"
 	"strconv"
 	"time"
+
+	"gorm.io/gorm"
+
 	"trip-review-service/internal/domain"
 	"trip-review-service/internal/repository/model"
 )
 
-// ReviewRepo 定义 Repository 结构体
+// ReviewRepo implements domain.ReviewRepository
 type ReviewRepo struct {
 	db *gorm.DB
 }
 
-var reviewRepo *ReviewRepo
-
-func GetReviewRepo() *ReviewRepo {
-	return reviewRepo
-}
-
-// NewReviewRepo 构造函数
+// NewReviewRepo creates a new ReviewRepo
 func NewReviewRepo(db *gorm.DB) *ReviewRepo {
-	return &ReviewRepo{
-		db: db,
-	}
+	return &ReviewRepo{db: db}
 }
+
+// Ensure ReviewRepo implements domain.ReviewRepository
+var _ domain.ReviewRepository = (*ReviewRepo)(nil)
 
 // Create  - 创建点评
 func (r *ReviewRepo) Create(ctx context.Context, review *domain.Review) error {
@@ -89,14 +87,14 @@ func (r *ReviewRepo) FindByTargetWithCursor(ctx context.Context, targetType doma
 	var models []model.ReviewModel
 
 	query := r.db.WithContext(ctx).
-		Where("target_type = ? AND target_id=?", targetType, targetID)
+		Where("target_type = ? AND target_id = ?", targetType, targetID)
 
 	if cursor != "" {
 		cursorInt, err := strconv.ParseInt(cursor, 10, 64)
-		cursorTime := time.Unix(cursorInt, 0)
 		if err != nil {
-			return nil, "", err
+			return nil, "", fmt.Errorf("invalid cursor format: %w", err)
 		}
+		cursorTime := time.Unix(cursorInt, 0)
 		query = query.Where("created_at < ?", cursorTime)
 	}
 	query = query.Order("created_at DESC").Limit(int(limit))
@@ -108,12 +106,14 @@ func (r *ReviewRepo) FindByTargetWithCursor(ctx context.Context, targetType doma
 	reviews := make([]domain.Review, 0, len(models))
 	var nextCursor string
 
-	if len(models) > 0 {
-		lastModel := models[len(models)-1]
-		nextCursor = lastModel.CreatedAt.Format(time.RFC3339)
-	}
 	for _, m := range models {
 		reviews = append(reviews, *model.ToDomain(&m))
+	}
+
+	// 使用 Unix 时间戳作为 cursor，保持格式一致
+	if len(models) > 0 {
+		lastModel := models[len(models)-1]
+		nextCursor = strconv.FormatInt(lastModel.CreatedAt.Unix(), 10)
 	}
 
 	return reviews, nextCursor, nil
