@@ -69,7 +69,7 @@ func TestReviewRepo_Create(t *testing.T) {
 		wantErr   bool
 	}{
 		{
-			name:   "成功创建评论",
+			name:   "successfully create review",
 			review: newTestReview(),
 			setupMock: func(mock sqlmock.Sqlmock, review *domain.Review) {
 				mock.ExpectBegin()
@@ -91,7 +91,7 @@ func TestReviewRepo_Create(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:   "数据库插入错误",
+			name:   "database insert error",
 			review: newTestReview(),
 			setupMock: func(mock sqlmock.Sqlmock, review *domain.Review) {
 				mock.ExpectBegin()
@@ -150,7 +150,7 @@ func TestReviewRepo_GetByID(t *testing.T) {
 		wantErr    bool
 	}{
 		{
-			name: "成功获取评论",
+			name: "successfully get review",
 			id:   "review-123",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{
@@ -158,7 +158,7 @@ func TestReviewRepo_GetByID(t *testing.T) {
 				}).AddRow(
 					"review-123", "user-456", "hotel", "hotel-789", 5, "Great!", `["img1.jpg"]`, now, now,
 				)
-				// GORM First() 会生成 ORDER BY primary_key LIMIT 1
+				// GORM First() generates ORDER BY primary_key LIMIT 1
 				mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `reviews` WHERE id = ? ORDER BY `reviews`.`id` LIMIT ?")).
 					WithArgs("review-123", 1).
 					WillReturnRows(rows)
@@ -175,7 +175,7 @@ func TestReviewRepo_GetByID(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "评论不存在",
+			name: "review not found",
 			id:   "non-existent",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `reviews` WHERE id = ? ORDER BY `reviews`.`id` LIMIT ?")).
@@ -183,10 +183,10 @@ func TestReviewRepo_GetByID(t *testing.T) {
 					WillReturnError(gorm.ErrRecordNotFound)
 			},
 			wantReview: nil,
-			wantErr:    false, // 返回 nil, nil 不是错误
+			wantErr:    false, // returns nil, nil which is not an error
 		},
 		{
-			name: "数据库错误",
+			name: "database error",
 			id:   "review-123",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `reviews` WHERE id = ? ORDER BY `reviews`.`id` LIMIT ?")).
@@ -245,7 +245,7 @@ func TestReviewRepo_FindByTarget(t *testing.T) {
 		wantErr    bool
 	}{
 		{
-			name:       "成功获取评论列表",
+			name:       "successfully get review list",
 			targetType: domain.ReviewTargetHotel,
 			targetID:   "hotel-123",
 			offset:     0,
@@ -257,7 +257,7 @@ func TestReviewRepo_FindByTarget(t *testing.T) {
 					AddRow("review-1", "user-1", "hotel", "hotel-123", 5, "Great!", `[]`, now, now).
 					AddRow("review-2", "user-2", "hotel", "hotel-123", 4, "Good", `[]`, now, now)
 
-				// GORM 会生成 LIMIT ? OFFSET ? 的形式（即使 OFFSET 为 0）
+				// GORM generates LIMIT ? OFFSET ? format (even when OFFSET is 0)
 				mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `reviews` WHERE target_type = ? AND target_id = ? ORDER BY created_at DESC LIMIT ?")).
 					WithArgs("hotel", "hotel-123", 10).
 					WillReturnRows(rows)
@@ -266,7 +266,7 @@ func TestReviewRepo_FindByTarget(t *testing.T) {
 			wantErr:   false,
 		},
 		{
-			name:       "带分页偏移",
+			name:       "with pagination offset",
 			targetType: domain.ReviewTargetHotel,
 			targetID:   "hotel-123",
 			offset:     10,
@@ -275,7 +275,7 @@ func TestReviewRepo_FindByTarget(t *testing.T) {
 				rows := sqlmock.NewRows([]string{
 					"id", "uid", "target_type", "target_id", "rating", "text", "images", "created_at", "updated_at",
 				})
-				// 带 OFFSET 时的查询
+				// Query with OFFSET
 				mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `reviews` WHERE target_type = ? AND target_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?")).
 					WithArgs("hotel", "hotel-123", 10, 10).
 					WillReturnRows(rows)
@@ -284,7 +284,7 @@ func TestReviewRepo_FindByTarget(t *testing.T) {
 			wantErr:   false,
 		},
 		{
-			name:       "数据库查询错误",
+			name:       "database query error",
 			targetType: domain.ReviewTargetHotel,
 			targetID:   "hotel-123",
 			offset:     0,
@@ -335,11 +335,11 @@ func TestReviewRepo_FindByTargetWithCursor(t *testing.T) {
 		limit      int64
 		setupMock  func(sqlmock.Sqlmock)
 		wantCount  int
-		wantCursor bool // 是否期望返回 cursor
+		wantCursor bool // whether to expect a cursor in the response
 		wantErr    bool
 	}{
 		{
-			name:       "无cursor首次查询",
+			name:       "first query without cursor",
 			targetType: domain.ReviewTargetHotel,
 			targetID:   "hotel-123",
 			cursor:     "",
@@ -358,7 +358,7 @@ func TestReviewRepo_FindByTargetWithCursor(t *testing.T) {
 			wantErr:    false,
 		},
 		{
-			name:       "带cursor分页查询",
+			name:       "paginated query with cursor",
 			targetType: domain.ReviewTargetHotel,
 			targetID:   "hotel-123",
 			cursor:     "1704067200", // Unix timestamp
@@ -368,7 +368,7 @@ func TestReviewRepo_FindByTargetWithCursor(t *testing.T) {
 					"id", "uid", "target_type", "target_id", "rating", "text", "images", "created_at", "updated_at",
 				}).AddRow("review-2", "user-2", "hotel", "hotel-123", 4, "Good", `[]`, now.Add(-time.Hour), now)
 
-				// GORM 会对第一个 Where 条件加括号
+				// GORM wraps the first Where condition in parentheses
 				mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `reviews` WHERE (target_type = ? AND target_id = ?) AND created_at < ? ORDER BY created_at DESC LIMIT ?")).
 					WithArgs("hotel", "hotel-123", sqlmock.AnyArg(), 10).
 					WillReturnRows(rows)
@@ -378,7 +378,7 @@ func TestReviewRepo_FindByTargetWithCursor(t *testing.T) {
 			wantErr:    false,
 		},
 		{
-			name:       "无效cursor格式",
+			name:       "invalid cursor format",
 			targetType: domain.ReviewTargetHotel,
 			targetID:   "hotel-123",
 			cursor:     "invalid-cursor",
@@ -389,7 +389,7 @@ func TestReviewRepo_FindByTargetWithCursor(t *testing.T) {
 			wantErr:    true,
 		},
 		{
-			name:       "空结果返回空cursor",
+			name:       "empty result returns empty cursor",
 			targetType: domain.ReviewTargetHotel,
 			targetID:   "hotel-123",
 			cursor:     "",
@@ -448,7 +448,7 @@ func TestReviewRepo_Update(t *testing.T) {
 		wantErr   bool
 	}{
 		{
-			name:   "成功更新评论",
+			name:   "successfully update review",
 			review: newTestReview(),
 			setupMock: func(mock sqlmock.Sqlmock, review *domain.Review) {
 				mock.ExpectBegin()
@@ -466,7 +466,7 @@ func TestReviewRepo_Update(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:   "评论不存在",
+			name:   "review not found",
 			review: newTestReview(),
 			setupMock: func(mock sqlmock.Sqlmock, review *domain.Review) {
 				mock.ExpectBegin()
@@ -484,7 +484,7 @@ func TestReviewRepo_Update(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:   "数据库更新错误",
+			name:   "database update error",
 			review: newTestReview(),
 			setupMock: func(mock sqlmock.Sqlmock, review *domain.Review) {
 				mock.ExpectBegin()
@@ -529,7 +529,7 @@ func TestReviewRepo_Delete(t *testing.T) {
 		wantErr   bool
 	}{
 		{
-			name: "成功删除评论",
+			name: "successfully delete review",
 			id:   "review-123",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
@@ -541,7 +541,7 @@ func TestReviewRepo_Delete(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "评论不存在",
+			name: "review not found",
 			id:   "non-existent",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
@@ -553,7 +553,7 @@ func TestReviewRepo_Delete(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "数据库删除错误",
+			name: "database delete error",
 			id:   "review-123",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
@@ -596,7 +596,7 @@ func TestReviewRepo_ImplementsInterface(t *testing.T) {
 
 	repo := NewReviewRepo(db)
 
-	// 编译时检查接口实现
+	// Compile-time check for interface implementation
 	var _ domain.ReviewRepository = repo
 }
 

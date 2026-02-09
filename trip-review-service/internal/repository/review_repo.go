@@ -26,12 +26,12 @@ func NewReviewRepo(db *gorm.DB) *ReviewRepo {
 // Ensure ReviewRepo implements domain.ReviewRepository
 var _ domain.ReviewRepository = (*ReviewRepo)(nil)
 
-// Create  - 创建点评
+// Create - creates a review
 func (r *ReviewRepo) Create(ctx context.Context, review *domain.Review) error {
-	//  将 Domain 实体转换为 DB Model
+	// Convert domain entity to DB model
 	reviewModel := model.ToModel(review)
 
-	// 写入数据库
+	// Write to database
 	if err := r.db.WithContext(ctx).Create(reviewModel).Error; err != nil {
 		return err
 	}
@@ -39,33 +39,33 @@ func (r *ReviewRepo) Create(ctx context.Context, review *domain.Review) error {
 	return nil
 }
 
-// GetByID  - 根据 ID 查询单条
+// GetByID - retrieves a single review by ID
 func (r *ReviewRepo) GetByID(ctx context.Context, id string) (*domain.Review, error) {
 	var m model.ReviewModel
 
-	// 查询
+	// Query
 	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&m).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// 可以返回特定的领域错误，或者直接返回 nil, nil
+			// Can return a specific domain error, or simply return nil, nil
 			return nil, nil
 		}
 		return nil, err
 	}
 
-	// 转回 Domain 对象
+	// Convert back to domain object
 	return model.ToDomain(&m), nil
 }
 
-// FindByTarget  查询列表 (例如：查询某酒店下的所有评论)
-// 带有分页功能
+// FindByTarget queries a list of reviews (e.g., all reviews for a hotel)
+// with pagination support
 func (r *ReviewRepo) FindByTarget(ctx context.Context, targetType domain.ReviewTargetType, targetID string, offset, limit int64) ([]domain.Review, error) {
 	var models []model.ReviewModel
 
-	// 构建查询
-	// 对应索引: idx_target (target_type, target_id)
+	// Build query
+	// Uses index: idx_target (target_type, target_id)
 	query := r.db.WithContext(ctx).
 		Where("target_type = ? AND target_id = ?", targetType, targetID).
-		Order("created_at DESC"). // 通常按时间倒序
+		Order("created_at DESC"). // Usually ordered by time descending
 		Offset(int(offset)).
 		Limit(int(limit))
 
@@ -73,7 +73,7 @@ func (r *ReviewRepo) FindByTarget(ctx context.Context, targetType domain.ReviewT
 		return nil, err
 	}
 
-	// 转换列表
+	// Convert list
 	reviews := make([]domain.Review, 0, len(models))
 	for _, m := range models {
 		temp := m
@@ -110,7 +110,7 @@ func (r *ReviewRepo) FindByTargetWithCursor(ctx context.Context, targetType doma
 		reviews = append(reviews, *model.ToDomain(&m))
 	}
 
-	// 使用 Unix 时间戳作为 cursor，保持格式一致
+	// Use Unix timestamp as cursor to maintain a consistent format
 	if len(models) > 0 {
 		lastModel := models[len(models)-1]
 		nextCursor = strconv.FormatInt(lastModel.CreatedAt.Unix(), 10)
@@ -119,20 +119,20 @@ func (r *ReviewRepo) FindByTargetWithCursor(ctx context.Context, targetType doma
 	return reviews, nextCursor, nil
 }
 
-// Update 更新点评 (例如：用户修改评分或内容)
+// Update updates a review (e.g., user modifies rating or content)
 func (r *ReviewRepo) Update(ctx context.Context, review *domain.Review) error {
-	// 这里的 map 用于指定只更新哪些字段
-	// 使用 Updates 可以避免将未赋值的零值字段更新到数据库
+	// This map specifies which fields to update
+	// Using Updates avoids updating unset zero-value fields to the database
 	updates := map[string]interface{}{
 		"text":       review.Text,
 		"rating":     review.Rating,
-		"images":     model.StringArray(review.Images), // 强制转换类型
+		"images":     model.StringArray(review.Images), // Force type conversion
 		"updated_at": review.UpdatedAt,
 	}
 
 	result := r.db.WithContext(ctx).
 		Model(&model.ReviewModel{}).
-		Where("id = ? ", review.ID). // 安全起见，带上 uid 校验所有权
+		Where("id = ? ", review.ID). // For safety, include uid to verify ownership
 		Updates(updates)
 
 	if result.Error != nil {
@@ -144,7 +144,7 @@ func (r *ReviewRepo) Update(ctx context.Context, review *domain.Review) error {
 	return nil
 }
 
-// Delete  删除点评
+// Delete deletes a review
 func (r *ReviewRepo) Delete(ctx context.Context, id string) error {
 	result := r.db.WithContext(ctx).
 		Where("id = ? ", id).

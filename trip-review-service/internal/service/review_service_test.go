@@ -48,7 +48,7 @@ func TestCreateReview(t *testing.T) {
 		checkResponse func(*testing.T, *pd.CreateReviewResponse)
 	}{
 		{
-			name: "成功创建评论",
+			name: "successfully create review",
 			request: &pd.CreateReviewRequest{
 				UserId:     "user-123",
 				TargetId:   "hotel-456",
@@ -72,7 +72,7 @@ func TestCreateReview(t *testing.T) {
 			},
 		},
 		{
-			name: "用户ID为空",
+			name: "empty user ID",
 			request: &pd.CreateReviewRequest{
 				UserId:     "",
 				TargetId:   "hotel-456",
@@ -84,7 +84,7 @@ func TestCreateReview(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name: "目标ID为空",
+			name: "empty target ID",
 			request: &pd.CreateReviewRequest{
 				UserId:     "user-123",
 				TargetId:   "",
@@ -96,7 +96,7 @@ func TestCreateReview(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name: "目标类型为空",
+			name: "empty target type",
 			request: &pd.CreateReviewRequest{
 				UserId:     "user-123",
 				TargetId:   "hotel-456",
@@ -108,7 +108,7 @@ func TestCreateReview(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name: "评分小于1",
+			name: "rating less than 1",
 			request: &pd.CreateReviewRequest{
 				UserId:     "user-123",
 				TargetId:   "hotel-456",
@@ -120,7 +120,7 @@ func TestCreateReview(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name: "评分大于5",
+			name: "rating greater than 5",
 			request: &pd.CreateReviewRequest{
 				UserId:     "user-123",
 				TargetId:   "hotel-456",
@@ -132,7 +132,7 @@ func TestCreateReview(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name: "数据库错误",
+			name: "database error",
 			request: &pd.CreateReviewRequest{
 				UserId:     "user-123",
 				TargetId:   "hotel-456",
@@ -183,7 +183,7 @@ func TestUpdateReview(t *testing.T) {
 		expectedError bool
 	}{
 		{
-			name: "成功更新评论",
+			name: "successfully update review",
 			request: &pd.UpdateReviewRequest{
 				Id:     "review-123",
 				Rating: 4,
@@ -198,7 +198,7 @@ func TestUpdateReview(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name: "评论ID为空",
+			name: "empty review ID",
 			request: &pd.UpdateReviewRequest{
 				Id:     "",
 				Rating: 4,
@@ -208,7 +208,7 @@ func TestUpdateReview(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name: "评分无效 - 小于1",
+			name: "invalid rating - less than 1",
 			request: &pd.UpdateReviewRequest{
 				Id:     "review-123",
 				Rating: 0,
@@ -218,7 +218,7 @@ func TestUpdateReview(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name: "评分无效 - 大于5",
+			name: "invalid rating - greater than 5",
 			request: &pd.UpdateReviewRequest{
 				Id:     "review-123",
 				Rating: 6,
@@ -228,7 +228,7 @@ func TestUpdateReview(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name: "评论不存在",
+			name: "review not found",
 			request: &pd.UpdateReviewRequest{
 				Id:     "non-existent",
 				Rating: 4,
@@ -274,7 +274,7 @@ func TestDeleteReview(t *testing.T) {
 		expectedError bool
 	}{
 		{
-			name: "成功删除评论",
+			name: "successfully delete review",
 			request: &pd.DeleteReviewRequest{
 				Id: "review-123",
 			},
@@ -284,7 +284,7 @@ func TestDeleteReview(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name: "评论ID为空",
+			name: "empty review ID",
 			request: &pd.DeleteReviewRequest{
 				Id: "",
 			},
@@ -293,7 +293,7 @@ func TestDeleteReview(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name: "评论不存在",
+			name: "review not found",
 			request: &pd.DeleteReviewRequest{
 				Id: "non-existent",
 			},
@@ -363,7 +363,7 @@ func TestGetReviewByTargetID(t *testing.T) {
 		expectedLength int
 	}{
 		{
-			name: "成功获取评论列表",
+			name: "successfully get review list",
 			request: &pd.GetReviewByTargetIDRequest{
 				TargetId:   "hotel-123",
 				TargetType: "hotel",
@@ -378,12 +378,12 @@ func TestGetReviewByTargetID(t *testing.T) {
 			expectedLength: 2,
 		},
 		{
-			name: "使用默认分页参数",
+			name: "use default pagination params",
 			request: &pd.GetReviewByTargetIDRequest{
 				TargetId:   "hotel-123",
 				TargetType: "hotel",
-				PageSize:   0, // 应该默认为 10
-				PageNumber: 0, // 应该默认为 1
+				PageSize:   0, // should default to 10
+				PageNumber: 0, // should default to 1
 			},
 			setupMock: func(m *domainmock.MockReviewRepository) {
 				m.On("FindByTarget", mock.Anything, domain.ReviewTargetType("hotel"), "hotel-123", int64(0), int64(10)).
@@ -393,7 +393,7 @@ func TestGetReviewByTargetID(t *testing.T) {
 			expectedLength: 2,
 		},
 		{
-			name: "目标ID为空",
+			name: "empty target ID",
 			request: &pd.GetReviewByTargetIDRequest{
 				TargetId:   "",
 				TargetType: "hotel",
@@ -403,7 +403,7 @@ func TestGetReviewByTargetID(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name: "第二页数据",
+			name: "second page data",
 			request: &pd.GetReviewByTargetIDRequest{
 				TargetId:   "hotel-123",
 				TargetType: "hotel",
@@ -418,7 +418,7 @@ func TestGetReviewByTargetID(t *testing.T) {
 			expectedLength: 0,
 		},
 		{
-			name: "数据库错误",
+			name: "database error",
 			request: &pd.GetReviewByTargetIDRequest{
 				TargetId:   "hotel-123",
 				TargetType: "hotel",
@@ -484,7 +484,7 @@ func TestGetReviewByTargetIDWithCursor(t *testing.T) {
 		expectedCursor string
 	}{
 		{
-			name: "成功获取评论 - 无cursor",
+			name: "successfully get reviews - no cursor",
 			request: &pd.GetReviewByTargetIDWithCursorRequest{
 				TargetId:   "hotel-123",
 				TargetType: "hotel",
@@ -500,7 +500,7 @@ func TestGetReviewByTargetIDWithCursor(t *testing.T) {
 			expectedCursor: "1234567890",
 		},
 		{
-			name: "成功获取评论 - 带cursor",
+			name: "successfully get reviews - with cursor",
 			request: &pd.GetReviewByTargetIDWithCursorRequest{
 				TargetId:   "hotel-123",
 				TargetType: "hotel",
@@ -516,11 +516,11 @@ func TestGetReviewByTargetIDWithCursor(t *testing.T) {
 			expectedCursor: "1234567800",
 		},
 		{
-			name: "使用默认limit",
+			name: "use default limit",
 			request: &pd.GetReviewByTargetIDWithCursorRequest{
 				TargetId:   "hotel-123",
 				TargetType: "hotel",
-				Limit:      0, // 应该默认为 10
+				Limit:      0, // should default to 10
 			},
 			setupMock: func(m *domainmock.MockReviewRepository) {
 				m.On("FindByTargetWithCursor", mock.Anything, domain.ReviewTargetType("hotel"), "hotel-123", "", int64(10)).
@@ -530,7 +530,7 @@ func TestGetReviewByTargetIDWithCursor(t *testing.T) {
 			expectedLength: 1,
 		},
 		{
-			name: "目标ID为空",
+			name: "empty target ID",
 			request: &pd.GetReviewByTargetIDWithCursorRequest{
 				TargetId:   "",
 				TargetType: "hotel",
@@ -541,7 +541,7 @@ func TestGetReviewByTargetIDWithCursor(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name: "数据库错误",
+			name: "database error",
 			request: &pd.GetReviewByTargetIDWithCursorRequest{
 				TargetId:   "hotel-123",
 				TargetType: "hotel",

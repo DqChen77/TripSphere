@@ -2,35 +2,35 @@ package domain
 
 import "errors"
 
-// 领域层错误定义
-// 这些错误用于在领域层和服务层之间传递业务逻辑错误
+// Domain layer error definitions
+// These errors are used to communicate business logic errors between the domain and service layers
 var (
-	// ErrReviewNotFound 表示请求的评论不存在
+	// ErrReviewNotFound indicates the requested review does not exist
 	ErrReviewNotFound = errors.New("review not found")
 
-	// ErrPermissionDenied 表示用户没有权限执行该操作
+	// ErrPermissionDenied indicates the user does not have permission to perform this operation
 	ErrPermissionDenied = errors.New("permission denied")
 
-	// ErrInvalidRating 表示评分值无效
+	// ErrInvalidRating indicates the rating value is invalid
 	ErrInvalidRating = errors.New("rating must be between 1 and 5")
 
-	// ErrInvalidCursor 表示分页游标格式无效
+	// ErrInvalidCursor indicates the pagination cursor format is invalid
 	ErrInvalidCursor = errors.New("invalid cursor format")
 
-	// ErrEmptyUserID 表示用户ID为空
+	// ErrEmptyUserID indicates the user ID is empty
 	ErrEmptyUserID = errors.New("user_id is required")
 
-	// ErrEmptyTargetID 表示目标ID为空
+	// ErrEmptyTargetID indicates the target ID is empty
 	ErrEmptyTargetID = errors.New("target_id is required")
 
-	// ErrEmptyTargetType 表示目标类型为空
+	// ErrEmptyTargetType indicates the target type is empty
 	ErrEmptyTargetType = errors.New("target_type is required")
 
-	// ErrEmptyReviewID 表示评论ID为空
+	// ErrEmptyReviewID indicates the review ID is empty
 	ErrEmptyReviewID = errors.New("review id is required")
 )
 
-// IsNotFoundError 检查错误是否为"未找到"类型
+// IsNotFoundError checks if the error is a "not found" type
 func IsNotFoundError(err error) bool {
 	return errors.Is(err, ErrReviewNotFound)
 }
