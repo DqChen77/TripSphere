@@ -1,4 +1,4 @@
-package org.tripsphere.poi.infra.persistence;
+package org.tripsphere.poi.model;
 
 import java.time.Instant;
 import java.util.List;
@@ -35,9 +35,6 @@ public class PoiDoc {
     private List<String> images;
     @CreatedDate private Instant createdAt;
     @LastModifiedDate private Instant updatedAt;
-
-    /** Soft delete flag */
-    @Builder.Default private boolean deleted = false;
 
     @Data
     @AllArgsConstructor

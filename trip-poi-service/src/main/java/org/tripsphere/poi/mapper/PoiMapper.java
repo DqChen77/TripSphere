@@ -4,9 +4,10 @@ import java.util.List;
 import org.mapstruct.*;
 import org.mapstruct.factory.Mappers;
 import org.springframework.data.mongodb.core.geo.GeoJsonPoint;
-import org.tripsphere.poi.domain.model.Poi;
-import org.tripsphere.poi.infra.persistence.PoiDoc;
+import org.tripsphere.common.v1.GeoPoint;
+import org.tripsphere.poi.model.PoiDoc;
 import org.tripsphere.poi.util.CoordinateTransformUtil;
+import org.tripsphere.poi.v1.Poi;
 
 @Mapper(
         collectionMappingStrategy = CollectionMappingStrategy.ADDER_PREFERRED,
@@ -15,38 +16,19 @@ import org.tripsphere.poi.util.CoordinateTransformUtil;
 public interface PoiMapper {
     PoiMapper INSTANCE = Mappers.getMapper(PoiMapper.class);
 
-    // ===================================================================
-    // Proto <--> Domain Model
-    // ===================================================================
-
-    Poi toModel(org.tripsphere.poi.v1.Poi proto);
-
-    org.tripsphere.poi.v1.Poi toProto(Poi poi);
-
-    Poi updateFromProto(org.tripsphere.poi.v1.Poi proto, @MappingTarget Poi poi);
-
-    // ===================================================================
-    // Domain Model <--> Persistence Document
-    // ===================================================================
-
     @Mapping(target = "location", source = "location", qualifiedByName = "toGeoJsonPoint")
     PoiDoc toDoc(Poi poi);
 
     @Mapping(target = "location", source = "location", qualifiedByName = "toGeoPoint")
-    Poi toModel(PoiDoc poiDoc);
+    Poi toProto(PoiDoc poiDoc);
 
-    // ===================================================================
-    // Collection Mappings
-    // ===================================================================
+    @Mapping(target = "location", source = "location", qualifiedByName = "toGeoJsonPoint")
+    void updateFromProto(Poi poi, @MappingTarget PoiDoc poiDoc);
 
-    List<org.tripsphere.poi.v1.Poi> toProtoList(List<Poi> pois);
-
-    // ===================================================================
-    // Domain GeoPoint (GCJ02) <--> GeoJsonPoint (WGS84)
-    // ===================================================================
+    List<Poi> toProtoList(List<PoiDoc> poiDocs);
 
     @Named("toGeoJsonPoint")
-    default GeoJsonPoint toGeoJsonPoint(Poi.GeoPoint point) {
+    default GeoJsonPoint toGeoJsonPoint(GeoPoint point) {
         if (point == null) return null;
         double[] coordinate =
                 CoordinateTransformUtil.gcj02ToWgs84(point.getLongitude(), point.getLatitude());
@@ -54,10 +36,10 @@ public interface PoiMapper {
     }
 
     @Named("toGeoPoint")
-    default Poi.GeoPoint toGeoPoint(GeoJsonPoint geoJsonPoint) {
+    default GeoPoint toGeoPoint(GeoJsonPoint geoJsonPoint) {
         if (geoJsonPoint == null) return null;
         double[] coordinate =
                 CoordinateTransformUtil.wgs84ToGcj02(geoJsonPoint.getX(), geoJsonPoint.getY());
-        return new Poi.GeoPoint(coordinate[0], coordinate[1]);
+        return GeoPoint.newBuilder().setLongitude(coordinate[0]).setLatitude(coordinate[1]).build();
     }
 }

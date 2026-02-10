@@ -1,7 +1,10 @@
 package org.tripsphere.user.service;
 
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 import java.util.regex.Pattern;
-
+import lombok.extern.slf4j.Slf4j;
+import net.devh.boot.grpc.server.service.GrpcService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -24,12 +27,6 @@ import org.tripsphere.user.v1.RegisterRequest;
 import org.tripsphere.user.v1.RegisterResponse;
 import org.tripsphere.user.v1.User;
 import org.tripsphere.user.v1.UserServiceGrpc.UserServiceImplBase;
-
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
-
-import lombok.extern.slf4j.Slf4j;
-import net.devh.boot.grpc.server.service.GrpcService;
 
 @Service
 @GrpcService

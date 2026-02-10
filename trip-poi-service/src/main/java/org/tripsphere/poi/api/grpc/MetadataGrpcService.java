@@ -6,10 +6,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.info.BuildProperties;
 import org.tripsphere.poi.v1.GetVersionRequest;
 import org.tripsphere.poi.v1.GetVersionResponse;
-import org.tripsphere.poi.v1.MetadataServiceGrpc.MetadataServiceImplBase;
+import org.tripsphere.poi.v1.MetadataServiceGrpc;
 
 @GrpcService
-public class MetadataGrpcService extends MetadataServiceImplBase {
+public class MetadataGrpcService extends MetadataServiceGrpc.MetadataServiceImplBase {
     private final BuildProperties buildProperties;
 
     public MetadataGrpcService(@Autowired(required = false) BuildProperties buildProperties) {

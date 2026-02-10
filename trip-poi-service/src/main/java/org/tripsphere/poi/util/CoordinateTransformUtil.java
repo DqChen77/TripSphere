@@ -1,6 +1,6 @@
 package org.tripsphere.poi.util;
 
-import org.tripsphere.poi.domain.model.Poi.GeoPoint;
+import org.springframework.data.geo.Point;
 
 public class CoordinateTransformUtil {
     private static final double PI = 3.1415926535897932384626;
@@ -32,8 +32,8 @@ public class CoordinateTransformUtil {
         return new double[] {lng - dLng, lat - dLat};
     }
 
-    public static double[] gcj02ToWgs84(GeoPoint point) {
-        return gcj02ToWgs84(point.getLongitude(), point.getLatitude());
+    public static double[] gcj02ToWgs84(Point point) {
+        return gcj02ToWgs84(point.getX(), point.getY());
     }
 
     public static double transformLat(double lng, double lat) {

@@ -14,8 +14,6 @@ service PoiService {
 
   rpc BatchGetPois(BatchGetPoisRequest) returns (BatchGetPoisResponse);
 
-  rpc GetPoiByAmapId(GetPoiByAmapIdRequest) returns (GetPoiByAmapIdResponse);
-
   rpc SearchPoisNearby(SearchPoisNearbyRequest) returns (SearchPoisNearbyResponse);
 
   rpc SearchPoisInBounds(SearchPoisInBoundsRequest) returns (SearchPoisInBoundsResponse);
@@ -23,10 +21,6 @@ service PoiService {
   rpc CreatePoi(CreatePoiRequest) returns (CreatePoiResponse);
 
   rpc BatchCreatePois(BatchCreatePoisRequest) returns (BatchCreatePoisResponse);
-
-  rpc UpdatePoi(UpdatePoiRequest) returns (UpdatePoiResponse);
-
-  rpc DeletePoi(DeletePoiRequest) returns (DeletePoiResponse);
 }
 
 message Poi {
@@ -63,14 +57,6 @@ message BatchGetPoisResponse {
   // POI ID -> POI.
   // If a POI is not found, it will not be included in the map.
   map<string, Poi> pois = 1;
-}
-
-message GetPoiByAmapIdRequest {
-  string amap_id = 1;
-}
-
-message GetPoiByAmapIdResponse {
-  Poi poi = 1;
 }
 
 message PoiFilter {
@@ -138,18 +124,3 @@ message CreatePoiResult {
   // The ID of the POI if the creation was successful.
   string poi_id = 4;
 }
-
-message UpdatePoiRequest {
-  Poi poi = 1;
-  google.protobuf.FieldMask field_mask = 2;
-}
-
-message UpdatePoiResponse {
-  Poi poi = 1;
-}
-
-message DeletePoiRequest {
-  string id = 1;
-}
-
-message DeletePoiResponse {}

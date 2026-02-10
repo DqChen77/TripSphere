@@ -17,7 +17,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @AllArgsConstructor
 @Accessors(chain = true)
 @Data
-@Document("Hotels")
+@Document(collection = "hotels")
 @JsonInclude()
 public class HotelDoc implements Serializable {
     @Id private String id;

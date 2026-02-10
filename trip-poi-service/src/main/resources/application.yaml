@@ -4,6 +4,10 @@ spring:
   cloud:
     nacos:
       server-addr: localhost:8848
+  data:
+    mongodb:
+      uri: mongodb://root:fudanse@localhost:27017
+      database: poi_db
 
 server:
   port: 24218
@@ -11,4 +15,9 @@ server:
 grpc:
   server:
     port: 50058
-    address: 0.0.0.0
+    enable-reflection: true
+
+logging:
+  level:
+    org.tripsphere.poi: DEBUG
+    net.devh.boot.grpc: INFO

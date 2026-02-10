@@ -2,7 +2,6 @@ package org.tripsphere.user.grpc;
 
 import java.util.List;
 import java.util.stream.Collectors;
-
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 

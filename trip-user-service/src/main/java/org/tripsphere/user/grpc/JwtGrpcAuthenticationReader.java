@@ -1,15 +1,13 @@
 package org.tripsphere.user.grpc;
 
+import io.grpc.Metadata;
+import io.grpc.ServerCall;
+import net.devh.boot.grpc.server.security.authentication.GrpcAuthenticationReader;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Component;
 import org.tripsphere.user.util.JwtUtil;
-
-import io.grpc.Metadata;
-import io.grpc.ServerCall;
-
-import net.devh.boot.grpc.server.security.authentication.GrpcAuthenticationReader;
 
 /**
  * gRPC authentication reader that extracts JWT token from metadata and creates Authentication
