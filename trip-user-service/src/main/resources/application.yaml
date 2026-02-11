@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: trip-user-service
+  cloud:
+    nacos:
+      server-addr: localhost:8848
+  datasource:
+    url: jdbc:mysql://localhost:3306/user_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: fudanse
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+      show-sql: true
+      properties:
+        hibernate:
+          format_sql: true
+          dialect: org.hibernate.dialect.MySQL8Dialect
+
+server:
+  port: 24217
+
+grpc:
+  server:
+    port: 50056
+    enable-reflection: true
+
+jwt:
+  secret: MySecretKeyForJWTTokenGenerationThatIsAtLeast256BitsLongForHS256Algorithm
+  expiration: 86400000

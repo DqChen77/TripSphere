@@ -2,115 +2,146 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"log"
-	"net"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"google.golang.org/grpc"
-
-	pd "trip-review-service/api/grpc/gen/tripsphere/review"
 	"trip-review-service/config"
+	grpcserver "trip-review-service/internal/grpc"
+	"trip-review-service/internal/repository"
 	"trip-review-service/internal/service"
 	"trip-review-service/pkg/nacos"
 )
 
 func main() {
-	// Initialize configuration
-	config.Init()
+	// Setup structured logging
+	setupLogger()
 
-	// Get service name and port from config
-	serviceName := config.AppName
-	port := int(config.PortInt)
+	// Run the application
+	if err := run(); err != nil {
+		slog.Error("application failed", "error", err)
+		os.Exit(1)
+	}
+}
 
-	// Initialize Nacos client
-	ctx := context.Background()
-	if config.NacosHost != "" {
-		err := nacos.Init(ctx, nacos.Config{
-			Host:        config.NacosHost,
-			Port:        int(config.NacosPortInt),
-			NamespaceID: config.NacosNamespace,
-			GroupName:   config.NacosGroup,
-			Username:    config.NacosUsername,
-			Password:    config.NacosPassword,
+func run() error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+
+	slog.Info("configuration loaded",
+		"app_name", cfg.App.Name,
+		"env", cfg.App.Env,
+		"port", cfg.App.Port,
+	)
+
+	// Initialize database
+	db, err := repository.NewDB(ctx, cfg.MySQL)
+	if err != nil {
+		return err
+	}
+	defer repository.CloseDB(db)
+
+	// Initialize repository
+	reviewRepo := repository.NewReviewRepo(db)
+
+	// Initialize service
+	reviewService := service.NewReviewService(reviewRepo)
+
+	// Initialize gRPC server
+	server, err := grpcserver.NewServer(reviewService, cfg.App.Port)
+	if err != nil {
+		return err
+	}
+
+	// Initialize Nacos client (optional)
+	var nacosClient *nacos.Client
+	if cfg.Nacos.Host != "" {
+		nacosClient, err = nacos.NewClient(ctx, nacos.Config{
+			Host:        cfg.Nacos.Host,
+			Port:        cfg.Nacos.Port,
+			NamespaceID: cfg.Nacos.Namespace,
+			GroupName:   cfg.Nacos.Group,
+			Username:    cfg.Nacos.Username,
+			Password:    cfg.Nacos.Password,
 		})
 		if err != nil {
-			log.Printf("Warning: failed to initialize nacos client: %v", err)
+			slog.Warn("failed to initialize nacos client, service discovery disabled", "error", err)
 		}
 	}
 
-	// Listen on port
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
-
-	// Create gRPC server
-	var opts []grpc.ServerOption
-	grpcServer := grpc.NewServer(opts...)
-	pd.RegisterReviewServiceServer(grpcServer, service.GetReviewService())
-
-	log.Printf("ReviewService gRPC server listening on port %d", port)
-
-	// Start service in a goroutine
+	// Start gRPC server in goroutine
+	errChan := make(chan error, 1)
 	go func() {
-		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("failed to serve: %v", err)
+		if err := server.Start(); err != nil {
+			errChan <- err
 		}
 	}()
 
-	// Register service to Nacos after 100ms
-	go func() {
+	// Register to Nacos after server starts
+	if nacosClient != nil {
 		time.Sleep(100 * time.Millisecond)
-		if nacos.Nacos != nil {
-			if err := nacos.Nacos.Register(ctx, serviceName, uint64(port)); err != nil {
-				log.Printf("Warning: failed to register to nacos: %v", err)
-			} else {
-				log.Printf("Service registered to Nacos")
-			}
+		if err := nacosClient.Register(ctx, cfg.App.Name, uint64(cfg.App.Port)); err != nil {
+			slog.Warn("failed to register to nacos", "error", err)
+		} else {
+			slog.Info("service registered to Nacos", "service_name", cfg.App.Name)
 		}
-	}()
+	}
 
-	// Wait for interrupt signal to gracefully shutdown the server
+	// Wait for interrupt signal or server error
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-	log.Println("Shutting down server...")
 
-	// Deregister from Nacos
-	if nacos.Nacos != nil {
-		deregisterCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := nacos.Nacos.Deregister(deregisterCtx, serviceName, uint64(port)); err != nil {
-			log.Printf("Warning: failed to deregister from nacos: %v", err)
-		} else {
-			log.Println("Service deregistered from Nacos")
-		}
-		cancel()
+	select {
+	case <-quit:
+		slog.Info("received shutdown signal")
+	case err := <-errChan:
+		slog.Error("server error", "error", err)
+		return err
 	}
 
 	// Graceful shutdown
-	gracefulStop := make(chan struct{})
-	go func() {
-		grpcServer.GracefulStop()
-		close(gracefulStop)
-	}()
+	slog.Info("shutting down server...")
 
-	// Wait for graceful stop with timeout
-	select {
-	case <-gracefulStop:
-		log.Println("Server stopped gracefully")
-	case <-time.After(10 * time.Second):
-		log.Println("Graceful shutdown timeout, forcing stop")
-		grpcServer.Stop()
+	// Deregister from Nacos
+	if nacosClient != nil {
+		deregisterCtx, deregisterCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := nacosClient.Deregister(deregisterCtx, cfg.App.Name, uint64(cfg.App.Port)); err != nil {
+			slog.Warn("failed to deregister from nacos", "error", err)
+		} else {
+			slog.Info("service deregistered from Nacos")
+		}
+		deregisterCancel()
 	}
 
-	// Shutdown Nacos client
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	nacos.Shutdown(shutdownCtx)
+	// Stop gRPC server
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+	server.GracefulStop(shutdownCtx)
 
-	log.Println("Server exited")
+	slog.Info("server exited")
+	return nil
+}
+
+func setupLogger() {
+	// Use JSON handler in production, text handler in development
+	var handler slog.Handler
+	env := os.Getenv("APP_ENV")
+	if env == "prod" || env == "production" {
+		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		})
+	} else {
+		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		})
+	}
+	slog.SetDefault(slog.New(handler))
 }

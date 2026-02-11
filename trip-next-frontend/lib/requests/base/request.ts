@@ -4,10 +4,10 @@ import { isSSR } from "@/lib/utils/env";
 export interface ResponseWrap<DataType = unknown> {
   data: DataType;
   code: ResponseCode;
-  msg: string;
+  message: string;
   error?: {
     reason: Reason;
-    msg: string;
+    message: string;
   };
 }
 
@@ -91,7 +91,7 @@ export async function request<T = unknown>(
     return {
       data: undefined as T,
       code: ResponseCode.ERROR,
-      msg:
+      message:
         error instanceof Error
           ? error.message
           : "Network error or unknown error occurred",

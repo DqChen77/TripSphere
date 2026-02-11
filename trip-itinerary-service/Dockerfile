@@ -1,71 +1,70 @@
-# First, build the application in the `/app` directory.
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+FROM eclipse-temurin:21-jdk AS builder
 
-# Enable bytecode compilation
-ENV UV_COMPILE_BYTECODE=1
-
-# Copy from the cache instead of linking since it's a mounted volume
-ENV UV_LINK_MODE=copy
-
-# Disable Python downloads, because we want to use the system interpreter
-# across both images. If using a managed Python version, it needs to be
-# copied from the build image into the final image.
-ENV UV_PYTHON_DOWNLOADS=0
-
-# Install the project into `/app`
 WORKDIR /app
 
-# Install the project's dependencies using the lockfile and settings
-COPY libs ./libs
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project --no-dev
+ARG MAVEN_MIRROR_URL
 
-# Then, add the rest of the project source code and install it
-# Installing separately from its dependencies allows optimal layer caching
-COPY pyproject.toml uv.lock README.md ./
+COPY .mvn/ .mvn/
+COPY mvnw mvnw.cmd ./
+RUN chmod +x mvnw
+COPY pom.xml ./
+
+RUN <<EOF cat > /tmp/settings.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<settings>
+    <mirrors>
+        <mirror>
+            <id>maven-mirror</id>
+            <mirrorOf>*</mirrorOf>
+            <name>Maven Mirror Repository</name>
+            <url>${MAVEN_MIRROR_URL}</url>
+        </mirror>
+    </mirrors>
+</settings>
+EOF
+
+RUN --mount=type=cache,target=/root/.m2 \
+    ./mvnw -B dependency:go-offline $([ -n "$MAVEN_MIRROR_URL" ] && echo "-s /tmp/settings.xml")
+
+# Copy source code
 COPY src ./src
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev
 
-# Install OpenTelemetry auto instrumentation
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv run --locked --no-dev opentelemetry-bootstrap -a requirements \
-    | uv pip install --requirements -
+# Copy pre-generated protobuf and gRPC codes
+COPY target/generated-sources ./target/generated-sources
+
+RUN --mount=type=cache,target=/root/.m2 \
+    ./mvnw -B package -DskipTests $([ -n "$MAVEN_MIRROR_URL" ] && echo "-s /tmp/settings.xml")
+RUN java -Djarmode=tools -jar target/itinerary-*.jar extract --layers --launcher --destination extracted/
 
 
-# Then, use a final image without uv
-FROM python:3.12-slim-bookworm
-# It is important to use the image that matches the builder, as the path to the
-# Python executable must be the same, e.g., using `python:3.11-slim-bookworm`
-# will fail.
+FROM eclipse-temurin:21-jre
+
+ARG OTEL_JAVA_AGENT_VERSION=2.23.0
+
+WORKDIR /app
 
 # Setup a non-root user
-RUN groupadd --system --gid 999 nonroot \
- && useradd --system --gid 999 --uid 999 --create-home nonroot
+RUN addgroup --system nonroot && adduser --system nonroot --ingroup nonroot
 
-# Copy the application from the builder
-COPY --from=builder --chown=nonroot:nonroot /app /app
+ADD --chmod=644 \
+    https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v${OTEL_JAVA_AGENT_VERSION}/opentelemetry-javaagent.jar \
+    /app/opentelemetry-javaagent.jar
 
-# Place executables in the environment at the front of the path
-ENV PATH="/app/.venv/bin:$PATH"
+COPY --from=builder --chown=nonroot:nonroot /app/extracted/dependencies/ ./
+COPY --from=builder --chown=nonroot:nonroot /app/extracted/spring-boot-loader/ ./
+COPY --from=builder --chown=nonroot:nonroot /app/extracted/snapshot-dependencies/ ./
+COPY --from=builder --chown=nonroot:nonroot /app/extracted/application/ ./
 
-# Set the OpenTelemetry environment variables
-ENV OTEL_SERVICE_NAME="trip-itinerary-service" \
-    OTEL_EXPORTER_OTLP_ENDPOINT="http://otel-collector:4317" \
-    OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED="true" \
-    OTEL_PYTHON_LOG_LEVEL="info" \
-    OTEL_PYTHON_LOG_CORRELATION="true"
+ENV JAVA_TOOL_OPTIONS=-javaagent:/app/opentelemetry-javaagent.jar \
+    OTEL_SERVICE_NAME="trip-itinerary-service" \
+    OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
 
 # Use the non-root user to run our application
 USER nonroot
 
-# Use `/app` as the working directory
-WORKDIR /app
+# Default gRPC port
+EXPOSE 50056
+# Default HTTP port
+EXPOSE 24217
 
-EXPOSE 50052
-
-# Run the gRPC server by default
-ENTRYPOINT ["opentelemetry-instrument", "python", "-m", "itinerary"]
-CMD []
+ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]

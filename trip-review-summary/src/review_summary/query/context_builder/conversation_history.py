@@ -32,8 +32,7 @@ class ConversationRole(str, Enum):
         if value == "assistant":
             return ConversationRole.ASSISTANT
 
-        msg = f"Invalid Role: {value}"
-        raise ValueError(msg)
+        raise ValueError(f"Invalid Role: {value}")
 
     def __str__(self) -> str:
         """Return string representation of the enum value."""

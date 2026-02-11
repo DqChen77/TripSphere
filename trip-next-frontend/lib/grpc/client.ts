@@ -1,26 +1,26 @@
 import * as grpc from "@grpc/grpc-js";
 
 // Attraction
-import { AttractionServiceClient } from "@/lib/grpc/gen/tripsphere/attraction/attraction";
+import { AttractionServiceClient } from "@/lib/grpc/gen/tripsphere/attraction/v1/attraction";
 
 // File
-import { FileServiceClient } from "@/lib/grpc/gen/tripsphere/file/file";
+import { FileServiceClient } from "@/lib/grpc/gen/tripsphere/file/v1/file";
 
 // Hotel
-import { HotelServiceClient } from "@/lib/grpc/gen/tripsphere/hotel/hotel";
-import { MetadataServiceClient as HotelMetadataServiceClient } from "@/lib/grpc/gen/tripsphere/hotel/metadata";
+import { HotelServiceClient } from "@/lib/grpc/gen/tripsphere/hotel/v1/hotel";
+import { MetadataServiceClient as HotelMetadataServiceClient } from "@/lib/grpc/gen/tripsphere/hotel/v1/metadata";
 
 // Itinerary
-import { MetadataServiceClient as ItineraryMetadataServiceClient } from "@/lib/grpc/gen/tripsphere/itinerary/metadata";
+import { MetadataServiceClient as ItineraryMetadataServiceClient } from "@/lib/grpc/gen/tripsphere/itinerary/v1/metadata";
 
 // Note
-import { MetadataServiceClient as NoteMetadataServiceClient } from "@/lib/grpc/gen/tripsphere/note/metadata";
+import { MetadataServiceClient as NoteMetadataServiceClient } from "@/lib/grpc/gen/tripsphere/note/v1/metadata";
 
 // Review
-import { ReviewServiceClient } from "@/lib/grpc/gen/tripsphere/review/review";
+import { ReviewServiceClient } from "@/lib/grpc/gen/tripsphere/review/v1/review";
 
 // User
-import { UserServiceClient } from "@/lib/grpc/gen/tripsphere/user/user";
+import { UserServiceClient } from "@/lib/grpc/gen/tripsphere/user/v1/user";
 
 // Use environment variables with Docker service names as defaults
 const AttractionUrl = process.env.GRPC_ATTRACTION_URL || "localhost:50053";

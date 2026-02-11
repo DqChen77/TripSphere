@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: trip-attraction-service
+  cloud:
+    nacos:
+      server-addr: localhost:8848
+  data:
+    mongodb:
+      uri: mongodb://root:fudanse@localhost:27017
+      database: attraction_db
+
+server:
+  port: 24213
+
+grpc:
+  server:
+    port: 50053
+    enable-reflection: true
+
+logging:
+  level:
+    org.tripsphere.attraction: DEBUG
+    net.devh.boot.grpc: INFO

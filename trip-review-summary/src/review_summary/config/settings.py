@@ -36,10 +36,6 @@ class Neo4jSettings(BaseModel):
     password: SecretStr = Field(default=SecretStr("password"))
 
 
-class RocketmqSettings(BaseModel):
-    endpoints: str = Field(default="localhost:8081")
-
-
 class OpenAISettings(BaseModel):
     api_key: SecretStr = Field(default=SecretStr("api-key"))
     base_url: str = Field(default="https://api.openai.com/v1")
@@ -87,7 +83,6 @@ class Settings(BaseSettings):
     nacos: NacosSettings = Field(default_factory=NacosSettings)
     qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
     neo4j: Neo4jSettings = Field(default_factory=Neo4jSettings)
-    rocketmq: RocketmqSettings = Field(default_factory=RocketmqSettings)
     openai: OpenAISettings = Field(default_factory=OpenAISettings)
     log: LogSettings = Field(default_factory=LogSettings)
     celery: CelerySettings = Field(default_factory=CelerySettings)

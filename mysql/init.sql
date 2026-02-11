@@ -8,7 +8,7 @@ USE `review_db`;
 -- Create reviews table
 CREATE TABLE IF NOT EXISTS reviews (
     id          VARCHAR(64)  NOT NULL,
-    uid         VARCHAR(64)  NOT NULL,
+    user_id     VARCHAR(64)  NOT NULL,
     target_type VARCHAR(20)  NOT NULL,
     target_id   VARCHAR(64)  NOT NULL,
     rating      TINYINT      NOT NULL DEFAULT 0,

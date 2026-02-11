@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package tripsphere.hotel.v1;
+
+import "tripsphere/common/v1/map.proto";
+
+option go_package = "tripsphere/hotel/v1";
+option java_multiple_files = true;
+option java_package = "org.tripsphere.hotel.v1";
+
+service HotelService {
+  rpc GetHotelById(GetHotelByIdRequest) returns (GetHotelByIdResponse);
+
+  rpc DeleteHotel(DeleteHotelRequest) returns (DeleteHotelResponse);
+}
+
+message Hotel {
+  string id = 1;
+  string name = 2;
+  string poi_id = 3;
+  tripsphere.common.v1.Address address = 4;
+  tripsphere.common.v1.GeoPoint location = 5;
+  string introduction = 6;
+  repeated string tags = 7;
+}
+
+message GetHotelByIdRequest {
+  string id = 1;
+}
+
+message GetHotelByIdResponse {
+  Hotel hotel = 1;
+}
+
+message DeleteHotelRequest {
+  string id = 1;
+}
+
+message DeleteHotelResponse {}

@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package tripsphere.common.v1;
+
+option go_package = "tripsphere/common/v1";
+option java_multiple_files = true;
+option java_package = "org.tripsphere.common.v1";
+
+enum CoordinateSystem {
+  COORDINATE_SYSTEM_UNSPECIFIED = 0;
+  COORDINATE_SYSTEM_WGS84 = 1;
+  COORDINATE_SYSTEM_GCJ02 = 2;
+  COORDINATE_SYSTEM_BD09 = 3;
+}
+
+// Represents a geographic point.
+message GeoPoint {
+  double longitude = 1;
+  double latitude = 2;
+}
+
+// Represents a China address.
+message Address {
+  // Province of the address, e.g., "上海市"
+  string province = 1;
+  // City of the address, e.g., "上海市"
+  string city = 2;
+  // District of the address, e.g., "杨浦区"
+  string district = 3;
+  // Detailed address of the address.
+  // For example, "新江湾城街道淞沪路2100号smpskatepark滑板公园"
+  string detailed = 4;
+}

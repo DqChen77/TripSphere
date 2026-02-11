@@ -9,7 +9,7 @@ export async function POST(_: NextRequest) {
   const response = NextResponse.json<ResponseWrap<Record<string, never>>>({
     data: {},
     code: ResponseCode.SUCCESS,
-    msg: "Logout successful",
+    message: "Logout successful",
   });
 
   // remove token from cookie

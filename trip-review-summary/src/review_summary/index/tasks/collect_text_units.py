@@ -62,12 +62,12 @@ async def _internal(
 
     text_units = await text_unit_vector_store.find_by_target(target_id, target_type)
 
-    msg = f"Collected {len(text_units)} text units for {target_type} {target_id}."
-    logger.info(msg)
+    message = f"Collected {len(text_units)} text units for {target_type} {target_id}."
+    logger.info(message)
     task.update_state(
         state="PROGRESS",
         meta={
-            "description": msg,
+            "description": message,
             "target_id": target_id,
             "target_type": target_type,
             "collected_text_units": len(text_units),

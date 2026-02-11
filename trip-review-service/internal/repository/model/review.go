@@ -10,15 +10,15 @@ import (
 
 type ReviewModel struct {
 	ID         string `gorm:"primaryKey;column:id;type:varchar(64)"`
-	UserID     string `gorm:"column:uid;type:varchar(64);not null"`
+	UserID     string `gorm:"column:user_id;type:varchar(64);not null"`
 	TargetType string `gorm:"column:target_type;type:varchar(20);not null"`
 	TargetID   string `gorm:"column:target_id;type:varchar(64);not null"`
 	Rating     int64  `gorm:"column:rating;type:tinyint;not null"`
 
-	// GORM 默认处理 string 为 utf8，但在建表时需确保 DB 层面是 utf8mb4
+	// GORM handles string as utf8 by default, but ensure the DB uses utf8mb4 when creating tables
 	Text string `gorm:"column:text;type:text"`
 
-	// 自定义类型处理 []string <-> JSON
+	// Custom type for handling []string <-> JSON
 	Images StringArray `gorm:"column:images;type:json"`
 
 	CreatedAt time.Time `gorm:"autoCreateTime"`
@@ -37,7 +37,7 @@ func ToDomain(reviewModel *ReviewModel) *domain.Review {
 		TargetType: domain.ReviewTargetType(reviewModel.TargetType),
 		Rating:     reviewModel.Rating,
 		Text:       reviewModel.Text,
-		// 强转回 []string
+		// Cast back to []string
 		Images:    reviewModel.Images,
 		CreatedAt: reviewModel.CreatedAt,
 		UpdatedAt: reviewModel.UpdatedAt,
@@ -51,7 +51,7 @@ func ToModel(review *domain.Review) *ReviewModel {
 		TargetID:   review.TargetID,
 		Rating:     review.Rating,
 		Text:       review.Text,
-		// 直接转换类型，因为底层都是 []string
+		// Direct type conversion since the underlying type is []string
 		Images:    review.Images,
 		CreatedAt: review.CreatedAt,
 		UpdatedAt: review.UpdatedAt,
@@ -59,22 +59,22 @@ func ToModel(review *domain.Review) *ReviewModel {
 }
 
 // ==========================================================
-// 自定义类型: StringArray (用于处理 JSON 字符串数组)
+// Custom type: StringArray (for handling JSON string arrays)
 // ==========================================================
 
 type StringArray []string
 
-// Value  Go Struct -> DB (序列化为 JSON 字符串)
-// 存入数据库时，会变成 ["url1", "url2"]
+// Value  Go Struct -> DB (serializes to JSON string)
+// When stored in the database, it becomes ["url1", "url2"]
 func (s StringArray) Value() (driver.Value, error) {
 	if len(s) == 0 {
-		// 也可以存 nil 或 "[]"，视业务需求而定，这里建议存空数组字符串
+		// Can also store nil or "[]" depending on business requirements; here we store an empty array string
 		return "[]", nil
 	}
 	return json.Marshal(s)
 }
 
-// Scan  DB -> Go Struct (反序列化)
+// Scan  DB -> Go Struct (deserialization)
 func (s *StringArray) Scan(value interface{}) error {
 	if value == nil {
 		*s = []string{}
@@ -83,7 +83,7 @@ func (s *StringArray) Scan(value interface{}) error {
 
 	bytes, ok := value.([]byte)
 	if !ok {
-		// 兼容某些驱动可能返回 string 的情况
+		// Compatible with some drivers that may return string
 		if str, ok := value.(string); ok {
 			bytes = []byte(str)
 		} else {

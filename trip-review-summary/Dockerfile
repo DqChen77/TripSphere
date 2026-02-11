@@ -80,9 +80,7 @@ CMD []
 #    It must be overridden via environment variable `UVICORN_PORT`.
 #    Otherwise, it may register incorrect port in service registry.
 
-# 2. Consumer: ["python", "-m", "review_summary.rocketmq"]
-
-# 3. Worker: ["celery", "-A", "review_summary.celery.app", "worker"]
+# 2. Worker: ["celery", "-A", "review_summary.celery.app", "worker"]
 
 
 

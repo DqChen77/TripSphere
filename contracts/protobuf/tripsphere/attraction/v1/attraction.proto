@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package tripsphere.attraction.v1;
+
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/struct.proto";
+import "tripsphere/common/v1/dayofweek.proto";
+import "tripsphere/common/v1/map.proto";
+import "tripsphere/common/v1/money.proto";
+import "tripsphere/common/v1/timeofday.proto";
+
+option go_package = "tripsphere/attraction/v1";
+option java_multiple_files = true;
+option java_package = "org.tripsphere.attraction.v1";
+
+service AttractionService {
+  rpc GetAttractionById(GetAttractionByIdRequest) returns (GetAttractionByIdResponse);
+
+  rpc BatchGetAttractions(BatchGetAttractionsRequest) returns (BatchGetAttractionsResponse);
+
+  // Find attractions within a radius from a location and list them in order from near to far
+  rpc GetAttractionsNearby(GetAttractionsNearbyRequest) returns (GetAttractionsNearbyResponse);
+}
+
+message Attraction {
+  string id = 1;
+  string name = 2;
+  string poi_id = 3;
+  tripsphere.common.v1.Address address = 4;
+  tripsphere.common.v1.GeoPoint location = 5;
+  string introduction = 6;
+  repeated string tags = 7;
+  repeated string images = 8;
+  OpeningHours opening_hours = 9;
+  bool temporarily_closed = 10;
+  TicketInfo ticket_info = 11;
+}
+
+message OpeningHours {
+  repeated OpenRule rules = 1;
+  string special_tips = 2;
+}
+
+message OpenRule {
+  repeated tripsphere.common.v1.DayOfWeek days = 1;
+  repeated TimeRange time_ranges = 2;
+  string note = 3;
+}
+
+message TimeRange {
+  tripsphere.common.v1.TimeOfDay open_time = 1;
+  tripsphere.common.v1.TimeOfDay close_time = 2;
+  // The time of the day when the last entry is allowed.
+  // (Optional) If not set, it is the same as the close time.
+  tripsphere.common.v1.TimeOfDay last_entry_time = 3;
+}
+
+message TicketInfo {
+  tripsphere.common.v1.Money estimated_price = 1;
+  google.protobuf.Struct metadata = 2;
+}
+
+message GetAttractionByIdRequest {
+  string id = 1;
+}
+
+message GetAttractionByIdResponse {
+  Attraction attraction = 1;
+}
+
+message BatchGetAttractionsRequest {
+  repeated string ids = 1;
+  // Field mask to specify which fields to return.
+  google.protobuf.FieldMask field_mask = 2;
+}
+
+message BatchGetAttractionsResponse {
+  repeated Attraction attractions = 1;
+}
+
+message GetAttractionsNearbyRequest {
+  tripsphere.common.v1.GeoPoint location = 1;
+  double radius_meters = 2;
+  // Optional filter by tags
+  repeated string tags = 3;
+}
+
+message GetAttractionsNearbyResponse {
+  repeated Attraction attractions = 1;
+}

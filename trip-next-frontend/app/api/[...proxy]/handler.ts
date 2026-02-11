@@ -5,11 +5,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { mapGrpcCodeToHttp } from "@/app/api/[...proxy]/code";
 import { grpcProxyMap, RpcProxyRule } from "@/app/api/[...proxy]/proxy-map";
 import { grpcClient } from "@/lib/grpc/client";
-import { Details } from "@/lib/grpc/gen/tripsphere/common/details";
+import { Details } from "@/lib/grpc/gen/tripsphere/common/v1/details";
 import {
   GetCurrentUserRequest,
   GetCurrentUserResponse,
-} from "@/lib/grpc/gen/tripsphere/user/user";
+} from "@/lib/grpc/gen/tripsphere/user/v1/user";
 import { Reason, ResponseCode } from "@/lib/requests/base/code";
 import { ResponseWrap } from "@/lib/requests/base/request";
 
@@ -58,7 +58,7 @@ export async function proxyHandler(req: NextRequest): Promise<NextResponse> {
 
   if (!pathname.startsWith("/api")) {
     return NextResponse.json(
-      { code: ResponseCode.NOT_FOUND, msg: "Not Found" },
+      { code: ResponseCode.NOT_FOUND, message: "Not Found" },
       { status: 404 },
     );
   }
@@ -87,7 +87,7 @@ export async function proxyHandler(req: NextRequest): Promise<NextResponse> {
 
   if (!rule) {
     return NextResponse.json(
-      { code: ResponseCode.NOT_FOUND, msg: "Not Found" },
+      { code: ResponseCode.NOT_FOUND, message: "Not Found" },
       { status: 404 },
     );
   }
@@ -97,8 +97,23 @@ export async function proxyHandler(req: NextRequest): Promise<NextResponse> {
       ? await parseBody(req)
       : undefined;
 
-    // Merge body with route parameters for GET requests
-    const requestData = body || routeParams;
+    // For GET requests, parse query parameters and merge with route params
+    let requestData: Record<string, unknown> = { ...routeParams };
+    if (req.method.toUpperCase() === "GET") {
+      const queryParams = Object.fromEntries(
+        req.nextUrl.searchParams.entries(),
+      );
+      // Convert numeric string values to numbers for pagination
+      for (const [key, value] of Object.entries(queryParams)) {
+        if (key === "pageNumber" || key === "pageSize" || key === "limit") {
+          requestData[key] = parseInt(value as string, 10) || 0;
+        } else {
+          requestData[key] = value;
+        }
+      }
+    } else if (body) {
+      requestData = { ...(body as Record<string, unknown>), ...routeParams };
+    }
 
     // Type assertion needed because buildRPCRequest signature varies by rule
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -111,7 +126,7 @@ export async function proxyHandler(req: NextRequest): Promise<NextResponse> {
     const responseData: ResponseWrap<unknown> = {
       data: httpResponse,
       code: ResponseCode.SUCCESS,
-      msg: "Success",
+      message: "Success",
     };
 
     if (rule.httpResponseHook) {
@@ -139,7 +154,7 @@ export async function proxyHandler(req: NextRequest): Promise<NextResponse> {
     const responseData: ResponseWrap = {
       data: undefined,
       code: responseCode,
-      msg: errorMessage,
+      message: errorMessage,
       ...(errorDetails && { error: errorDetails }),
     };
 
@@ -177,7 +192,10 @@ const WithoutAuthAPIs: string[] = [
 // Convert all request headers to gRPC metadata
 // 1. Try to extract token from cookie and put it in gRPC metadata["authorization"]
 // 2. Call user service grpc client user.getCurrentUser to get current user data
-// 3. Set new metadata: metadata["uid"] = user id, metadata["roles"] = roles, metadata["authorization"] = token
+// 3. Set new metadata:
+//      metadata["x-user-id"] = user id
+//      metadata["x-user-roles"] = roles
+//      metadata["authorization"] = token
 // 4. Return metadata
 async function buildMetadata(req: NextRequest): Promise<grpc.Metadata> {
   if (WithoutAuthAPIs.includes(req.nextUrl.pathname)) {
@@ -224,8 +242,8 @@ async function buildMetadata(req: NextRequest): Promise<grpc.Metadata> {
       const rolesList = user.roles;
 
       // 4. Set new metadata
-      metadata.add("uid", userId.toString());
-      metadata.add("roles", JSON.stringify(rolesList));
+      metadata.add("x-user-id", userId.toString());
+      metadata.add("x-user-roles", rolesList.join(","));
       metadata.add("authorization", `Bearer ${token}`);
     }
   } catch (error) {
@@ -319,7 +337,7 @@ function extractGrpcErrorMessage(serviceError: grpc.ServiceError): string {
 
 function extractErrorDetails(
   serviceError: grpc.ServiceError,
-): { reason: Reason; msg: string } | undefined {
+): { reason: Reason; message: string } | undefined {
   // Try to extract Details from metadata
   // In gRPC-JS, error details may be passed through metadata
   if (serviceError.metadata) {
@@ -338,7 +356,7 @@ function extractErrorDetails(
         if (reasonKey) {
           return {
             reason: reasonKey as Reason,
-            msg: details.msg || serviceError.message || "Unknown error",
+            message: details.message || serviceError.message || "Unknown error",
           };
         }
       }

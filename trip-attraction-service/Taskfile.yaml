@@ -10,7 +10,17 @@ tasks:
     silent: true
 
   gen-proto:
-    desc: Generate protobuf and gRPC codes
+    desc: Generate protobuf and gRPC codes using buf
+    sources:
+      - ../contracts/protobuf/**/*.proto
+    generates:
+      - target/generated-sources/protobuf/java/**/*.java
+      - target/generated-sources/protobuf/grpc-java/**/*.java
+    cmds:
+      - buf generate
+
+  protoc-gen:
+    desc: '[DEPRECATED] Generate protobuf and gRPC codes'
     sources:
       - ../contracts/protobuf/**/*.proto
     generates:
@@ -19,10 +29,8 @@ tasks:
     cmds:
       - rm -rf src/main/proto
       - cp -r ../contracts/protobuf/ src/main/proto/
-      - cmd: mvnw protobuf:compile protobuf:compile-custom
+      - cmd: .\\mvnw protobuf:compile protobuf:compile-custom
         platforms: [windows]
-      - cmd: chmod +x mvnw
-        platforms: [linux, darwin]
       - cmd: ./mvnw protobuf:compile protobuf:compile-custom
         platforms: [linux, darwin]
 
@@ -46,7 +54,7 @@ tasks:
   format:
     desc: Format Java code using spotless
     cmds:
-      - cmd: mvnw spotless:apply
+      - cmd: .\\mvnw spotless:apply
         platforms: [windows]
       - cmd: ./mvnw spotless:apply
         platforms: [linux, darwin]

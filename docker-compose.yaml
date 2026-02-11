@@ -11,6 +11,10 @@ configs:
       log_level: INFO
 
 services:
+  # ===================================================================
+  # TripSphere Services & Agents
+  # ===================================================================
+
   # Attraction Service
   trip-attraction-service:
     build:
@@ -43,14 +47,29 @@ services:
       - "24210:24210"  # HTTP
     environment:
       - NACOS_SERVER_ADDRESS=${NACOS_SERVER_ADDRESS:-nacos:8848}
+      - QDRANT_URL=${QDRANT_URL:-http://qdrant:6333}
       - MONGO_URI=${MONGO_URI:-mongodb://root:fudanse@mongodb:27017}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://higress:8080/v1}
     depends_on:
       nacos:
         condition: service_healthy
       mongodb:
         condition: service_healthy
+      qdrant:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+    healthcheck:
+      test:
+        - "CMD" 
+        - "python"
+        - "-c"
+        - "import urllib.request; urllib.request.urlopen('http://localhost:24210/health').read()"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
   # File Service
@@ -72,6 +91,7 @@ services:
       - NACOS_GROUP=DEFAULT_GROUP
       - NACOS_USERNAME=nacos
       - NACOS_PASSWORD=nacos
+      - MINIO_ENDPOINT=minio:9000
     depends_on:
       nacos:
         condition: service_healthy
@@ -117,7 +137,7 @@ services:
     environment:
       - NACOS_SERVER_ADDRESS=${NACOS_SERVER_ADDRESS:-nacos:8848}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://higress:8080/v1}
     depends_on:
       nacos:
         condition: service_healthy
@@ -131,21 +151,13 @@ services:
     image: tripsphere/trip-itinerary-service:latest
     container_name: trip-itinerary-service
     ports:
+      - "24219:24219"  # HTTP
       - "50052:50052"  # gRPC
-    environment:
-      - NACOS_SERVER_ADDRESS=${NACOS_SERVER_ADDRESS:-nacos:8848}
-      - MONGO_URI=${MONGO_URI:-mongodb://root:fudanse@mongodb:27017}
     depends_on:
       nacos:
         condition: service_healthy
       mongodb:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "50052"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
     restart: unless-stopped
 
   # Journey Assistant
@@ -160,7 +172,7 @@ services:
     environment:
       - NACOS_SERVER_ADDRESS=${NACOS_SERVER_ADDRESS:-nacos:8848}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://higress:8080/v1}
     depends_on:
       nacos:
         condition: service_healthy
@@ -180,11 +192,14 @@ services:
       - GRPC_ATTRACTION_URL=trip-attraction-service:50053
       - HTTP_CHAT_URL=http://trip-chat-service:24210
       - HTTP_ITINERARY_PLANNER_URL=http://trip-itinerary-planner:24215
+      - GRPC_REVIEW_URL=trip-review-service:50057
       - GRPC_USER_URL=trip-user-service:50056
     depends_on:
       trip-chat-service:
-        condition: service_started
+        condition: service_healthy
       trip-itinerary-planner:
+        condition: service_started
+      trip-review-service:
         condition: service_started
       trip-user-service:
         condition: service_started
@@ -202,6 +217,23 @@ services:
       - "50055:50055"  # gRPC
     depends_on:
       nacos:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # POI Service
+  trip-poi-service:
+    build:
+      context: trip-poi-service
+      dockerfile: Dockerfile
+    image: tripsphere/trip-poi-service:latest
+    container_name: trip-poi-service
+    ports:
+      - "24218:24218"  # HTTP
+      - "50058:50058"  # gRPC
+    depends_on:
+      nacos:
+        condition: service_healthy
+      mongodb:
         condition: service_healthy
     restart: unless-stopped
 
@@ -228,7 +260,6 @@ services:
       - MYSQL_PORT=3306
       - MYSQL_USER=root
       - MYSQL_PASSWORD=fudanse
-      - MYSQL_DATABASE=review_db
       - MYSQL_MAX_OPEN_CONN=100
       - MYSQL_MAX_IDLE_CONN=10
       - MYSQL_CONN_MAX_LIFETIME=1h
@@ -264,7 +295,7 @@ services:
       - NEO4J_USERNAME=neo4j
       - NEO4J_PASSWORD=fudanse@fudan.edu.cn
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://higress:8080/v1}
     command:
       - uvicorn
       - review_summary.asgi:app
@@ -275,17 +306,22 @@ services:
     depends_on:
       nacos:
         condition: service_healthy
+      neo4j:
+        condition: service_started
+      higress:
+        condition: service_started
 
   # Review Summary RocketMQ Consumer
   trip-review-summary-consumer:
     image: tripsphere/trip-review-summary:latest
     container_name: trip-review-summary-consumer
     environment:
+      - OTEL_SERVICE_NAME=trip-review-summary-consumer
       - NACOS_SERVER_ADDRESS=${NACOS_SERVER_ADDRESS:-nacos:8848}
       - QDRANT_URL=http://qdrant:6333
       - ROCKETMQ_ENDPOINTS=rmq-proxy:8081
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://higress:8080/v1}
     command:
       - python
       - -m
@@ -303,6 +339,7 @@ services:
     image: tripsphere/trip-review-summary:latest
     container_name: trip-review-summary-worker
     environment:
+      - OTEL_SERVICE_NAME=trip-review-summary-worker
       - NACOS_SERVER_ADDRESS=${NACOS_SERVER_ADDRESS:-nacos:8848}
       - QDRANT_URL=http://qdrant:6333
       - NEO4J_URI=neo4j://neo4j:7687
@@ -314,7 +351,7 @@ services:
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://higress:8080/v1}
     command:
       - celery
       - -A
@@ -356,6 +393,10 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ===================================================================
+  # TripSphere Middlewares & Databases
+  # ===================================================================
+
   # Nacos
   nacos:
     image: nacos/nacos-server:v3.1.1
@@ -363,8 +404,8 @@ services:
     environment:
       - PREFER_HOST_MODE=hostname
       - MODE=standalone
-      - NACOS_AUTH_IDENTITY_KEY=root
-      - NACOS_AUTH_IDENTITY_VALUE=fudanse
+      - NACOS_AUTH_IDENTITY_KEY=serverIdentity
+      - NACOS_AUTH_IDENTITY_VALUE=security
       - NACOS_AUTH_TOKEN=VGhpc0lzTXlDdXN0b21TZWNyZXRLZXkwMTIzNDU2Nzg=
     ports:
       - "18080:8080"  # Console
@@ -383,14 +424,69 @@ services:
 
   # OpenTelemetry Collector
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.86.0
+    image: otel/opentelemetry-collector-contrib:0.144.0
     container_name: otel-collector
-    command: ["--config=/etc/otelcol-config.yaml"]
     volumes:
-      - ./otel-collector/otelcol-config.yaml:/etc/otelcol-config.yaml
+      - ./otel-collector/config.yaml:/etc/otelcol/config.yaml
     ports:
-      - "4317:4317"
-      - "4318:4318"
+      - "4317:4317"  # OTLP gRPC receiver
+      - "4318:4318"  # OTLP HTTP receiver
+      - "8889:8889"  # Prometheus exporter metrics
+    depends_on:
+      tempo:
+        condition: service_started
+
+  # Tempo
+  tempo:
+    image: grafana/tempo:2.8.3
+    container_name: tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    user: root  # r/w permissions to the mounted directory
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo.yaml
+      - ./volumes/tempo:/var/tempo
+    ports:
+      - "3200:3200"  # Tempo HTTP API
+      - "4317"       # OTLP gRPC receiver (internal only)
+    restart: unless-stopped
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:v3.9.1
+    container_name: prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./volumes/prometheus:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--web.enable-lifecycle'
+      - '--storage.tsdb.path=/prometheus'
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:12.3.1
+    container_name: grafana
+    user: root  # r/w permissions to the mounted directory
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    volumes:
+      - ./volumes/grafana:/var/lib/grafana
+    ports:
+      - "13000:3000"  # Use port 13000 to avoid conflict with frontend
+    depends_on:
+      tempo:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
 
   # RocketMQ Name Server
   rmq-namesrv:
@@ -554,3 +650,16 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+
+  # Higress
+  higress:
+    image: |
+      higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one:latest
+    container_name: higress
+    ports:
+      - "8001:8001"  # Console
+      - "28080:8080"  # HTTP
+      - "8443:8443"  # HTTPS
+    volumes:
+      - ./higress:/etc/higress/config:ro
+    restart: unless-stopped

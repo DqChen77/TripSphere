@@ -16,7 +16,7 @@ const (
 
 type Review struct {
 	ID         string           `json:"id"`
-	UserID     string           `json:"uid"`
+	UserID     string           `json:"user_id"`
 	TargetType ReviewTargetType `json:"target_type"`
 	TargetID   string           `json:"target_id"`
 	Rating     int64            `json:"rating"`

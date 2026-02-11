@@ -1,6 +1,7 @@
 version: v2
 managed:
   enabled: true
+clean: true
 plugins:
   - remote: buf.build/community/stephenh-ts-proto:v2.6.1
     out: lib/grpc/gen

@@ -1,49 +1,23 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-pip-log.txt
-pip-delete-this-directory.txt
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
-
-# Virtual environments
-venv/
-ENV/
-env/
-.venv
+# Maven
+target/
+!target/generated-sources/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
 
 # IDE
 .idea/
+*.iml
 .vscode/
 *.swp
 *.swo
 *~
-*.iml
 
 # OS
 .DS_Store
@@ -55,6 +29,7 @@ Thumbs.db
 .gitattributes
 
 # Documentation
+README.md
 CHANGELOG.md
 LICENSE
 
@@ -67,6 +42,3 @@ Dockerfile
 docker-compose*.yml
 docker-compose*.yaml
 
-# Tests
-tests/
-.pytest_cache/

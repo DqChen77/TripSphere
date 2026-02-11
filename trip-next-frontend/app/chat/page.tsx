@@ -2,12 +2,12 @@
 
 import { ChatWindow } from "@/components/chat/chat-window";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/lib/hooks/use-auth";
-import { useChat } from "@/lib/hooks/use-chat";
+import { useAuth } from "@/hooks/use-auth";
+import { useChat } from "@/hooks/use-chat";
 import type { Conversation } from "@/lib/types";
 import { formatRelativeTime } from "@/lib/utils";
 import { Clock, MessageSquare, Plus, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function ChatPage() {
   const auth = useAuth();
@@ -33,15 +33,6 @@ export default function ChatPage() {
       };
 
       void loadData();
-    }
-  }, [auth.user, chat]);
-
-  const loadConversations = useCallback(async () => {
-    if (!auth.user) return;
-
-    const result = await chat.listConversations(auth.user.id);
-    if (result) {
-      setConversations(result.items);
     }
   }, [auth.user, chat]);
 
@@ -85,7 +76,7 @@ export default function ChatPage() {
 
   if (!auth.user) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
         <div className="text-center">
           <MessageSquare className="mx-auto mb-4 h-16 w-16 text-gray-400" />
           <h2 className="mb-2 text-xl font-semibold text-gray-900">
@@ -100,7 +91,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-[calc(100vh-4rem)]">
       {/* Sidebar */}
       {showSidebar && (
         <aside className="flex w-80 flex-col border-r border-gray-200 bg-gray-50 transition-all duration-300">

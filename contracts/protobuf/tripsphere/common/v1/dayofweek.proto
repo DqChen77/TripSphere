@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package tripsphere.common.v1;
+
+option go_package = "tripsphere/common/v1";
+option java_multiple_files = true;
+option java_package = "org.tripsphere.common.v1";
+
+enum DayOfWeek {
+  DAY_OF_WEEK_UNSPECIFIED = 0;
+  DAY_OF_WEEK_MONDAY = 1;
+  DAY_OF_WEEK_TUESDAY = 2;
+  DAY_OF_WEEK_WEDNESDAY = 3;
+  DAY_OF_WEEK_THURSDAY = 4;
+  DAY_OF_WEEK_FRIDAY = 5;
+  DAY_OF_WEEK_SATURDAY = 6;
+  DAY_OF_WEEK_SUNDAY = 7;
+}

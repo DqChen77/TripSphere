@@ -2,51 +2,73 @@ package service
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
-	pd "trip-review-service/api/grpc/gen/tripsphere/review"
-	"trip-review-service/internal/domain"
-	mq "trip-review-service/internal/handler/middleware"
-	"trip-review-service/internal/repository"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	pd "trip-review-service/api/grpc/gen/tripsphere/review/v1"
+	"trip-review-service/internal/domain"
 )
 
+// ReviewService implements the gRPC ReviewServiceServer
 type ReviewService struct {
 	pd.UnimplementedReviewServiceServer
-	db domain.ReviewRepository
-	mq *mq.MQ
+	repo domain.ReviewRepository
 }
 
-var reviewService *ReviewService
-
-func GetReviewService() *ReviewService {
-	return reviewService
+// NewReviewService creates a new ReviewService with the given repository
+func NewReviewService(repo domain.ReviewRepository) *ReviewService {
+	return &ReviewService{repo: repo}
 }
 
-func NewReviewService(db domain.ReviewRepository, mq *mq.MQ) *ReviewService {
-	return &ReviewService{db: db, mq: mq}
-}
-
-func (r *ReviewService) CreateReview(ctx context.Context, request *pd.CreateReviewRequest) (*pd.CreateReviewResponse, error) {
-	newUUID, err := uuid.NewUUID()
-	if err != nil {
-		log.Println("")
-		return &pd.CreateReviewResponse{Status: false, Id: ""}, status.Error(codes.Internal, "failed to create ")
+// CreateReview creates a new review
+func (s *ReviewService) CreateReview(ctx context.Context, req *pd.CreateReviewRequest) (*pd.CreateReviewResponse, error) {
+	// Input validation
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
-	id := newUUID.String()
-	review := &domain.Review{ID: id, UserID: request.UserId, TargetType: domain.ReviewTargetType(request.TargetType),
-		TargetID: request.TargetId, Rating: request.Rating, Text: request.Text, Images: request.Images,
-		CreatedAt: time.Now(), UpdatedAt: time.Now()}
-	err = reviewService.db.Create(ctx, review)
-	if err != nil {
-		log.Printf("failed to create %+v\n", review)
-		return &pd.CreateReviewResponse{Status: false, Id: ""}, status.Error(codes.Internal, "failed to create ")
+	if req.TargetId == "" {
+		return nil, status.Error(codes.InvalidArgument, "target_id is required")
+	}
+	if req.TargetType == "" {
+		return nil, status.Error(codes.InvalidArgument, "target_type is required")
+	}
+	if req.Rating < 1 || req.Rating > 5 {
+		return nil, status.Error(codes.InvalidArgument, "rating must be between 1 and 5")
 	}
 
-	r.mq.AddMessage("ReviewTopic", review.ToString(), "CreateReview")
+	id := uuid.New().String()
+	now := time.Now()
+
+	review := &domain.Review{
+		ID:         id,
+		UserID:     req.UserId,
+		TargetType: domain.ReviewTargetType(req.TargetType),
+		TargetID:   req.TargetId,
+		Rating:     req.Rating,
+		Text:       req.Text,
+		Images:     req.Images,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+
+	if err := s.repo.Create(ctx, review); err != nil {
+		slog.ErrorContext(ctx, "failed to create review",
+			"error", err,
+			"user_id", req.UserId,
+			"target_id", req.TargetId,
+		)
+		return nil, status.Errorf(codes.Internal, "failed to create review: %v", err)
+	}
+
+	slog.InfoContext(ctx, "review created",
+		"id", id,
+		"user_id", req.UserId,
+		"target_id", req.TargetId,
+	)
 
 	return &pd.CreateReviewResponse{
 		Id:     id,
@@ -54,90 +76,137 @@ func (r *ReviewService) CreateReview(ctx context.Context, request *pd.CreateRevi
 	}, nil
 }
 
-func (r *ReviewService) UpdateReview(ctx context.Context, request *pd.UpdateReviewRequest) (*pd.UpdateReviewResponse, error) {
+// UpdateReview updates an existing review
+func (s *ReviewService) UpdateReview(ctx context.Context, req *pd.UpdateReviewRequest) (*pd.UpdateReviewResponse, error) {
+	// Input validation
+	if req.Id == "" {
+		return nil, status.Error(codes.InvalidArgument, "id is required")
+	}
+	if req.Rating < 1 || req.Rating > 5 {
+		return nil, status.Error(codes.InvalidArgument, "rating must be between 1 and 5")
+	}
+
 	review := &domain.Review{
-		ID:        request.Id,
-		Rating:    request.Rating,
-		Text:      request.Text,
-		Images:    request.Images,
+		ID:        req.Id,
+		Rating:    req.Rating,
+		Text:      req.Text,
+		Images:    req.Images,
 		UpdatedAt: time.Now(),
 	}
-	err := reviewService.db.Update(ctx, review)
-	if err != nil {
-		log.Printf("update fail:%s\n", err.Error())
-		return &pd.UpdateReviewResponse{Status: false}, status.Error(codes.Internal, "failed to update ")
+
+	if err := s.repo.Update(ctx, review); err != nil {
+		slog.ErrorContext(ctx, "failed to update review",
+			"error", err,
+			"id", req.Id,
+		)
+		return nil, status.Errorf(codes.Internal, "failed to update review: %v", err)
 	}
 
-	r.mq.AddMessage("ReviewTopic", review.ToString(), "UpdateReview")
+	slog.InfoContext(ctx, "review updated", "id", req.Id)
 
 	return &pd.UpdateReviewResponse{Status: true}, nil
-
 }
 
-func (r *ReviewService) DeleteReview(ctx context.Context, request *pd.DeleteReviewRequest) (*pd.DeleteReviewResponse, error) {
-	id := request.Id
-	err := reviewService.db.Delete(ctx, id)
-	if err != nil {
-		return &pd.DeleteReviewResponse{Status: false}, status.Error(codes.Internal, "failed to delete")
+// DeleteReview deletes a review by ID
+func (s *ReviewService) DeleteReview(ctx context.Context, req *pd.DeleteReviewRequest) (*pd.DeleteReviewResponse, error) {
+	if req.Id == "" {
+		return nil, status.Error(codes.InvalidArgument, "id is required")
 	}
 
-	r.mq.AddMessage("ReviewTopic", id, "DeleteReview")
+	if err := s.repo.Delete(ctx, req.Id); err != nil {
+		slog.ErrorContext(ctx, "failed to delete review",
+			"error", err,
+			"id", req.Id,
+		)
+		return nil, status.Errorf(codes.Internal, "failed to delete review: %v", err)
+	}
 
-	return &pd.DeleteReviewResponse{Status: true}, nil
+	slog.InfoContext(ctx, "review deleted", "id", req.Id)
+
+	return &pd.DeleteReviewResponse{}, nil
 }
 
-func (r *ReviewService) GetReviewByTargetID(ctx context.Context, request *pd.GetReviewByTargetIDRequest) (*pd.GetReviewByTargetIDResponse, error) {
-	reviews, err := reviewService.db.FindByTarget(ctx, domain.ReviewTargetType(request.TargetType), request.TargetId, request.PageSize*(request.PageNumber-1), request.PageSize)
-	if err != nil {
-		log.Printf("get reviews by target id fail\n")
-		return &pd.GetReviewByTargetIDResponse{Reviews: []*pd.Review{}}, status.Error(codes.Internal, "failed to get reviews by target id")
+// GetReviewByTargetID gets reviews by target ID with pagination
+func (s *ReviewService) GetReviewByTargetID(ctx context.Context, req *pd.GetReviewByTargetIDRequest) (*pd.GetReviewByTargetIDResponse, error) {
+	// Input validation
+	if req.TargetId == "" {
+		return nil, status.Error(codes.InvalidArgument, "target_id is required")
 	}
-	var pbReviews []*pd.Review
+	if req.PageSize <= 0 {
+		req.PageSize = 10 // default page size
+	}
+	if req.PageNumber <= 0 {
+		req.PageNumber = 1 // default page number
+	}
+
+	offset := req.PageSize * (req.PageNumber - 1)
+	reviews, err := s.repo.FindByTarget(ctx, domain.ReviewTargetType(req.TargetType), req.TargetId, offset, req.PageSize)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to get reviews by target",
+			"error", err,
+			"target_type", req.TargetType,
+			"target_id", req.TargetId,
+		)
+		return nil, status.Errorf(codes.Internal, "failed to get reviews: %v", err)
+	}
+
+	pbReviews := make([]*pd.Review, 0, len(reviews))
 	for _, review := range reviews {
-		pbReview := &pd.Review{
-			Id:         review.ID,
-			UserId:     review.UserID,
-			TargetType: string(review.TargetType),
-			TargetId:   review.TargetID,
-			Rating:     review.Rating,
-			Text:       review.Text,
-			Images:     review.Images,
-			CreatedAt:  review.CreatedAt.Unix(),
-			UpdatedAt:  review.UpdatedAt.Unix(),
-		}
-		pbReviews = append(pbReviews, pbReview)
+		pbReviews = append(pbReviews, domainToProto(&review))
 	}
-	return &pd.GetReviewByTargetIDResponse{Reviews: pbReviews,
+
+	return &pd.GetReviewByTargetIDResponse{
+		Reviews:      pbReviews,
 		TotalReviews: int64(len(pbReviews)),
 		Status:       true,
 	}, nil
-
 }
 
-func (r *ReviewService) GetReviewByTargetIDWithCursor(ctx context.Context, request *pd.GetReviewByTargetIDWithCursorRequest) (*pd.GetReviewByTargetIDWithCursorResponse, error) {
-	reviews, nextCursor, err := reviewService.db.FindByTargetWithCursor(ctx, domain.ReviewTargetType(request.TargetType), request.TargetId, request.Cursor, request.Limit)
+// GetReviewByTargetIDWithCursor gets reviews by target ID with cursor-based pagination
+func (s *ReviewService) GetReviewByTargetIDWithCursor(ctx context.Context, req *pd.GetReviewByTargetIDWithCursorRequest) (*pd.GetReviewByTargetIDWithCursorResponse, error) {
+	// Input validation
+	if req.TargetId == "" {
+		return nil, status.Error(codes.InvalidArgument, "target_id is required")
+	}
+	if req.Limit <= 0 {
+		req.Limit = 10 // default limit
+	}
+
+	reviews, nextCursor, err := s.repo.FindByTargetWithCursor(ctx, domain.ReviewTargetType(req.TargetType), req.TargetId, req.Cursor, req.Limit)
 	if err != nil {
-		log.Printf("get reviews by target id with cursor fail:%s\n", err.Error())
-		return &pd.GetReviewByTargetIDWithCursorResponse{Reviews: []*pd.Review{}, NextCursor: ""}, status.Error(codes.Internal, "failed to get reviews by target id with cursor")
+		slog.ErrorContext(ctx, "failed to get reviews by target with cursor",
+			"error", err,
+			"target_type", req.TargetType,
+			"target_id", req.TargetId,
+			"cursor", req.Cursor,
+		)
+		return nil, status.Errorf(codes.Internal, "failed to get reviews: %v", err)
 	}
-	var pbReviews []*pd.Review
+
+	pbReviews := make([]*pd.Review, 0, len(reviews))
 	for _, review := range reviews {
-		pbReview := &pd.Review{
-			Id:         review.ID,
-			UserId:     review.UserID,
-			TargetType: string(review.TargetType),
-			TargetId:   review.TargetID,
-			Rating:     review.Rating,
-			Text:       review.Text,
-			Images:     review.Images,
-			CreatedAt:  review.CreatedAt.Unix(),
-			UpdatedAt:  review.UpdatedAt.Unix(),
-		}
-		pbReviews = append(pbReviews, pbReview)
+		pbReviews = append(pbReviews, domainToProto(&review))
 	}
-	return &pd.GetReviewByTargetIDWithCursorResponse{Reviews: pbReviews, TotalReviews: int64(len(pbReviews)), NextCursor: nextCursor, Status: true}, nil
+
+	return &pd.GetReviewByTargetIDWithCursorResponse{
+		Reviews:      pbReviews,
+		TotalReviews: int64(len(pbReviews)),
+		NextCursor:   nextCursor,
+		Status:       true,
+	}, nil
 }
 
-func init() {
-	reviewService = NewReviewService(repository.GetReviewRepo(), mq.GetMQ())
+// domainToProto converts a domain.Review to a protobuf Review
+func domainToProto(review *domain.Review) *pd.Review {
+	return &pd.Review{
+		Id:         review.ID,
+		UserId:     review.UserID,
+		TargetType: string(review.TargetType),
+		TargetId:   review.TargetID,
+		Rating:     review.Rating,
+		Text:       review.Text,
+		Images:     review.Images,
+		CreatedAt:  review.CreatedAt.Unix(),
+		UpdatedAt:  review.UpdatedAt.Unix(),
+	}
 }

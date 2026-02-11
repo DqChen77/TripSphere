@@ -9,48 +9,30 @@ tasks:
       - task --list-all
     silent: true
 
-  install:
-    desc: Set up project development environment
-    cmds:
-      - uv sync  # Install dependencies and dev-dependencies
-      - task: gen-proto
-      - task: otel-instr
-
-  otel-instr:
-    desc: Install OpenTelemetry instrumentation packages
-    cmd: |
-      uv run opentelemetry-bootstrap -a requirements \
-        | uv pip install --requirements -
-
   gen-proto:
     desc: Generate protobuf and gRPC codes using buf
     sources:
       - ../contracts/protobuf/**/*.proto
     generates:
-      - libs/tripsphere/src/**/*_pb2.py
-      - libs/tripsphere/src/**/*_pb2_grpc.py
+      - target/generated-sources/protobuf/java/**/*.java
+      - target/generated-sources/protobuf/grpc-java/**/*.java
     cmds:
       - buf generate
 
   protoc-gen:
-    desc: Generate protobuf and gRPC codes using grpcio-tools
+    desc: '[DEPRECATED] Generate protobuf and gRPC codes'
     sources:
       - ../contracts/protobuf/**/*.proto
     generates:
-      - libs/tripsphere/src/**/*_pb2.py
-      - libs/tripsphere/src/**/*_pb2_grpc.py
+      - target/generated-sources/protobuf/java/**/*.java
+      - target/generated-sources/protobuf/grpc-java/**/*.java
     cmds:
-      - for: sources
-        cmd: |
-          uv run --locked --no-sync --with 'grpcio-tools' \
-            --with 'mypy-protobuf' -m grpc_tools.protoc \
-            -I../contracts/protobuf \
-            --python_out=libs/tripsphere/src \
-            --grpc_python_out=libs/tripsphere/src \
-            --mypy_out=libs/tripsphere/src \
-            --mypy_grpc_out=libs/tripsphere/src \
-            "{{.ITEM}}"
-    silent: true
+      - rm -rf src/main/proto
+      - cp -r ../contracts/protobuf/ src/main/proto/
+      - cmd: .\\mvnw protobuf:compile protobuf:compile-custom
+        platforms: [windows]
+      - cmd: ./mvnw protobuf:compile protobuf:compile-custom
+        platforms: [linux, darwin]
 
   build:
     desc: Build Docker image
@@ -61,18 +43,18 @@ tasks:
       - docker build . -t {{.PREFIX}}/trip-itinerary-service:{{.TAG}}
 
   build-aliyun:
-    desc: Build Docker image with Aliyun PyPI mirror
+    desc: Build Docker image with Aliyun Maven mirror
     vars:
       PREFIX: '{{.PREFIX | default "tripsphere"}}'
       TAG: '{{.TAG | default "latest"}}'
-    cmds:
-      - mv uv.lock uv.lock.backup
-      - defer: mv uv.lock.backup uv.lock
-      - uv lock --default-index https://mirrors.aliyun.com/pypi/simple
-      - docker build . -t {{.PREFIX}}/trip-itinerary-service:{{.TAG}}
+    cmd: |
+        docker build . -t {{.PREFIX}}/trip-itinerary-service:{{.TAG}} \
+        --build-arg MAVEN_MIRROR_URL=https://maven.aliyun.com/repository/public
 
-  ruff:
-    desc: Run ruff format and ruff check --fix
+  format:
+    desc: Format Java code using spotless
     cmds:
-      - uvx ruff format
-      - uvx ruff check --fix
+      - cmd: .\\mvnw spotless:apply
+        platforms: [windows]
+      - cmd: ./mvnw spotless:apply
+        platforms: [linux, darwin]

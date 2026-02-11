@@ -21,8 +21,8 @@ class Tokenizer(ABC):
         -------
             list[int]: A list of tokens representing the encoded text.
         """
-        msg = "The encode method must be implemented by subclasses."
-        raise NotImplementedError(msg)
+        message = "The encode method must be implemented by subclasses."
+        raise NotImplementedError(message)
 
     @abstractmethod
     def decode(self, tokens: list[int]) -> str:
@@ -36,8 +36,8 @@ class Tokenizer(ABC):
         -------
             str: The decoded string from the list of tokens.
         """
-        msg = "The decode method must be implemented by subclasses."
-        raise NotImplementedError(msg)
+        message = "The decode method must be implemented by subclasses."
+        raise NotImplementedError(message)
 
     def num_tokens(self, text: str) -> int:
         """Return the number of tokens in the given text.
