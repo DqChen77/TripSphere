@@ -9,12 +9,12 @@ option java_multiple_files = true;
 option java_package = "org.tripsphere.attraction.v1";
 
 service AttractionService {
-  rpc FindAttractionById(FindAttractionByIdRequest) returns (FindAttractionByIdResponse);
-
-  rpc DeleteAttraction(DeleteAttractionRequest) returns (DeleteAttractionResponse);
+  rpc GetAttractionById(GetAttractionByIdRequest) returns (GetAttractionByIdResponse);
 
   // Find attractions within a radius from a location and list them in order from near to far
-  rpc FindAttractionsLocationNear(FindAttractionsLocationNearRequest) returns (FindAttractionsLocationNearResponse);
+  rpc GetAttractionsNearby(GetAttractionsNearbyRequest) returns (GetAttractionsNearbyResponse);
+
+  rpc GetAttractionsInDistrict(GetAttractionsInDistrictRequest) returns (GetAttractionsInDistrictResponse);
 }
 
 message Attraction {
@@ -27,26 +27,28 @@ message Attraction {
   tripsphere.common.v1.GeoPoint location = 7;
 }
 
-message DeleteAttractionRequest {
+message GetAttractionByIdRequest {
   string id = 1;
 }
 
-message DeleteAttractionResponse {}
-
-message FindAttractionByIdRequest {
-  string id = 1;
-}
-
-message FindAttractionByIdResponse {
+message GetAttractionByIdResponse {
   Attraction attraction = 1;
 }
 
-message FindAttractionsLocationNearRequest {
+message GetAttractionsNearbyRequest {
   tripsphere.common.v1.GeoPoint location = 1;
-  double radius_km = 2;
+  double radius_meters = 2;
   repeated string tags = 3;
 }
 
-message FindAttractionsLocationNearResponse {
+message GetAttractionsNearbyResponse {
+  repeated Attraction attractions = 1;
+}
+
+message GetAttractionsInDistrictRequest {
+  string district = 1;
+}
+
+message GetAttractionsInDistrictResponse {
   repeated Attraction attractions = 1;
 }

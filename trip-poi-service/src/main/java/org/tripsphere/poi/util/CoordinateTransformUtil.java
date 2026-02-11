@@ -1,7 +1,5 @@
 package org.tripsphere.poi.util;
 
-import org.springframework.data.geo.Point;
-
 public class CoordinateTransformUtil {
     private static final double PI = 3.1415926535897932384626;
     private static final double A = 6378245.0;
@@ -30,10 +28,6 @@ public class CoordinateTransformUtil {
         double dLng = gcp[0] - lng;
         double dLat = gcp[1] - lat;
         return new double[] {lng - dLng, lat - dLat};
-    }
-
-    public static double[] gcj02ToWgs84(Point point) {
-        return gcj02ToWgs84(point.getX(), point.getY());
     }
 
     public static double transformLat(double lng, double lat) {

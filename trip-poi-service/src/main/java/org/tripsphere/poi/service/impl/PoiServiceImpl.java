@@ -6,10 +6,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.geo.Point;
 import org.springframework.stereotype.Service;
+import org.tripsphere.common.v1.GeoPoint;
+import org.tripsphere.poi.mapper.PoiMapper;
 import org.tripsphere.poi.model.PoiDoc;
 import org.tripsphere.poi.model.PoiSearchFilter;
 import org.tripsphere.poi.repository.PoiRepository;
 import org.tripsphere.poi.service.PoiService;
+import org.tripsphere.poi.util.CoordinateTransformUtil;
+import org.tripsphere.poi.v1.Poi;
+import org.tripsphere.poi.v1.PoiFilter;
 
 @Slf4j
 @Service
@@ -17,96 +22,114 @@ import org.tripsphere.poi.service.PoiService;
 public class PoiServiceImpl implements PoiService {
 
     private final PoiRepository poiRepository;
+    private final PoiMapper poiMapper = PoiMapper.INSTANCE;
 
     @Override
-    public Optional<PoiDoc> findById(String id) {
+    public Optional<Poi> findById(String id) {
         log.debug("Finding POI by id: {}", id);
-        return poiRepository.findById(id);
+        return poiRepository.findById(id).map(poiMapper::toProto);
     }
 
     @Override
-    public Optional<PoiDoc> findByAmapId(String amapId) {
+    public Optional<Poi> findByAmapId(String amapId) {
         log.debug("Finding POI by amapId: {}", amapId);
-        return poiRepository.findByAmapId(amapId);
+        return poiRepository.findByAmapId(amapId).map(poiMapper::toProto);
     }
 
     @Override
-    public List<PoiDoc> findAllByIds(List<String> ids) {
+    public List<Poi> findAllByIds(List<String> ids) {
         log.debug("Finding POIs by ids, count: {}", ids.size());
-        return poiRepository.findAllById(ids);
+        List<PoiDoc> docs = poiRepository.findAllById(ids);
+        return poiMapper.toProtoList(docs);
     }
 
     @Override
-    public List<PoiDoc> searchNearby(
-            Point location, double radiusMeters, int limit, PoiSearchFilter filter) {
+    public List<Poi> searchNearby(
+            GeoPoint location, double radiusMeters, int limit, PoiFilter filter) {
         log.debug(
                 "Searching POIs nearby location: ({}, {}), radius: {}m, limit: {}",
-                location.getX(),
-                location.getY(),
+                location.getLongitude(),
+                location.getLatitude(),
                 radiusMeters,
                 limit);
-        return poiRepository.findAllByLocationNear(location, radiusMeters, limit, filter);
+
+        // Convert GCJ-02 (from client) to WGS84 (for MongoDB)
+        Point wgs84Location = toWgs84Point(location);
+        PoiSearchFilter searchFilter = toSearchFilter(filter);
+
+        List<PoiDoc> docs =
+                poiRepository.findAllByLocationNear(
+                        wgs84Location, radiusMeters, limit, searchFilter);
+        return poiMapper.toProtoList(docs);
     }
 
     @Override
-    public List<PoiDoc> searchInBounds(
-            Point southWest, Point northEast, int limit, PoiSearchFilter filter) {
+    public List<Poi> searchInBounds(
+            GeoPoint southWest, GeoPoint northEast, int limit, PoiFilter filter) {
         log.debug(
                 "Searching POIs in bounds: SW({}, {}), NE({}, {}), limit: {}",
-                southWest.getX(),
-                southWest.getY(),
-                northEast.getX(),
-                northEast.getY(),
+                southWest.getLongitude(),
+                southWest.getLatitude(),
+                northEast.getLongitude(),
+                northEast.getLatitude(),
                 limit);
-        return poiRepository.findAllByLocationInBox(southWest, northEast, limit, filter);
+
+        // Convert GCJ-02 (from client) to WGS84 (for MongoDB)
+        Point swWgs84 = toWgs84Point(southWest);
+        Point neWgs84 = toWgs84Point(northEast);
+        PoiSearchFilter searchFilter = toSearchFilter(filter);
+
+        List<PoiDoc> docs =
+                poiRepository.findAllByLocationInBox(swWgs84, neWgs84, limit, searchFilter);
+        return poiMapper.toProtoList(docs);
     }
 
     @Override
-    public PoiDoc createPoi(PoiDoc poiDoc) {
+    public Poi createPoi(Poi poi) {
+        log.debug("Creating new POI: {}", poi.getName());
+
+        PoiDoc poiDoc = poiMapper.toDoc(poi);
         // Server generates the ID, ignore any client-provided ID
         poiDoc.setId(null);
-        log.debug("Creating new POI: {}", poiDoc.getName());
+
         PoiDoc saved = poiRepository.save(poiDoc);
         log.info("Created POI with id: {}", saved.getId());
-        return saved;
+
+        return poiMapper.toProto(saved);
     }
 
     @Override
-    public List<PoiDoc> batchCreatePois(List<PoiDoc> poiDocs) {
-        // Let server generates IDs for all POIs
-        List<PoiDoc> toSave = poiDocs.stream().peek(poi -> poi.setId(null)).toList();
+    public List<Poi> batchCreatePois(List<Poi> pois) {
+        log.debug("Batch creating {} POIs", pois.size());
 
-        log.debug("Batch creating {} POIs", toSave.size());
+        // Convert to docs and clear IDs (server generates them)
+        List<PoiDoc> toSave =
+                pois.stream().map(poiMapper::toDoc).peek(doc -> doc.setId(null)).toList();
+
         List<PoiDoc> saved = poiRepository.saveAll(toSave);
         log.info("Batch created {} POIs", saved.size());
-        return saved;
+
+        return poiMapper.toProtoList(saved);
     }
 
-    @Override
-    public Optional<PoiDoc> updatePoi(String id, PoiDoc poiDoc) {
-        log.debug("Updating POI with id: {}", id);
-        return poiRepository
-                .findById(id)
-                .map(
-                        existing -> {
-                            // Preserve the original ID and timestamps
-                            poiDoc.setId(existing.getId());
-                            poiDoc.setCreatedAt(existing.getCreatedAt());
-                            PoiDoc updated = poiRepository.save(poiDoc);
-                            log.info("Updated POI with id: {}", id);
-                            return updated;
-                        });
+    /** Convert GeoPoint (GCJ-02) to Spring Point (WGS84) for MongoDB queries. */
+    private Point toWgs84Point(GeoPoint geoPoint) {
+        double[] wgs84 =
+                CoordinateTransformUtil.gcj02ToWgs84(
+                        geoPoint.getLongitude(), geoPoint.getLatitude());
+        return new Point(wgs84[0], wgs84[1]);
     }
 
-    @Override
-    public boolean deletePoi(String id) {
-        log.debug("Deleting POI with id: {}", id);
-        if (poiRepository.existsById(id)) {
-            poiRepository.deleteById(id);
-            log.info("Deleted POI with id: {}", id);
-            return true;
+    /** Convert Proto PoiFilter to internal PoiSearchFilter. */
+    private PoiSearchFilter toSearchFilter(PoiFilter filter) {
+        if (filter == null
+                || (filter.getCategoriesList().isEmpty() && filter.getAdcode().isEmpty())) {
+            return null;
         }
-        log.warn("POI not found for deletion, id: {}", id);
-        return false;
+        return PoiSearchFilter.builder()
+                .categories(
+                        !filter.getCategoriesList().isEmpty() ? filter.getCategoriesList() : null)
+                .adcode(!filter.getAdcode().isEmpty() ? filter.getAdcode() : null)
+                .build();
     }
 }

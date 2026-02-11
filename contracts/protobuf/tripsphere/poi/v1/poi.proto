@@ -14,9 +14,9 @@ service PoiService {
 
   rpc BatchGetPois(BatchGetPoisRequest) returns (BatchGetPoisResponse);
 
-  rpc SearchPoisNearby(SearchPoisNearbyRequest) returns (SearchPoisNearbyResponse);
+  rpc GetPoisNearby(GetPoisNearbyRequest) returns (GetPoisNearbyResponse);
 
-  rpc SearchPoisInBounds(SearchPoisInBoundsRequest) returns (SearchPoisInBoundsResponse);
+  rpc GetPoisInBounds(GetPoisInBoundsRequest) returns (GetPoisInBoundsResponse);
 
   rpc CreatePoi(CreatePoiRequest) returns (CreatePoiResponse);
 
@@ -31,8 +31,7 @@ message Poi {
   tripsphere.common.v1.Address address = 4;
   // China Area Division Code
   string adcode = 5;
-  // Amap POI ID. This is optional.
-  // If present, indicates the POI is sourced from Amap.
+  // Amap POI ID (optional)
   string amap_id = 6;
   repeated string categories = 7;
   repeated string images = 8;
@@ -47,16 +46,14 @@ message GetPoiByIdResponse {
 }
 
 message BatchGetPoisRequest {
-  // POI IDs.
+  // The IDs of POIs to retrieve.
   repeated string ids = 1;
   // Field mask to specify which fields to return.
   google.protobuf.FieldMask field_mask = 2;
 }
 
 message BatchGetPoisResponse {
-  // POI ID -> POI.
-  // If a POI is not found, it will not be included in the map.
-  map<string, Poi> pois = 1;
+  repeated Poi pois = 1;
 }
 
 message PoiFilter {
@@ -64,30 +61,26 @@ message PoiFilter {
   string adcode = 2;
 }
 
-message SearchPoisNearbyRequest {
+message GetPoisNearbyRequest {
   tripsphere.common.v1.GeoPoint location = 1;
   double radius_meters = 2;
   int32 limit = 3;
   PoiFilter filter = 4;
 }
 
-message SearchPoisNearbyResponse {
+message GetPoisNearbyResponse {
   repeated Poi pois = 1;
-  // The total number of POIs that match the filter.
-  int32 total_count = 2;
 }
 
-message SearchPoisInBoundsRequest {
+message GetPoisInBoundsRequest {
   tripsphere.common.v1.GeoPoint south_west = 1;
   tripsphere.common.v1.GeoPoint north_east = 2;
   int32 limit = 3;
   PoiFilter filter = 4;
 }
 
-message SearchPoisInBoundsResponse {
+message GetPoisInBoundsResponse {
   repeated Poi pois = 1;
-  // The total number of POIs that match the filter.
-  int32 total_count = 2;
 }
 
 message CreatePoiRequest {
@@ -98,29 +91,11 @@ message CreatePoiResponse {
   Poi poi = 1;
 }
 
+// Atomic batch create POIs
 message BatchCreatePoisRequest {
-  repeated Poi pois = 1;
+  repeated CreatePoiRequest requests = 1;
 }
 
 message BatchCreatePoisResponse {
-  int32 total_count = 1;
-  int32 success_count = 2;
-  int32 failure_count = 3;
-  repeated CreatePoiResult results = 4;
-}
-
-message CreatePoiResult {
-  enum Code {
-    CODE_UNSPECIFIED = 0;
-    CODE_SUCCESS = 1;
-  }
-
-  // The index of the POI in the request.
-  int32 index = 1;
-  // The code of the result.
-  Code code = 2;
-  // The error message of the result.
-  string message = 3;
-  // The ID of the POI if the creation was successful.
-  string poi_id = 4;
+  repeated Poi pois = 1;
 }
