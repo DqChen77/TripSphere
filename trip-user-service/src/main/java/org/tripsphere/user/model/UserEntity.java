@@ -2,6 +2,8 @@ package org.tripsphere.user.model;
 
 import com.github.f4b6a3.uuid.UuidCreator;
 import jakarta.persistence.*;
+import java.util.HashSet;
+import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -26,7 +28,7 @@ public class UserEntity {
     @Enumerated(EnumType.STRING)
     @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"))
     @Column(name = "role")
-    private java.util.Set<Role> roles = new java.util.HashSet<>();
+    private Set<Role> roles = new HashSet<>();
 
     @PrePersist
     public void generateId() {
