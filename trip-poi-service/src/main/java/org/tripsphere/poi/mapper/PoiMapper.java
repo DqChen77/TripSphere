@@ -22,9 +22,6 @@ public interface PoiMapper {
     @Mapping(target = "location", source = "location", qualifiedByName = "toGeoPoint")
     Poi toProto(PoiDoc poiDoc);
 
-    @Mapping(target = "location", source = "location", qualifiedByName = "toGeoJsonPoint")
-    void updateFromProto(Poi poi, @MappingTarget PoiDoc poiDoc);
-
     List<Poi> toProtoList(List<PoiDoc> poiDocs);
 
     @Named("toGeoJsonPoint")

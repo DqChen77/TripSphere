@@ -66,12 +66,6 @@ message DayPlan {
   google.protobuf.Struct metadata = 6;
 }
 
-message ItinerarySummary {
-  tripsphere.common.v1.Money total_estimated_cost = 1;
-  uint32 total_activities = 2;
-  repeated string highlights = 3;
-}
-
 message Itinerary {
   string id = 1;
   string title = 2;
@@ -80,11 +74,7 @@ message Itinerary {
   tripsphere.common.v1.Date start_date = 5;
   tripsphere.common.v1.Date end_date = 6;
   repeated DayPlan day_plans = 7;
-  ItinerarySummary summary = 8;
-  repeated string interests = 9;
-  tripsphere.common.v1.Money max_budget = 10;
-  uint32 num_travelers = 11;
-  google.protobuf.Struct metadata = 12;
+  google.protobuf.Struct metadata = 8;
 }
 
 message CreateItineraryRequest {

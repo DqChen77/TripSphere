@@ -1,11 +1,11 @@
-package org.tripsphere.user.grpc;
+package org.tripsphere.user.api.grpc.security;
 
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
-/* JWT authentication token for Spring Security */
+/** JWT authentication token for Spring Security. */
 public class JwtAuthenticationToken extends AbstractAuthenticationToken {
 
     private final String token;
