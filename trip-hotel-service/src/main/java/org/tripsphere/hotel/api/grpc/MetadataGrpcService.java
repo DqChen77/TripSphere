@@ -1,14 +1,12 @@
-package org.tripsphere.note.grpc;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.info.BuildProperties;
-import org.tripsphere.note.v1.GetVersionRequest;
-import org.tripsphere.note.v1.GetVersionResponse;
-import org.tripsphere.note.v1.MetadataServiceGrpc;
+package org.tripsphere.hotel.api.grpc;
 
 import io.grpc.stub.StreamObserver;
-
 import net.devh.boot.grpc.server.service.GrpcService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.info.BuildProperties;
+import org.tripsphere.hotel.v1.GetVersionRequest;
+import org.tripsphere.hotel.v1.GetVersionResponse;
+import org.tripsphere.hotel.v1.MetadataServiceGrpc;
 
 @GrpcService
 public class MetadataGrpcService extends MetadataServiceGrpc.MetadataServiceImplBase {

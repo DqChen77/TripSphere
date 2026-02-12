@@ -10,8 +10,6 @@ option java_package = "org.tripsphere.hotel.v1";
 
 service HotelService {
   rpc GetHotelById(GetHotelByIdRequest) returns (GetHotelByIdResponse);
-
-  rpc DeleteHotel(DeleteHotelRequest) returns (DeleteHotelResponse);
 }
 
 message Hotel {
@@ -31,9 +29,3 @@ message GetHotelByIdRequest {
 message GetHotelByIdResponse {
   Hotel hotel = 1;
 }
-
-message DeleteHotelRequest {
-  string id = 1;
-}
-
-message DeleteHotelResponse {}

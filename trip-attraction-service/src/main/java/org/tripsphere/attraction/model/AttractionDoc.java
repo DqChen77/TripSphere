@@ -12,7 +12,6 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.geo.GeoJsonPoint;
 import org.springframework.data.mongodb.core.index.GeoSpatialIndexType;
 import org.springframework.data.mongodb.core.index.GeoSpatialIndexed;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Data
@@ -23,7 +22,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class AttractionDoc {
     @Id private String id;
     private String name;
-    @Indexed private String poiId;
+    private String poiId;
 
     /** Location in WGS84 coordinate system */
     @GeoSpatialIndexed(type = GeoSpatialIndexType.GEO_2DSPHERE)

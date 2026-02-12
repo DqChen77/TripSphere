@@ -10,7 +10,7 @@ import org.tripsphere.attraction.exception.InvalidArgumentException;
 import org.tripsphere.attraction.exception.NotFoundException;
 import org.tripsphere.attraction.service.AttractionService;
 import org.tripsphere.attraction.v1.Attraction;
-import org.tripsphere.attraction.v1.AttractionServiceGrpc.AttractionServiceImplBase;
+import org.tripsphere.attraction.v1.AttractionServiceGrpc;
 import org.tripsphere.attraction.v1.BatchGetAttractionsRequest;
 import org.tripsphere.attraction.v1.BatchGetAttractionsResponse;
 import org.tripsphere.attraction.v1.GetAttractionByIdRequest;
@@ -20,7 +20,7 @@ import org.tripsphere.attraction.v1.GetAttractionsNearbyResponse;
 
 @GrpcService
 @RequiredArgsConstructor
-public class AttractionGrpcService extends AttractionServiceImplBase {
+public class AttractionGrpcService extends AttractionServiceGrpc.AttractionServiceImplBase {
 
     private final AttractionService attractionService;
 

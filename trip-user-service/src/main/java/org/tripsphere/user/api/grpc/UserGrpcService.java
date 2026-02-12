@@ -18,11 +18,11 @@ import org.tripsphere.user.v1.LoginResponse;
 import org.tripsphere.user.v1.RegisterRequest;
 import org.tripsphere.user.v1.RegisterResponse;
 import org.tripsphere.user.v1.User;
-import org.tripsphere.user.v1.UserServiceGrpc.UserServiceImplBase;
+import org.tripsphere.user.v1.UserServiceGrpc;
 
 @GrpcService
 @RequiredArgsConstructor
-public class UserGrpcService extends UserServiceImplBase {
+public class UserGrpcService extends UserServiceGrpc.UserServiceImplBase {
 
     private final UserService userService;
 

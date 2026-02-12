@@ -11,8 +11,6 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.mongodb.core.index.CompoundIndex;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 /**
@@ -27,30 +25,22 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @AllArgsConstructor
 @NoArgsConstructor
 @Document(collection = "itineraries")
-@CompoundIndex(
-        name = "user_archived_date_idx",
-        def = "{'userId': 1, 'archived': 1, 'startDate': -1}")
 public class ItineraryDoc {
     @Id private String id;
-
     private String title;
-
-    @Indexed private String userId;
+    private String userId;
 
     /** Reference to the destination POI. Only stores the POI ID. */
     private String destinationPoiId;
 
     private DateDoc startDate;
     private DateDoc endDate;
-
     @Builder.Default private List<DayPlanDoc> dayPlans = new ArrayList<>();
-
     private Map<String, Object> metadata;
 
     /** Soft delete flag for ArchiveItinerary operation. */
     @Builder.Default private boolean archived = false;
 
     @CreatedDate private Instant createdAt;
-
     @LastModifiedDate private Instant updatedAt;
 }

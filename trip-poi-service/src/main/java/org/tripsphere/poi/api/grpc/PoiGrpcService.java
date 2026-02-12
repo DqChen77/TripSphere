@@ -25,11 +25,11 @@ import org.tripsphere.poi.v1.GetPoisInBoundsResponse;
 import org.tripsphere.poi.v1.GetPoisNearbyRequest;
 import org.tripsphere.poi.v1.GetPoisNearbyResponse;
 import org.tripsphere.poi.v1.Poi;
-import org.tripsphere.poi.v1.PoiServiceGrpc.PoiServiceImplBase;
+import org.tripsphere.poi.v1.PoiServiceGrpc;
 
 @GrpcService
 @RequiredArgsConstructor
-public class PoiGrpcService extends PoiServiceImplBase {
+public class PoiGrpcService extends PoiServiceGrpc.PoiServiceImplBase {
 
     private final PoiService poiService;
 

@@ -12,4 +12,4 @@ server:
 grpc:
   server:
     port: 50054
-    address: 0.0.0.0
+    enable-reflection: true

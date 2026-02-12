@@ -1,4 +1,4 @@
-package org.tripsphere.attraction.model;
+package org.tripsphere.hotel.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

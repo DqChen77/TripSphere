@@ -12,7 +12,6 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.geo.GeoJsonPoint;
 import org.springframework.data.mongodb.core.index.GeoSpatialIndexType;
 import org.springframework.data.mongodb.core.index.GeoSpatialIndexed;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Data
@@ -41,7 +40,7 @@ public class PoiDoc {
     @NoArgsConstructor
     public static class AddressDoc {
         private String province;
-        @Indexed private String city;
+        private String city;
         private String district;
         private String detailed;
     }

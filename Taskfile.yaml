@@ -63,10 +63,6 @@ includes:
     dir: trip-user-service
     internal: true
 
-  k8s:
-    taskfile: deployment/kubernetes/Taskfile.yaml
-    dir: deployment/kubernetes
-
 tasks:
   default:
     desc: List all available tasks
@@ -122,37 +118,3 @@ tasks:
     desc: Stop all services by Docker Compose
     cmds:
       - docker compose down --remove-orphans --volumes
-
-  # =============================================================================
-  # Kubernetes Deployment Tasks
-  # =============================================================================
-
-  k8s-init:
-    desc: Initialize Kubernetes deployment
-    cmds:
-      - task: k8s:init
-
-  k8s-deploy:
-    desc: Deploy entire TripSphere stack to Kubernetes
-    cmds:
-      - task: k8s:deploy-all
-
-  k8s-deploy-middlewares:
-    desc: Deploy only middlewares to Kubernetes
-    cmds:
-      - task: k8s:deploy-middlewares
-
-  k8s-deploy-services:
-    desc: Deploy only TripSphere services to Kubernetes
-    cmds:
-      - task: k8s:deploy-services
-
-  k8s-status:
-    desc: Show Kubernetes deployment status
-    cmds:
-      - task: k8s:status
-
-  k8s-cleanup:
-    desc: Cleanup all Kubernetes resources
-    cmds:
-      - task: k8s:cleanup
