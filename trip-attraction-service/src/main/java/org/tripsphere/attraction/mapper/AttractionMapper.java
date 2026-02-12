@@ -4,6 +4,9 @@ import com.google.protobuf.ListValue;
 import com.google.protobuf.NullValue;
 import com.google.protobuf.Struct;
 import com.google.protobuf.Value;
+import java.math.BigDecimal;
+import java.time.LocalTime;
+import java.util.Currency;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,19 +15,11 @@ import org.mapstruct.*;
 import org.mapstruct.factory.Mappers;
 import org.springframework.data.mongodb.core.geo.GeoJsonPoint;
 import org.tripsphere.attraction.model.AttractionDoc;
-import org.tripsphere.attraction.model.MoneyDoc;
-import org.tripsphere.attraction.model.OpenRuleDoc;
-import org.tripsphere.attraction.model.OpeningHoursDoc;
-import org.tripsphere.attraction.model.TicketInfoDoc;
-import org.tripsphere.attraction.model.TimeOfDayDoc;
-import org.tripsphere.attraction.model.TimeRangeDoc;
+import org.tripsphere.attraction.model.OpenRule;
+import org.tripsphere.attraction.model.OpeningHours;
+import org.tripsphere.attraction.model.TicketInfo;
 import org.tripsphere.attraction.util.CoordinateTransformUtil;
 import org.tripsphere.attraction.v1.Attraction;
-import org.tripsphere.attraction.v1.OpenRule;
-import org.tripsphere.attraction.v1.OpeningHours;
-import org.tripsphere.attraction.v1.TicketInfo;
-import org.tripsphere.attraction.v1.TimeRange;
-import org.tripsphere.common.v1.DayOfWeek;
 import org.tripsphere.common.v1.GeoPoint;
 import org.tripsphere.common.v1.Money;
 import org.tripsphere.common.v1.TimeOfDay;
@@ -41,11 +36,8 @@ public interface AttractionMapper {
     // ===================================================================
 
     @Mapping(target = "location", source = "location", qualifiedByName = "toGeoJsonPoint")
-    @Mapping(
-            target = "openingHours",
-            source = "openingHours",
-            qualifiedByName = "toOpeningHoursDoc")
-    @Mapping(target = "ticketInfo", source = "ticketInfo", qualifiedByName = "toTicketInfoDoc")
+    @Mapping(target = "openingHours", source = "openingHours", qualifiedByName = "toOpeningHours")
+    @Mapping(target = "ticketInfo", source = "ticketInfo", qualifiedByName = "toTicketInfo")
     AttractionDoc toDoc(Attraction attraction);
 
     @Mapping(target = "location", source = "location", qualifiedByName = "toGeoPoint")
@@ -87,21 +79,23 @@ public interface AttractionMapper {
     // OpeningHours Mappings
     // ===================================================================
 
-    @Named("toOpeningHoursDoc")
-    default OpeningHoursDoc toOpeningHoursDoc(OpeningHours proto) {
-        if (proto == null || proto.equals(OpeningHours.getDefaultInstance())) {
+    @Named("toOpeningHours")
+    default OpeningHours toOpeningHours(org.tripsphere.attraction.v1.OpeningHours proto) {
+        if (proto == null
+                || proto.equals(org.tripsphere.attraction.v1.OpeningHours.getDefaultInstance())) {
             return null;
         }
-        return OpeningHoursDoc.builder()
-                .rules(proto.getRulesList().stream().map(this::toOpenRuleDoc).toList())
+        return OpeningHours.builder()
+                .rules(proto.getRulesList().stream().map(this::toOpenRule).toList())
                 .specialTips(proto.getSpecialTips())
                 .build();
     }
 
     @Named("toOpeningHoursProto")
-    default OpeningHours toOpeningHoursProto(OpeningHoursDoc doc) {
-        if (doc == null) return OpeningHours.getDefaultInstance();
-        OpeningHours.Builder builder = OpeningHours.newBuilder();
+    default org.tripsphere.attraction.v1.OpeningHours toOpeningHoursProto(OpeningHours doc) {
+        if (doc == null) return org.tripsphere.attraction.v1.OpeningHours.getDefaultInstance();
+        org.tripsphere.attraction.v1.OpeningHours.Builder builder =
+                org.tripsphere.attraction.v1.OpeningHours.newBuilder();
         if (doc.getRules() != null) {
             doc.getRules().forEach(rule -> builder.addRules(toOpenRuleProto(rule)));
         }
@@ -115,28 +109,21 @@ public interface AttractionMapper {
     // OpenRule Mappings
     // ===================================================================
 
-    default OpenRuleDoc toOpenRuleDoc(OpenRule proto) {
+    default OpenRule toOpenRule(org.tripsphere.attraction.v1.OpenRule proto) {
         if (proto == null) return null;
-        return OpenRuleDoc.builder()
-                .days(proto.getDaysList().stream().map(DayOfWeek::name).toList())
+        return OpenRule.builder()
+                .days(proto.getDaysList().stream().map(this::toJavaDayOfWeek).toList())
                 .timeRanges(proto.getTimeRangesList().stream().map(this::toTimeRangeDoc).toList())
                 .note(proto.getNote())
                 .build();
     }
 
-    default OpenRule toOpenRuleProto(OpenRuleDoc doc) {
-        if (doc == null) return OpenRule.getDefaultInstance();
-        OpenRule.Builder builder = OpenRule.newBuilder();
+    default org.tripsphere.attraction.v1.OpenRule toOpenRuleProto(OpenRule doc) {
+        if (doc == null) return org.tripsphere.attraction.v1.OpenRule.getDefaultInstance();
+        org.tripsphere.attraction.v1.OpenRule.Builder builder =
+                org.tripsphere.attraction.v1.OpenRule.newBuilder();
         if (doc.getDays() != null) {
-            doc.getDays()
-                    .forEach(
-                            day -> {
-                                try {
-                                    builder.addDays(DayOfWeek.valueOf(day));
-                                } catch (IllegalArgumentException e) {
-                                    // Skip invalid enum values
-                                }
-                            });
+            doc.getDays().forEach(day -> builder.addDays(toProtoDayOfWeek(day)));
         }
         if (doc.getTimeRanges() != null) {
             doc.getTimeRanges().forEach(tr -> builder.addTimeRanges(toTimeRangeProto(tr)));
@@ -148,56 +135,84 @@ public interface AttractionMapper {
     }
 
     // ===================================================================
-    // TimeRange Mappings
+    // DayOfWeek Mappings (java.time.DayOfWeek <-> proto DayOfWeek)
     // ===================================================================
 
-    default TimeRangeDoc toTimeRangeDoc(TimeRange proto) {
-        if (proto == null) return null;
-        return TimeRangeDoc.builder()
-                .openTime(toTimeOfDayDoc(proto.getOpenTime()))
-                .closeTime(toTimeOfDayDoc(proto.getCloseTime()))
-                .lastEntryTime(toTimeOfDayDoc(proto.getLastEntryTime()))
-                .build();
+    default java.time.DayOfWeek toJavaDayOfWeek(org.tripsphere.common.v1.DayOfWeek protoDayOfWeek) {
+        if (protoDayOfWeek == null) return null;
+        return switch (protoDayOfWeek) {
+            case DAY_OF_WEEK_MONDAY -> java.time.DayOfWeek.MONDAY;
+            case DAY_OF_WEEK_TUESDAY -> java.time.DayOfWeek.TUESDAY;
+            case DAY_OF_WEEK_WEDNESDAY -> java.time.DayOfWeek.WEDNESDAY;
+            case DAY_OF_WEEK_THURSDAY -> java.time.DayOfWeek.THURSDAY;
+            case DAY_OF_WEEK_FRIDAY -> java.time.DayOfWeek.FRIDAY;
+            case DAY_OF_WEEK_SATURDAY -> java.time.DayOfWeek.SATURDAY;
+            case DAY_OF_WEEK_SUNDAY -> java.time.DayOfWeek.SUNDAY;
+            default -> null;
+        };
     }
 
-    default TimeRange toTimeRangeProto(TimeRangeDoc doc) {
-        if (doc == null) return TimeRange.getDefaultInstance();
-        TimeRange.Builder builder = TimeRange.newBuilder();
-        if (doc.getOpenTime() != null) {
-            builder.setOpenTime(toTimeOfDayProto(doc.getOpenTime()));
+    default org.tripsphere.common.v1.DayOfWeek toProtoDayOfWeek(java.time.DayOfWeek javaDayOfWeek) {
+        if (javaDayOfWeek == null)
+            return org.tripsphere.common.v1.DayOfWeek.DAY_OF_WEEK_UNSPECIFIED;
+        return switch (javaDayOfWeek) {
+            case MONDAY -> org.tripsphere.common.v1.DayOfWeek.DAY_OF_WEEK_MONDAY;
+            case TUESDAY -> org.tripsphere.common.v1.DayOfWeek.DAY_OF_WEEK_TUESDAY;
+            case WEDNESDAY -> org.tripsphere.common.v1.DayOfWeek.DAY_OF_WEEK_WEDNESDAY;
+            case THURSDAY -> org.tripsphere.common.v1.DayOfWeek.DAY_OF_WEEK_THURSDAY;
+            case FRIDAY -> org.tripsphere.common.v1.DayOfWeek.DAY_OF_WEEK_FRIDAY;
+            case SATURDAY -> org.tripsphere.common.v1.DayOfWeek.DAY_OF_WEEK_SATURDAY;
+            case SUNDAY -> org.tripsphere.common.v1.DayOfWeek.DAY_OF_WEEK_SUNDAY;
+        };
+    }
+
+    // ===================================================================
+    // TimeRange Mappings (using OpenRule.TimeRange record with LocalTime)
+    // ===================================================================
+
+    default OpenRule.TimeRange toTimeRangeDoc(org.tripsphere.attraction.v1.TimeRange proto) {
+        if (proto == null) return null;
+        return new OpenRule.TimeRange(
+                toLocalTime(proto.getOpenTime()),
+                toLocalTime(proto.getCloseTime()),
+                toLocalTime(proto.getLastEntryTime()));
+    }
+
+    default org.tripsphere.attraction.v1.TimeRange toTimeRangeProto(OpenRule.TimeRange doc) {
+        if (doc == null) return org.tripsphere.attraction.v1.TimeRange.getDefaultInstance();
+        org.tripsphere.attraction.v1.TimeRange.Builder builder =
+                org.tripsphere.attraction.v1.TimeRange.newBuilder();
+        if (doc.openTime() != null) {
+            builder.setOpenTime(toTimeOfDayProto(doc.openTime()));
         }
-        if (doc.getCloseTime() != null) {
-            builder.setCloseTime(toTimeOfDayProto(doc.getCloseTime()));
+        if (doc.closeTime() != null) {
+            builder.setCloseTime(toTimeOfDayProto(doc.closeTime()));
         }
-        if (doc.getLastEntryTime() != null) {
-            builder.setLastEntryTime(toTimeOfDayProto(doc.getLastEntryTime()));
+        if (doc.lastEntryTime() != null) {
+            builder.setLastEntryTime(toTimeOfDayProto(doc.lastEntryTime()));
         }
         return builder.build();
     }
 
     // ===================================================================
-    // TimeOfDay Mappings
+    // LocalTime <-> TimeOfDay Mappings
     // ===================================================================
 
-    default TimeOfDayDoc toTimeOfDayDoc(TimeOfDay proto) {
+    default LocalTime toLocalTime(TimeOfDay proto) {
         if (proto == null || proto.equals(TimeOfDay.getDefaultInstance())) {
             return null;
         }
-        return TimeOfDayDoc.builder()
-                .hours(proto.getHours())
-                .minutes(proto.getMinutes())
-                .seconds(proto.getSeconds())
-                .nanos(proto.getNanos())
-                .build();
+        return LocalTime.of(
+                proto.getHours(), proto.getMinutes(), proto.getSeconds(), proto.getNanos());
     }
 
-    default TimeOfDay toTimeOfDayProto(TimeOfDayDoc doc) {
-        if (doc == null) return TimeOfDay.getDefaultInstance();
+    default TimeOfDay toTimeOfDayProto(LocalTime localTime) {
+        if (localTime == null) return TimeOfDay.getDefaultInstance();
         return TimeOfDay.newBuilder()
-                .setHours(doc.getHours())
-                .setMinutes(doc.getMinutes())
-                .setSeconds(doc.getSeconds())
-                .setNanos(doc.getNanos())
+                .setHours(localTime.getHour())
+                .setMinutes(localTime.getMinute())
+                .setSeconds(localTime.getSecond())
+                .setNanos(localTime.getNano())
                 .build();
     }
 
@@ -205,21 +220,23 @@ public interface AttractionMapper {
     // TicketInfo Mappings
     // ===================================================================
 
-    @Named("toTicketInfoDoc")
-    default TicketInfoDoc toTicketInfoDoc(TicketInfo proto) {
-        if (proto == null || proto.equals(TicketInfo.getDefaultInstance())) {
+    @Named("toTicketInfo")
+    default TicketInfo toTicketInfo(org.tripsphere.attraction.v1.TicketInfo proto) {
+        if (proto == null
+                || proto.equals(org.tripsphere.attraction.v1.TicketInfo.getDefaultInstance())) {
             return null;
         }
-        return TicketInfoDoc.builder()
-                .estimatedPrice(toMoneyDoc(proto.getEstimatedPrice()))
+        return TicketInfo.builder()
+                .estimatedPrice(toMoney(proto.getEstimatedPrice()))
                 .metadata(structToMap(proto.getMetadata()))
                 .build();
     }
 
     @Named("toTicketInfoProto")
-    default TicketInfo toTicketInfoProto(TicketInfoDoc doc) {
-        if (doc == null) return TicketInfo.getDefaultInstance();
-        TicketInfo.Builder builder = TicketInfo.newBuilder();
+    default org.tripsphere.attraction.v1.TicketInfo toTicketInfoProto(TicketInfo doc) {
+        if (doc == null) return org.tripsphere.attraction.v1.TicketInfo.getDefaultInstance();
+        org.tripsphere.attraction.v1.TicketInfo.Builder builder =
+                org.tripsphere.attraction.v1.TicketInfo.newBuilder();
         if (doc.getEstimatedPrice() != null) {
             builder.setEstimatedPrice(toMoneyProto(doc.getEstimatedPrice()));
         }
@@ -230,28 +247,33 @@ public interface AttractionMapper {
     }
 
     // ===================================================================
-    // Money Mappings
+    // Money Mappings (using TicketInfo.Money record with Currency & BigDecimal)
     // ===================================================================
 
-    default MoneyDoc toMoneyDoc(Money proto) {
+    default TicketInfo.Money toMoney(Money proto) {
         if (proto == null || proto.equals(Money.getDefaultInstance())) {
             return null;
         }
-        return MoneyDoc.builder()
-                .currency(proto.getCurrency())
-                .units(proto.getUnits())
-                .nanos(proto.getNanos())
-                .build();
+        Currency currency = Currency.getInstance(proto.getCurrency());
+        // Convert units + nanos to BigDecimal
+        BigDecimal amount =
+                BigDecimal.valueOf(proto.getUnits()).add(BigDecimal.valueOf(proto.getNanos(), 9));
+        return new TicketInfo.Money(currency, amount);
     }
 
-    default Money toMoneyProto(MoneyDoc doc) {
+    default Money toMoneyProto(TicketInfo.Money doc) {
         if (doc == null) return Money.getDefaultInstance();
         Money.Builder builder = Money.newBuilder();
-        if (doc.getCurrency() != null) {
-            builder.setCurrency(doc.getCurrency());
+        if (doc.currency() != null) {
+            builder.setCurrency(doc.currency().getCurrencyCode());
         }
-        builder.setUnits(doc.getUnits());
-        builder.setNanos(doc.getNanos());
+        if (doc.amount() != null) {
+            // Convert BigDecimal to units + nanos
+            long units = doc.amount().longValue();
+            int nanos = doc.amount().remainder(BigDecimal.ONE).movePointRight(9).intValue();
+            builder.setUnits(units);
+            builder.setNanos(nanos);
+        }
         return builder.build();
     }
 

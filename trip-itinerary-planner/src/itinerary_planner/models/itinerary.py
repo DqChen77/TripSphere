@@ -28,15 +28,6 @@ class DayPlan(BaseModel):
     notes: str = Field(default="", description="Additional notes for the day")
 
 
-class ItinerarySummary(BaseModel):
-    total_estimated_cost: float = Field(description="Total estimated cost")
-    currency: str = Field(default="CNY", description="Currency code")
-    total_activities: int = Field(description="Total number of activities")
-    highlights: list[str] = Field(
-        default_factory=list, description="Key highlights of the trip"
-    )
-
-
 class Itinerary(BaseModel):
     id: str = Field(description="Unique itinerary identifier")
     destination: str = Field(description="Destination name")
@@ -45,4 +36,3 @@ class Itinerary(BaseModel):
     day_plans: list[DayPlan] = Field(
         default_factory=list[DayPlan], description="Daily plans"
     )
-    summary: ItinerarySummary = Field(description="Trip summary")

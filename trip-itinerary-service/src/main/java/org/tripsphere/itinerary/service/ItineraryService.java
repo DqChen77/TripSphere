@@ -5,7 +5,6 @@ import org.tripsphere.itinerary.v1.Activity;
 import org.tripsphere.itinerary.v1.DayPlan;
 import org.tripsphere.itinerary.v1.Itinerary;
 
-/** Service interface for managing itineraries. */
 public interface ItineraryService {
 
     /**

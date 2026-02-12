@@ -3,6 +3,10 @@ package org.tripsphere.itinerary.mapper;
 import com.github.f4b6a3.uuid.UuidCreator;
 import com.google.protobuf.Struct;
 import com.google.protobuf.util.JsonFormat;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.Currency;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,11 +22,8 @@ import org.tripsphere.common.v1.Money;
 import org.tripsphere.common.v1.TimeOfDay;
 import org.tripsphere.itinerary.model.ActivityDoc;
 import org.tripsphere.itinerary.model.ActivityKind;
-import org.tripsphere.itinerary.model.DateDoc;
 import org.tripsphere.itinerary.model.DayPlanDoc;
 import org.tripsphere.itinerary.model.ItineraryDoc;
-import org.tripsphere.itinerary.model.MoneyDoc;
-import org.tripsphere.itinerary.model.TimeOfDayDoc;
 import org.tripsphere.itinerary.v1.Activity;
 import org.tripsphere.itinerary.v1.DayPlan;
 import org.tripsphere.itinerary.v1.Itinerary;
@@ -45,10 +46,17 @@ public interface ItineraryMapper {
     /**
      * Convert Itinerary proto to ItineraryDoc. Note: destination POI is converted to just an ID
      * reference.
+     *
+     * <p>Internal fields (archived, createdAt, updatedAt) are ignored to prevent accidental
+     * overwrites during updates. These should be managed by the service layer or Spring Data.
      */
     @Mapping(target = "destinationPoiId", source = "destination.id")
+    @Mapping(target = "startDate", source = "startDate", qualifiedByName = "toLocalDate")
+    @Mapping(target = "endDate", source = "endDate", qualifiedByName = "toLocalDate")
     @Mapping(target = "metadata", source = "metadata", qualifiedByName = "structToMap")
-    @Mapping(target = "archived", constant = "false")
+    @Mapping(target = "archived", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
     ItineraryDoc toDoc(Itinerary itinerary);
 
     /**
@@ -56,6 +64,8 @@ public interface ItineraryMapper {
      * done at service layer.
      */
     @Mapping(target = "destination", ignore = true)
+    @Mapping(target = "startDate", source = "startDate", qualifiedByName = "toDateProto")
+    @Mapping(target = "endDate", source = "endDate", qualifiedByName = "toDateProto")
     @Mapping(target = "metadata", source = "metadata", qualifiedByName = "mapToStruct")
     Itinerary toProto(ItineraryDoc doc);
 
@@ -64,9 +74,11 @@ public interface ItineraryMapper {
     // ==================== DayPlan Mappings ====================
 
     @Mapping(target = "id", source = "id", qualifiedByName = "ensureId")
+    @Mapping(target = "date", source = "date", qualifiedByName = "toLocalDate")
     @Mapping(target = "metadata", source = "metadata", qualifiedByName = "structToMap")
     DayPlanDoc toDayPlanDoc(DayPlan dayPlan);
 
+    @Mapping(target = "date", source = "date", qualifiedByName = "toDateProto")
     @Mapping(target = "metadata", source = "metadata", qualifiedByName = "mapToStruct")
     DayPlan toDayPlanProto(DayPlanDoc doc);
 
@@ -78,6 +90,9 @@ public interface ItineraryMapper {
 
     @Mapping(target = "id", source = "id", qualifiedByName = "ensureId")
     @Mapping(target = "kind", source = "kind", qualifiedByName = "protoKindToDocKind")
+    @Mapping(target = "startTime", source = "startTime", qualifiedByName = "toLocalTime")
+    @Mapping(target = "endTime", source = "endTime", qualifiedByName = "toLocalTime")
+    @Mapping(target = "estimatedCost", source = "estimatedCost", qualifiedByName = "toMoney")
     @Mapping(target = "attractionId", source = "attraction.id")
     @Mapping(target = "hotelId", source = "hotel.id")
     @Mapping(target = "metadata", source = "metadata", qualifiedByName = "structToMap")
@@ -88,6 +103,9 @@ public interface ItineraryMapper {
      * must be done at service layer.
      */
     @Mapping(target = "kind", source = "kind", qualifiedByName = "docKindToProtoKind")
+    @Mapping(target = "startTime", source = "startTime", qualifiedByName = "toTimeOfDayProto")
+    @Mapping(target = "endTime", source = "endTime", qualifiedByName = "toTimeOfDayProto")
+    @Mapping(target = "estimatedCost", source = "estimatedCost", qualifiedByName = "toMoneyProto")
     @Mapping(target = "attraction", ignore = true)
     @Mapping(target = "hotel", ignore = true)
     @Mapping(target = "metadata", source = "metadata", qualifiedByName = "mapToStruct")
@@ -97,23 +115,81 @@ public interface ItineraryMapper {
 
     List<Activity> toActivityProtoList(List<ActivityDoc> docs);
 
-    // ==================== Date Mappings ====================
+    // ==================== Date Mappings (LocalDate <-> proto Date) ====================
 
-    DateDoc toDateDoc(Date date);
+    @Named("toLocalDate")
+    default LocalDate toLocalDate(Date date) {
+        if (date == null || date.equals(Date.getDefaultInstance())) {
+            return null;
+        }
+        return LocalDate.of(date.getYear(), date.getMonth(), date.getDay());
+    }
 
-    Date toDateProto(DateDoc doc);
+    @Named("toDateProto")
+    default Date toDateProto(LocalDate localDate) {
+        if (localDate == null) return Date.getDefaultInstance();
+        return Date.newBuilder()
+                .setYear(localDate.getYear())
+                .setMonth(localDate.getMonthValue())
+                .setDay(localDate.getDayOfMonth())
+                .build();
+    }
 
-    // ==================== TimeOfDay Mappings ====================
+    // ==================== TimeOfDay Mappings (LocalTime <-> proto TimeOfDay) ====================
 
-    TimeOfDayDoc toTimeOfDayDoc(TimeOfDay timeOfDay);
+    @Named("toLocalTime")
+    default LocalTime toLocalTime(TimeOfDay timeOfDay) {
+        if (timeOfDay == null || timeOfDay.equals(TimeOfDay.getDefaultInstance())) {
+            return null;
+        }
+        return LocalTime.of(
+                timeOfDay.getHours(),
+                timeOfDay.getMinutes(),
+                timeOfDay.getSeconds(),
+                timeOfDay.getNanos());
+    }
 
-    TimeOfDay toTimeOfDayProto(TimeOfDayDoc doc);
+    @Named("toTimeOfDayProto")
+    default TimeOfDay toTimeOfDayProto(LocalTime localTime) {
+        if (localTime == null) return TimeOfDay.getDefaultInstance();
+        return TimeOfDay.newBuilder()
+                .setHours(localTime.getHour())
+                .setMinutes(localTime.getMinute())
+                .setSeconds(localTime.getSecond())
+                .setNanos(localTime.getNano())
+                .build();
+    }
 
-    // ==================== Money Mappings ====================
+    // ==================== Money Mappings (ActivityDoc.Money <-> proto Money) ====================
 
-    MoneyDoc toMoneyDoc(Money money);
+    @Named("toMoney")
+    default ActivityDoc.Money toMoney(Money proto) {
+        if (proto == null || proto.equals(Money.getDefaultInstance())) {
+            return null;
+        }
+        Currency currency = Currency.getInstance(proto.getCurrency());
+        // Convert units + nanos to BigDecimal
+        BigDecimal amount =
+                BigDecimal.valueOf(proto.getUnits()).add(BigDecimal.valueOf(proto.getNanos(), 9));
+        return new ActivityDoc.Money(currency, amount);
+    }
 
-    Money toMoneyProto(MoneyDoc doc);
+    @Named("toMoneyProto")
+    default Money toMoneyProto(ActivityDoc.Money doc) {
+        if (doc == null) return Money.getDefaultInstance();
+        Money.Builder builder = Money.newBuilder();
+        if (doc.currency() != null) {
+            builder.setCurrency(doc.currency().getCurrencyCode());
+        }
+        if (doc.amount() != null) {
+            // Convert BigDecimal to units + nanos
+            long units = doc.amount().longValue();
+            int nanos = doc.amount().remainder(BigDecimal.ONE).movePointRight(9).intValue();
+            builder.setUnits(units);
+            builder.setNanos(nanos);
+        }
+        return builder.build();
+    }
 
     // ==================== Custom Converters ====================
 

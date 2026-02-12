@@ -50,8 +50,7 @@ message OpenRule {
 message TimeRange {
   tripsphere.common.v1.TimeOfDay open_time = 1;
   tripsphere.common.v1.TimeOfDay close_time = 2;
-  // The time of the day when the last entry is allowed.
-  // (Optional) If not set, it is the same as the close time.
+  // (Optional) The time of the day when the last entry is allowed.
   tripsphere.common.v1.TimeOfDay last_entry_time = 3;
 }
 

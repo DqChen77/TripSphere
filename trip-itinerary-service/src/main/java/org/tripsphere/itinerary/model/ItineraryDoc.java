@@ -1,6 +1,7 @@
 package org.tripsphere.itinerary.model;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -13,13 +14,6 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-/**
- * MongoDB document for storing itinerary information. Maps to tripsphere.itinerary.v1.Itinerary
- * proto.
- *
- * <p>Note: Only stores destinationPoiId reference. The full POI data is fetched from PoiService
- * when needed.
- */
 @Data
 @Builder
 @AllArgsConstructor
@@ -33,8 +27,8 @@ public class ItineraryDoc {
     /** Reference to the destination POI. Only stores the POI ID. */
     private String destinationPoiId;
 
-    private DateDoc startDate;
-    private DateDoc endDate;
+    private LocalDate startDate;
+    private LocalDate endDate;
     @Builder.Default private List<DayPlanDoc> dayPlans = new ArrayList<>();
     private Map<String, Object> metadata;
 

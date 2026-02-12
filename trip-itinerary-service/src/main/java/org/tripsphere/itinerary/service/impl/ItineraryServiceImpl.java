@@ -2,6 +2,7 @@ package org.tripsphere.itinerary.service.impl;
 
 import com.github.f4b6a3.uuid.UuidCreator;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -89,13 +90,24 @@ public class ItineraryServiceImpl implements ItineraryService {
         // Normalize page size
         int normalizedPageSize = normalizePageSize(pageSize);
 
-        // Decode page token to get offset
-        int offset = decodePageToken(pageToken);
+        // Decode cursor from page token
+        CursorToken cursor = decodeCursorToken(pageToken);
 
         // Fetch one extra to determine if there are more results
-        List<ItineraryDoc> docs =
-                itineraryRepository.findByUserIdAndArchivedOrderByStartDateDesc(
-                        userId, false, PageRequest.of(0, normalizedPageSize + 1).withPage(offset));
+        List<ItineraryDoc> docs;
+        PageRequest limit = PageRequest.of(0, normalizedPageSize + 1);
+
+        if (cursor == null) {
+            // First page: no cursor, just fetch the first batch
+            docs =
+                    itineraryRepository.findByUserIdAndArchivedOrderByCreatedAtDescIdDesc(
+                            userId, false, limit);
+        } else {
+            // Subsequent pages: use cursor for efficient keyset pagination
+            docs =
+                    itineraryRepository.findByUserIdWithCursor(
+                            userId, false, cursor.createdAt(), cursor.id(), limit);
+        }
 
         boolean hasMore = docs.size() > normalizedPageSize;
         if (hasMore) {
@@ -104,7 +116,12 @@ public class ItineraryServiceImpl implements ItineraryService {
 
         List<Itinerary> itineraries = mapper.toProtoList(docs);
 
-        String nextPageToken = hasMore ? encodePageToken(offset + 1) : null;
+        // Generate next page token from the last item's cursor values
+        String nextPageToken = null;
+        if (hasMore && !docs.isEmpty()) {
+            ItineraryDoc lastDoc = docs.get(docs.size() - 1);
+            nextPageToken = encodeCursorToken(lastDoc.getCreatedAt(), lastDoc.getId());
+        }
 
         return new PageResult<>(itineraries, nextPageToken);
     }
@@ -298,22 +315,46 @@ public class ItineraryServiceImpl implements ItineraryService {
         return Math.min(pageSize, MAX_PAGE_SIZE);
     }
 
-    private String encodePageToken(int pageNumber) {
-        return Base64.getEncoder()
-                .encodeToString(String.valueOf(pageNumber).getBytes(StandardCharsets.UTF_8));
+    // ==================== Cursor Token Methods ====================
+
+    /** Cursor token containing the pagination cursor values. */
+    private record CursorToken(Instant createdAt, String id) {}
+
+    private static final String CURSOR_SEPARATOR = "|";
+
+    /**
+     * Encodes cursor values into a Base64 page token. Format: "epochMillis|id" encoded in Base64.
+     */
+    private String encodeCursorToken(Instant createdAt, String id) {
+        String raw = createdAt.toEpochMilli() + CURSOR_SEPARATOR + id;
+        return Base64.getUrlEncoder()
+                .withoutPadding()
+                .encodeToString(raw.getBytes(StandardCharsets.UTF_8));
     }
 
-    private int decodePageToken(String pageToken) {
+    /**
+     * Decodes a Base64 page token into cursor values.
+     *
+     * @return CursorToken if valid, null if token is empty or invalid
+     */
+    private CursorToken decodeCursorToken(String pageToken) {
         if (pageToken == null || pageToken.isEmpty()) {
-            return 0;
+            return null;
         }
         try {
             String decoded =
-                    new String(Base64.getDecoder().decode(pageToken), StandardCharsets.UTF_8);
-            return Integer.parseInt(decoded);
+                    new String(Base64.getUrlDecoder().decode(pageToken), StandardCharsets.UTF_8);
+            int separatorIndex = decoded.indexOf(CURSOR_SEPARATOR);
+            if (separatorIndex == -1) {
+                log.warn("Invalid cursor token format: {}", pageToken);
+                return null;
+            }
+            long epochMilli = Long.parseLong(decoded.substring(0, separatorIndex));
+            String id = decoded.substring(separatorIndex + 1);
+            return new CursorToken(Instant.ofEpochMilli(epochMilli), id);
         } catch (Exception e) {
-            log.warn("Invalid page token: {}", pageToken);
-            return 0;
+            log.warn("Failed to decode cursor token: {}", pageToken, e);
+            return null;
         }
     }
 }

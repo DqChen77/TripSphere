@@ -28,13 +28,13 @@ public class AttractionDoc {
     @GeoSpatialIndexed(type = GeoSpatialIndexType.GEO_2DSPHERE)
     private GeoJsonPoint location;
 
-    private AddressDoc address;
+    private Address address;
     private String introduction;
     private List<String> tags;
     private List<String> images;
-    private OpeningHoursDoc openingHours;
+    private OpeningHours openingHours;
     private boolean temporarilyClosed;
-    private TicketInfoDoc ticketInfo;
+    private TicketInfo ticketInfo;
     @CreatedDate private Instant createdAt;
     @LastModifiedDate private Instant updatedAt;
 }
