@@ -21,20 +21,13 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @Document(collection = "itineraries")
 public class ItineraryDoc {
     @Id private String id;
-    private String title;
     private String userId;
-
-    /** Reference to the destination POI. Only stores the POI ID. */
+    private String title;
     private String destinationPoiId;
-
     private LocalDate startDate;
     private LocalDate endDate;
     @Builder.Default private List<DayPlanDoc> dayPlans = new ArrayList<>();
     private Map<String, Object> metadata;
-
-    /** Soft delete flag for ArchiveItinerary operation. */
-    @Builder.Default private boolean archived = false;
-
     @CreatedDate private Instant createdAt;
     @LastModifiedDate private Instant updatedAt;
 }

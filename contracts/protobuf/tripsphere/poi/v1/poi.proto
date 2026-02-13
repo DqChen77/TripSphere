@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package tripsphere.poi.v1;
 
-import "google/protobuf/field_mask.proto";
 import "tripsphere/common/v1/map.proto";
 
 option go_package = "tripsphere/poi/v1";
@@ -48,8 +47,6 @@ message GetPoiByIdResponse {
 message BatchGetPoisRequest {
   // The IDs of POIs to retrieve.
   repeated string ids = 1;
-  // Field mask to specify which fields to return.
-  google.protobuf.FieldMask field_mask = 2;
 }
 
 message BatchGetPoisResponse {

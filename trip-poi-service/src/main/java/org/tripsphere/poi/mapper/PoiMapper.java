@@ -16,15 +16,16 @@ import org.tripsphere.poi.v1.Poi;
 public interface PoiMapper {
     PoiMapper INSTANCE = Mappers.getMapper(PoiMapper.class);
 
-    @Mapping(target = "location", source = "location", qualifiedByName = "toGeoJsonPoint")
+    // ===================================================================
+    // Poi Mappings
+    // ===================================================================
+
     PoiDoc toDoc(Poi poi);
 
-    @Mapping(target = "location", source = "location", qualifiedByName = "toGeoPoint")
     Poi toProto(PoiDoc poiDoc);
 
     List<Poi> toProtoList(List<PoiDoc> poiDocs);
 
-    @Named("toGeoJsonPoint")
     default GeoJsonPoint toGeoJsonPoint(GeoPoint point) {
         if (point == null) return null;
         double[] coordinate =
@@ -32,7 +33,6 @@ public interface PoiMapper {
         return new GeoJsonPoint(coordinate[0], coordinate[1]);
     }
 
-    @Named("toGeoPoint")
     default GeoPoint toGeoPoint(GeoJsonPoint geoJsonPoint) {
         if (geoJsonPoint == null) return null;
         double[] coordinate =

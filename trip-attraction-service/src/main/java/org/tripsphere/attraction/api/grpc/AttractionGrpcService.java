@@ -1,7 +1,5 @@
 package org.tripsphere.attraction.api.grpc;
 
-import com.google.protobuf.FieldMask;
-import com.google.protobuf.util.FieldMaskUtil;
 import io.grpc.stub.StreamObserver;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -57,15 +55,6 @@ public class AttractionGrpcService extends AttractionServiceGrpc.AttractionServi
         }
 
         List<Attraction> attractions = attractionService.findAllByIds(ids);
-
-        // Apply field mask if specified
-        FieldMask fieldMask = request.getFieldMask();
-        if (request.hasFieldMask() && fieldMask.getPathsCount() > 0) {
-            attractions =
-                    attractions.stream()
-                            .map(attraction -> FieldMaskUtil.trim(fieldMask, attraction))
-                            .toList();
-        }
 
         responseObserver.onNext(
                 BatchGetAttractionsResponse.newBuilder().addAllAttractions(attractions).build());

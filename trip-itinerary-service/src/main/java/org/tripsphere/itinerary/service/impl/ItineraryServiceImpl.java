@@ -12,15 +12,17 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.tripsphere.itinerary.exception.InvalidArgumentException;
 import org.tripsphere.itinerary.exception.NotFoundException;
+import org.tripsphere.itinerary.mapper.ActivityMapper;
+import org.tripsphere.itinerary.mapper.DayPlanMapper;
 import org.tripsphere.itinerary.mapper.ItineraryMapper;
 import org.tripsphere.itinerary.model.ActivityDoc;
 import org.tripsphere.itinerary.model.DayPlanDoc;
 import org.tripsphere.itinerary.model.ItineraryDoc;
 import org.tripsphere.itinerary.repository.ItineraryRepository;
 import org.tripsphere.itinerary.service.ItineraryService;
-import org.tripsphere.itinerary.v1.Activity;
 import org.tripsphere.itinerary.v1.DayPlan;
 import org.tripsphere.itinerary.v1.Itinerary;
+import org.tripsphere.itinerary.v1.Activity;
 
 @Slf4j
 @Service
@@ -28,7 +30,9 @@ import org.tripsphere.itinerary.v1.Itinerary;
 public class ItineraryServiceImpl implements ItineraryService {
 
     private final ItineraryRepository itineraryRepository;
-    private final ItineraryMapper mapper = ItineraryMapper.INSTANCE;
+    private final ItineraryMapper itineraryMapper = ItineraryMapper.INSTANCE;
+    private final DayPlanMapper dayPlanMapper = DayPlanMapper.INSTANCE;
+    private final ActivityMapper activityMapper = ActivityMapper.INSTANCE;
 
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 100;
@@ -37,7 +41,7 @@ public class ItineraryServiceImpl implements ItineraryService {
     public Itinerary createItinerary(Itinerary itinerary) {
         log.debug("Creating new itinerary: {}", itinerary.getTitle());
 
-        ItineraryDoc doc = mapper.toDoc(itinerary);
+        ItineraryDoc doc = itineraryMapper.toDoc(itinerary);
         // Server generates the ID, ignore any client-provided ID
         doc.setId(null);
 
@@ -51,7 +55,7 @@ public class ItineraryServiceImpl implements ItineraryService {
         ItineraryDoc saved = itineraryRepository.save(doc);
         log.info("Created itinerary with id: {}", saved.getId());
 
-        return mapper.toProto(saved);
+        return itineraryMapper.toProto(saved);
     }
 
     @Override
@@ -61,25 +65,9 @@ public class ItineraryServiceImpl implements ItineraryService {
         ItineraryDoc doc =
                 itineraryRepository
                         .findById(id)
-                        .filter(d -> !d.isArchived())
                         .orElseThrow(() -> new NotFoundException("Itinerary", id));
 
-        return mapper.toProto(doc);
-    }
-
-    @Override
-    public void archiveItinerary(String id) {
-        log.debug("Archiving itinerary: {}", id);
-
-        ItineraryDoc doc =
-                itineraryRepository
-                        .findById(id)
-                        .orElseThrow(() -> new NotFoundException("Itinerary", id));
-
-        doc.setArchived(true);
-        itineraryRepository.save(doc);
-
-        log.info("Archived itinerary: {}", id);
+        return itineraryMapper.toProto(doc);
     }
 
     @Override
@@ -99,14 +87,12 @@ public class ItineraryServiceImpl implements ItineraryService {
 
         if (cursor == null) {
             // First page: no cursor, just fetch the first batch
-            docs =
-                    itineraryRepository.findByUserIdAndArchivedOrderByCreatedAtDescIdDesc(
-                            userId, false, limit);
+            docs = itineraryRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, limit);
         } else {
             // Subsequent pages: use cursor for efficient keyset pagination
             docs =
                     itineraryRepository.findByUserIdWithCursor(
-                            userId, false, cursor.createdAt(), cursor.id(), limit);
+                            userId, cursor.createdAt(), cursor.id(), limit);
         }
 
         boolean hasMore = docs.size() > normalizedPageSize;
@@ -114,7 +100,7 @@ public class ItineraryServiceImpl implements ItineraryService {
             docs = docs.subList(0, normalizedPageSize);
         }
 
-        List<Itinerary> itineraries = mapper.toProtoList(docs);
+        List<Itinerary> itineraries = itineraryMapper.toProtoList(docs);
 
         // Generate next page token from the last item's cursor values
         String nextPageToken = null;
@@ -132,7 +118,7 @@ public class ItineraryServiceImpl implements ItineraryService {
 
         ItineraryDoc doc = getItineraryDoc(itineraryId);
 
-        DayPlanDoc dayPlanDoc = mapper.toDayPlanDoc(dayPlan);
+        DayPlanDoc dayPlanDoc = dayPlanMapper.toDoc(dayPlan);
         ensureDayPlanId(dayPlanDoc);
 
         if (doc.getDayPlans() == null) {
@@ -143,7 +129,7 @@ public class ItineraryServiceImpl implements ItineraryService {
         itineraryRepository.save(doc);
         log.info("Added day plan {} to itinerary {}", dayPlanDoc.getId(), itineraryId);
 
-        return mapper.toDayPlanProto(dayPlanDoc);
+        return dayPlanMapper.toProto(dayPlanDoc);
     }
 
     @Override
@@ -176,7 +162,7 @@ public class ItineraryServiceImpl implements ItineraryService {
         ItineraryDoc doc = getItineraryDoc(itineraryId);
         DayPlanDoc dayPlanDoc = findDayPlan(doc, dayPlanId);
 
-        ActivityDoc activityDoc = mapper.toActivityDoc(activity);
+        ActivityDoc activityDoc = activityMapper.toDoc(activity);
         ensureActivityId(activityDoc);
 
         if (dayPlanDoc.getActivities() == null) {
@@ -197,7 +183,7 @@ public class ItineraryServiceImpl implements ItineraryService {
                 dayPlanId,
                 itineraryId);
 
-        return mapper.toActivityProto(activityDoc);
+        return activityMapper.toProto(activityDoc);
     }
 
     @Override
@@ -232,7 +218,7 @@ public class ItineraryServiceImpl implements ItineraryService {
             throw new NotFoundException("Activity", activity.getId());
         }
 
-        ActivityDoc updatedDoc = mapper.toActivityDoc(activity);
+        ActivityDoc updatedDoc = activityMapper.toDoc(activity);
         activities.set(index, updatedDoc);
 
         itineraryRepository.save(doc);
@@ -242,7 +228,7 @@ public class ItineraryServiceImpl implements ItineraryService {
                 dayPlanId,
                 itineraryId);
 
-        return mapper.toActivityProto(updatedDoc);
+        return activityMapper.toProto(updatedDoc);
     }
 
     @Override
@@ -277,7 +263,6 @@ public class ItineraryServiceImpl implements ItineraryService {
     private ItineraryDoc getItineraryDoc(String itineraryId) {
         return itineraryRepository
                 .findById(itineraryId)
-                .filter(d -> !d.isArchived())
                 .orElseThrow(() -> new NotFoundException("Itinerary", itineraryId));
     }
 

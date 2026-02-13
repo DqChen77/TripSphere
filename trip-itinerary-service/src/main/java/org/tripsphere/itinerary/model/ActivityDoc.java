@@ -1,8 +1,6 @@
 package org.tripsphere.itinerary.model;
 
-import java.math.BigDecimal;
 import java.time.LocalTime;
-import java.util.Currency;
 import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -24,6 +22,4 @@ public class ActivityDoc {
     private String attractionId;
     private String hotelId;
     private Map<String, Object> metadata;
-
-    public record Money(Currency currency, BigDecimal amount) {}
 }

@@ -1,4 +1,4 @@
-package org.tripsphere.attraction.model;
+package org.tripsphere.poi.model;
 
 import java.util.stream.Collectors;
 import java.util.stream.Stream;

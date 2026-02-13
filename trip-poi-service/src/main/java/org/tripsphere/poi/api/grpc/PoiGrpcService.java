@@ -1,7 +1,5 @@
 package org.tripsphere.poi.api.grpc;
 
-import com.google.protobuf.FieldMask;
-import com.google.protobuf.util.FieldMaskUtil;
 import io.grpc.stub.StreamObserver;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -61,12 +59,6 @@ public class PoiGrpcService extends PoiServiceGrpc.PoiServiceImplBase {
         }
 
         List<Poi> pois = poiService.findAllByIds(ids);
-
-        // Apply field mask if specified
-        FieldMask fieldMask = request.getFieldMask();
-        if (request.hasFieldMask() && fieldMask.getPathsCount() > 0) {
-            pois = pois.stream().map(poi -> FieldMaskUtil.trim(fieldMask, poi)).toList();
-        }
 
         responseObserver.onNext(BatchGetPoisResponse.newBuilder().addAllPois(pois).build());
         responseObserver.onCompleted();

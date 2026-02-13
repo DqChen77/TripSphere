@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package tripsphere.itinerary.v1;
 
+import "google/protobuf/field_mask.proto";
 import "google/protobuf/struct.proto";
 import "tripsphere/attraction/v1/attraction.proto";
 import "tripsphere/common/v1/date.proto";
@@ -19,9 +20,13 @@ service ItineraryService {
 
   rpc GetItinerary(GetItineraryRequest) returns (GetItineraryResponse);
 
-  rpc ArchiveItinerary(ArchiveItineraryRequest) returns (ArchiveItineraryResponse);
-
   rpc ListUserItineraries(ListUserItinerariesRequest) returns (ListUserItinerariesResponse);
+
+  rpc DeleteItinerary(DeleteItineraryRequest) returns (DeleteItineraryResponse);
+
+  // Update the meta information, such as title, start_date, end_date, etc.
+  // Do not update the DayPlans and Activities through this method.
+  rpc UpdateItinerary(UpdateItineraryRequest) returns (UpdateItineraryResponse);
 
   rpc AddDayPlan(AddDayPlanRequest) returns (AddDayPlanResponse);
 
@@ -93,12 +98,6 @@ message GetItineraryResponse {
   Itinerary itinerary = 1;
 }
 
-message ArchiveItineraryRequest {
-  string id = 1;
-}
-
-message ArchiveItineraryResponse {}
-
 message ListUserItinerariesRequest {
   string user_id = 1;
   int32 page_size = 2;
@@ -112,6 +111,21 @@ message ListUserItinerariesResponse {
   // A token, which can be sent as `page_token` to retrieve the next page.
   // If this field is omitted, there are no subsequent pages.
   string next_page_token = 2;
+}
+
+message DeleteItineraryRequest {
+  string id = 1;
+}
+
+message DeleteItineraryResponse {}
+
+message UpdateItineraryRequest {
+  Itinerary itinerary = 1;
+  google.protobuf.FieldMask field_mask = 2;
+}
+
+message UpdateItineraryResponse {
+  Itinerary itinerary = 1;
 }
 
 message AddDayPlanRequest {
@@ -143,7 +157,7 @@ message AddActivityRequest {
   string itinerary_id = 1;
   string day_plan_id = 2;
   Activity activity = 3;
-  // The index of the activity to be inserted before.
+  // The 0-based index of the activity to be inserted before.
   // If not set or out of range, the activity will be added to the end of the day plan.
   int32 insert_index = 4;
 }
@@ -153,9 +167,8 @@ message AddActivityResponse {
 }
 
 message UpdateActivityRequest {
-  string itinerary_id = 1;
-  string day_plan_id = 2;
-  Activity activity = 3;
+  Activity activity = 1;
+  google.protobuf.FieldMask field_mask = 2;
 }
 
 message UpdateActivityResponse {

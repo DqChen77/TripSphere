@@ -27,21 +27,11 @@ public class PoiDoc {
     @GeoSpatialIndexed(type = GeoSpatialIndexType.GEO_2DSPHERE)
     private GeoJsonPoint location;
 
-    private AddressDoc address;
+    private Address address;
     private String adcode;
     private String amapId;
     private List<String> categories;
     private List<String> images;
     @CreatedDate private Instant createdAt;
     @LastModifiedDate private Instant updatedAt;
-
-    @Data
-    @AllArgsConstructor
-    @NoArgsConstructor
-    public static class AddressDoc {
-        private String province;
-        private String city;
-        private String district;
-        private String detailed;
-    }
 }

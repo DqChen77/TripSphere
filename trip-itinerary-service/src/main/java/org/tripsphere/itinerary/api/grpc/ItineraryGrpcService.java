@@ -13,8 +13,6 @@ import org.tripsphere.itinerary.v1.AddActivityRequest;
 import org.tripsphere.itinerary.v1.AddActivityResponse;
 import org.tripsphere.itinerary.v1.AddDayPlanRequest;
 import org.tripsphere.itinerary.v1.AddDayPlanResponse;
-import org.tripsphere.itinerary.v1.ArchiveItineraryRequest;
-import org.tripsphere.itinerary.v1.ArchiveItineraryResponse;
 import org.tripsphere.itinerary.v1.CreateItineraryRequest;
 import org.tripsphere.itinerary.v1.CreateItineraryResponse;
 import org.tripsphere.itinerary.v1.DayPlan;
@@ -75,25 +73,6 @@ public class ItineraryGrpcService extends ItineraryServiceImplBase {
         Itinerary itinerary = itineraryService.getItinerary(request.getId());
 
         responseObserver.onNext(GetItineraryResponse.newBuilder().setItinerary(itinerary).build());
-        responseObserver.onCompleted();
-    }
-
-    @Override
-    public void archiveItinerary(
-            ArchiveItineraryRequest request,
-            StreamObserver<ArchiveItineraryResponse> responseObserver) {
-        GrpcAuthContext authContext = GrpcAuthContext.current();
-
-        if (request.getId().isEmpty()) {
-            throw InvalidArgumentException.required("id");
-        }
-
-        // Check access permission
-        authorizationService.checkItineraryAccess(authContext, request.getId());
-
-        itineraryService.archiveItinerary(request.getId());
-
-        responseObserver.onNext(ArchiveItineraryResponse.newBuilder().build());
         responseObserver.onCompleted();
     }
 
