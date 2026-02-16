@@ -21,7 +21,7 @@ import (
 // Test Helpers
 // ============================================================
 
-func setupTest(t *testing.T) (*ReviewService, *domainmock.MockReviewRepository) {
+func setupTest(_ *testing.T) (*ReviewService, *domainmock.MockReviewRepository) {
 	mockRepo := domainmock.NewMockReviewRepository()
 	service := NewReviewService(mockRepo)
 	return service, mockRepo
@@ -96,7 +96,7 @@ func TestCreateReview(t *testing.T) {
 					UserId:     "user-123",
 					EntityId:   "hotel-456",
 					EntityType: pb.EntityType_ENTITY_TYPE_HOTEL,
-					Rating:     8,
+					Rating:     4,
 					Content:    "Great hotel!",
 					Images:     []string{"img1.jpg", "img2.jpg"},
 					Dimensions: map[string]uint32{"view": 4, "service": 5},
@@ -107,7 +107,7 @@ func TestCreateReview(t *testing.T) {
 					return r.UserID == "user-123" &&
 						r.EntityID == "hotel-456" &&
 						r.EntityType == domain.EntityTypeHotel &&
-						r.Rating == 8
+						r.Rating == 4
 				})).Return(nil)
 			},
 			expectedError: false,
@@ -133,7 +133,7 @@ func TestCreateReview(t *testing.T) {
 					UserId:     "",
 					EntityId:   "hotel-456",
 					EntityType: pb.EntityType_ENTITY_TYPE_HOTEL,
-					Rating:     8,
+					Rating:     4,
 				},
 			},
 			setupMock:     func(m *domainmock.MockReviewRepository) {},
@@ -147,7 +147,7 @@ func TestCreateReview(t *testing.T) {
 					UserId:     "user-123",
 					EntityId:   "",
 					EntityType: pb.EntityType_ENTITY_TYPE_HOTEL,
-					Rating:     8,
+					Rating:     4,
 				},
 			},
 			setupMock:     func(m *domainmock.MockReviewRepository) {},
@@ -161,7 +161,7 @@ func TestCreateReview(t *testing.T) {
 					UserId:     "user-123",
 					EntityId:   "hotel-456",
 					EntityType: pb.EntityType_ENTITY_TYPE_UNSPECIFIED,
-					Rating:     8,
+					Rating:     4,
 				},
 			},
 			setupMock:     func(m *domainmock.MockReviewRepository) {},
@@ -183,13 +183,13 @@ func TestCreateReview(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name: "rating greater than 10",
+			name: "rating greater than 5",
 			request: &pb.CreateReviewRequest{
 				Review: &pb.Review{
 					UserId:     "user-123",
 					EntityId:   "hotel-456",
 					EntityType: pb.EntityType_ENTITY_TYPE_HOTEL,
-					Rating:     11,
+					Rating:     6,
 				},
 			},
 			setupMock:     func(m *domainmock.MockReviewRepository) {},
@@ -203,7 +203,7 @@ func TestCreateReview(t *testing.T) {
 					UserId:     "user-123",
 					EntityId:   "hotel-456",
 					EntityType: pb.EntityType_ENTITY_TYPE_HOTEL,
-					Rating:     8,
+					Rating:     4,
 				},
 			},
 			setupMock: func(m *domainmock.MockReviewRepository) {
@@ -248,7 +248,7 @@ func TestUpdateReview(t *testing.T) {
 		UserID:     "user-123",
 		EntityType: domain.EntityTypeHotel,
 		EntityID:   "hotel-456",
-		Rating:     7,
+		Rating:     3,
 		Content:    "Original content",
 		CreatedAt:  now.Add(-time.Hour),
 		UpdatedAt:  now.Add(-time.Hour),
@@ -266,7 +266,7 @@ func TestUpdateReview(t *testing.T) {
 			request: &pb.UpdateReviewRequest{
 				Review: &pb.Review{
 					Id:      "review-123",
-					Rating:  9,
+					Rating:  4,
 					Content: "Updated content",
 					Images:  []string{"new-img.jpg"},
 				},
@@ -274,7 +274,7 @@ func TestUpdateReview(t *testing.T) {
 			setupMock: func(m *domainmock.MockReviewRepository) {
 				m.On("GetByID", mock.Anything, "review-123").Return(existingReview, nil)
 				m.On("Update", mock.Anything, mock.MatchedBy(func(r *domain.Review) bool {
-					return r.ID == "review-123" && r.Rating == 9
+					return r.ID == "review-123" && r.Rating == 4
 				})).Return(nil)
 			},
 			expectedError: false,
@@ -293,7 +293,7 @@ func TestUpdateReview(t *testing.T) {
 			request: &pb.UpdateReviewRequest{
 				Review: &pb.Review{
 					Id:     "",
-					Rating: 8,
+					Rating: 4,
 				},
 			},
 			setupMock:     func(m *domainmock.MockReviewRepository) {},
@@ -313,11 +313,11 @@ func TestUpdateReview(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name: "invalid rating - greater than 10",
+			name: "invalid rating - greater than 5",
 			request: &pb.UpdateReviewRequest{
 				Review: &pb.Review{
 					Id:     "review-123",
-					Rating: 11,
+					Rating: 6,
 				},
 			},
 			setupMock:     func(m *domainmock.MockReviewRepository) {},
@@ -329,7 +329,7 @@ func TestUpdateReview(t *testing.T) {
 			request: &pb.UpdateReviewRequest{
 				Review: &pb.Review{
 					Id:     "non-existent",
-					Rating: 8,
+					Rating: 4,
 				},
 			},
 			setupMock: func(m *domainmock.MockReviewRepository) {
@@ -343,7 +343,7 @@ func TestUpdateReview(t *testing.T) {
 			request: &pb.UpdateReviewRequest{
 				Review: &pb.Review{
 					Id:     "review-123",
-					Rating: 8,
+					Rating: 4,
 				},
 			},
 			setupMock: func(m *domainmock.MockReviewRepository) {
@@ -460,7 +460,7 @@ func TestListReviewsByEntity(t *testing.T) {
 		UserID:     "current-user",
 		EntityType: domain.EntityTypeHotel,
 		EntityID:   "hotel-123",
-		Rating:     9,
+		Rating:     4,
 		Content:    "My review",
 		CreatedAt:  now,
 		UpdatedAt:  now,
@@ -472,7 +472,7 @@ func TestListReviewsByEntity(t *testing.T) {
 			UserID:     "other-user-1",
 			EntityType: domain.EntityTypeHotel,
 			EntityID:   "hotel-123",
-			Rating:     8,
+			Rating:     4,
 			Content:    "Great!",
 			CreatedAt:  now.Add(-time.Hour),
 			UpdatedAt:  now.Add(-time.Hour),
@@ -482,7 +482,7 @@ func TestListReviewsByEntity(t *testing.T) {
 			UserID:     "other-user-2",
 			EntityType: domain.EntityTypeHotel,
 			EntityID:   "hotel-123",
-			Rating:     7,
+			Rating:     3,
 			Content:    "Good",
 			CreatedAt:  now.Add(-2 * time.Hour),
 			UpdatedAt:  now.Add(-2 * time.Hour),
@@ -679,7 +679,7 @@ func TestDomainToProto(t *testing.T) {
 		UserID:     "user-456",
 		EntityType: domain.EntityTypeHotel,
 		EntityID:   "hotel-789",
-		Rating:     8,
+		Rating:     4,
 		Content:    "Great experience!",
 		Images:     []string{"img1.jpg", "img2.jpg"},
 		Dimensions: map[string]uint32{"view": 4, "service": 5},
@@ -715,7 +715,7 @@ func BenchmarkCreateReview(b *testing.B) {
 			UserId:     "user-123",
 			EntityId:   "hotel-456",
 			EntityType: pb.EntityType_ENTITY_TYPE_HOTEL,
-			Rating:     8,
+			Rating:     4,
 			Content:    "Great hotel!",
 		},
 	}
@@ -735,7 +735,7 @@ func BenchmarkDomainToProto(b *testing.B) {
 		UserID:     "user-456",
 		EntityType: domain.EntityTypeHotel,
 		EntityID:   "hotel-789",
-		Rating:     8,
+		Rating:     4,
 		Content:    "Great experience!",
 		Images:     []string{"img1.jpg", "img2.jpg"},
 		Dimensions: map[string]uint32{"view": 4, "service": 5},

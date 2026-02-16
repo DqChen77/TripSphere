@@ -7,8 +7,8 @@ var (
 	// ErrReviewNotFound indicates the requested review does not exist
 	ErrReviewNotFound = errors.New("review not found")
 
-	// ErrInvalidRating indicates the rating value is invalid (must be between 1 and 10)
-	ErrInvalidRating = errors.New("rating must be between 1 and 10")
+	// ErrInvalidRating indicates the rating value is invalid (must be between 1 and 5)
+	ErrInvalidRating = errors.New("rating must be between 1 and 5")
 
 	// ErrInvalidPageToken indicates the pagination token format is invalid
 	ErrInvalidPageToken = errors.New("invalid page token format")

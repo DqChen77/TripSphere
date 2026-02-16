@@ -66,8 +66,8 @@ func (s *ReviewService) CreateReview(ctx context.Context, req *pb.CreateReviewRe
 	if review.EntityType == pb.EntityType_ENTITY_TYPE_UNSPECIFIED {
 		return nil, status.Error(codes.InvalidArgument, "entity_type is required")
 	}
-	if review.Rating < 1 || review.Rating > 10 {
-		return nil, status.Error(codes.InvalidArgument, "rating must be between 1 and 10")
+	if review.Rating < 1 || review.Rating > 5 {
+		return nil, status.Error(codes.InvalidArgument, "rating must be between 1 and 5")
 	}
 
 	id := uuid.New().String()
@@ -118,8 +118,8 @@ func (s *ReviewService) UpdateReview(ctx context.Context, req *pb.UpdateReviewRe
 	if review.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "id is required")
 	}
-	if review.Rating < 1 || review.Rating > 10 {
-		return nil, status.Error(codes.InvalidArgument, "rating must be between 1 and 10")
+	if review.Rating < 1 || review.Rating > 5 {
+		return nil, status.Error(codes.InvalidArgument, "rating must be between 1 and 5")
 	}
 
 	// Fetch existing review first

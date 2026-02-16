@@ -29,7 +29,7 @@ message Review {
   string user_id = 2;
   EntityType entity_type = 3;
   string entity_id = 4;
-  // A score between 1 and 10
+  // A score between 1 and 5
   int32 rating = 5;
   string content = 6;
   repeated string images = 7;

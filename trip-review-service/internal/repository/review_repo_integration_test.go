@@ -72,7 +72,7 @@ func newTestReviewWithID(id, userID, entityID string) *domain.Review {
 		UserID:     userID,
 		EntityType: domain.EntityTypeHotel,
 		EntityID:   entityID,
-		Rating:     8,
+		Rating:     4,
 		Content:    "Great hotel!",
 		Images:     []string{"img1.jpg", "img2.jpg"},
 		Dimensions: map[string]uint32{"view": 4, "service": 5},
@@ -181,7 +181,7 @@ func TestIntegration_Update(t *testing.T) {
 	require.NoError(t, err)
 
 	// Update the review
-	review.Rating = 9
+	review.Rating = 4
 	review.Content = "Updated content"
 	review.UpdatedAt = time.Now()
 	err = repo.Update(ctx, review)
@@ -191,7 +191,7 @@ func TestIntegration_Update(t *testing.T) {
 	got, err := repo.GetByID(ctx, review.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got)
-	assert.Equal(t, int32(9), got.Rating)
+	assert.Equal(t, int32(4), got.Rating)
 	assert.Equal(t, "Updated content", got.Content)
 }
 
