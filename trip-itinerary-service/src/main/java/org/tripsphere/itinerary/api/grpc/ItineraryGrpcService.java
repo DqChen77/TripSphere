@@ -181,22 +181,17 @@ public class ItineraryGrpcService extends ItineraryServiceImplBase {
             StreamObserver<UpdateActivityResponse> responseObserver) {
         GrpcAuthContext authContext = GrpcAuthContext.current();
 
-        if (request.getItineraryId().isEmpty()) {
-            throw InvalidArgumentException.required("itinerary_id");
-        }
-        if (request.getDayPlanId().isEmpty()) {
-            throw InvalidArgumentException.required("day_plan_id");
-        }
         if (!request.hasActivity()) {
             throw InvalidArgumentException.required("activity");
         }
+        if (request.getActivity().getId().isEmpty()) {
+            throw InvalidArgumentException.required("activity.id");
+        }
 
-        // Check access permission
-        authorizationService.checkItineraryAccess(authContext, request.getItineraryId());
+        // Look up itinerary by activity ID, then check access permission
+        authorizationService.checkActivityAccess(authContext, request.getActivity().getId());
 
-        Activity updated =
-                itineraryService.updateActivity(
-                        request.getItineraryId(), request.getDayPlanId(), request.getActivity());
+        Activity updated = itineraryService.updateActivity(request.getActivity());
 
         responseObserver.onNext(UpdateActivityResponse.newBuilder().setActivity(updated).build());
         responseObserver.onCompleted();

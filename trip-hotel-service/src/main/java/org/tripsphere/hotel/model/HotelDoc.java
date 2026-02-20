@@ -1,6 +1,7 @@
 package org.tripsphere.hotel.model;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,9 +29,16 @@ public class HotelDoc {
     @GeoSpatialIndexed(type = GeoSpatialIndexType.GEO_2DSPHERE)
     private GeoJsonPoint location;
 
-    private AddressDoc address;
+    private Address address;
     private String introduction;
     private List<String> tags;
+    private List<String> images;
+    private LocalDate openingDate;
+    private String phoneNumber;
+    private int roomCount;
+    private Money estimatedPrice;
+    private HotelPolicy policy;
+    private List<String> amenities;
     @CreatedDate private Instant createdAt;
     @LastModifiedDate private Instant updatedAt;
 }

@@ -8,7 +8,6 @@ import java.util.Base64;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.tripsphere.itinerary.exception.InvalidArgumentException;
 import org.tripsphere.itinerary.exception.NotFoundException;
@@ -18,18 +17,18 @@ import org.tripsphere.itinerary.mapper.ItineraryMapper;
 import org.tripsphere.itinerary.model.ActivityDoc;
 import org.tripsphere.itinerary.model.DayPlanDoc;
 import org.tripsphere.itinerary.model.ItineraryDoc;
-import org.tripsphere.itinerary.repository.ItineraryRepository;
+import org.tripsphere.itinerary.repository.ItineraryDocRepository;
 import org.tripsphere.itinerary.service.ItineraryService;
+import org.tripsphere.itinerary.v1.Activity;
 import org.tripsphere.itinerary.v1.DayPlan;
 import org.tripsphere.itinerary.v1.Itinerary;
-import org.tripsphere.itinerary.v1.Activity;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ItineraryServiceImpl implements ItineraryService {
 
-    private final ItineraryRepository itineraryRepository;
+    private final ItineraryDocRepository itineraryDocRepository;
     private final ItineraryMapper itineraryMapper = ItineraryMapper.INSTANCE;
     private final DayPlanMapper dayPlanMapper = DayPlanMapper.INSTANCE;
     private final ActivityMapper activityMapper = ActivityMapper.INSTANCE;
@@ -52,7 +51,7 @@ public class ItineraryServiceImpl implements ItineraryService {
             }
         }
 
-        ItineraryDoc saved = itineraryRepository.save(doc);
+        ItineraryDoc saved = itineraryDocRepository.save(doc);
         log.info("Created itinerary with id: {}", saved.getId());
 
         return itineraryMapper.toProto(saved);
@@ -63,7 +62,7 @@ public class ItineraryServiceImpl implements ItineraryService {
         log.debug("Getting itinerary by id: {}", id);
 
         ItineraryDoc doc =
-                itineraryRepository
+                itineraryDocRepository
                         .findById(id)
                         .orElseThrow(() -> new NotFoundException("Itinerary", id));
 
@@ -82,18 +81,12 @@ public class ItineraryServiceImpl implements ItineraryService {
         CursorToken cursor = decodeCursorToken(pageToken);
 
         // Fetch one extra to determine if there are more results
-        List<ItineraryDoc> docs;
-        PageRequest limit = PageRequest.of(0, normalizedPageSize + 1);
-
-        if (cursor == null) {
-            // First page: no cursor, just fetch the first batch
-            docs = itineraryRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, limit);
-        } else {
-            // Subsequent pages: use cursor for efficient keyset pagination
-            docs =
-                    itineraryRepository.findByUserIdWithCursor(
-                            userId, cursor.createdAt(), cursor.id(), limit);
-        }
+        List<ItineraryDoc> docs =
+                itineraryDocRepository.findByUserIdWithPagination(
+                        userId,
+                        normalizedPageSize + 1,
+                        cursor != null ? cursor.createdAt() : null,
+                        cursor != null ? cursor.id() : null);
 
         boolean hasMore = docs.size() > normalizedPageSize;
         if (hasMore) {
@@ -126,7 +119,7 @@ public class ItineraryServiceImpl implements ItineraryService {
         }
         doc.getDayPlans().add(dayPlanDoc);
 
-        itineraryRepository.save(doc);
+        itineraryDocRepository.save(doc);
         log.info("Added day plan {} to itinerary {}", dayPlanDoc.getId(), itineraryId);
 
         return dayPlanMapper.toProto(dayPlanDoc);
@@ -146,7 +139,7 @@ public class ItineraryServiceImpl implements ItineraryService {
             throw new NotFoundException("DayPlan", dayPlanId);
         }
 
-        itineraryRepository.save(doc);
+        itineraryDocRepository.save(doc);
         log.info("Deleted day plan {} from itinerary {}", dayPlanId, itineraryId);
     }
 
@@ -176,7 +169,7 @@ public class ItineraryServiceImpl implements ItineraryService {
             activities.add(insertIndex, activityDoc);
         }
 
-        itineraryRepository.save(doc);
+        itineraryDocRepository.save(doc);
         log.info(
                 "Added activity {} to day plan {} in itinerary {}",
                 activityDoc.getId(),
@@ -187,46 +180,42 @@ public class ItineraryServiceImpl implements ItineraryService {
     }
 
     @Override
-    public Activity updateActivity(String itineraryId, String dayPlanId, Activity activity) {
-        log.debug(
-                "Updating activity {} in day plan {} in itinerary {}",
-                activity.getId(),
-                dayPlanId,
-                itineraryId);
+    public Activity updateActivity(Activity activity) {
+        log.debug("Updating activity {}", activity.getId());
 
         if (activity.getId().isEmpty()) {
             throw InvalidArgumentException.required("activity.id");
         }
 
-        ItineraryDoc doc = getItineraryDoc(itineraryId);
-        DayPlanDoc dayPlanDoc = findDayPlan(doc, dayPlanId);
+        ItineraryDoc doc =
+                itineraryDocRepository
+                        .findByActivityId(activity.getId())
+                        .orElseThrow(() -> new NotFoundException("Activity", activity.getId()));
 
-        List<ActivityDoc> activities = dayPlanDoc.getActivities();
-        if (activities == null || activities.isEmpty()) {
-            throw new NotFoundException("Activity", activity.getId());
-        }
-
-        int index = -1;
-        for (int i = 0; i < activities.size(); i++) {
-            if (activities.get(i).getId().equals(activity.getId())) {
-                index = i;
-                break;
-            }
-        }
-
-        if (index == -1) {
-            throw new NotFoundException("Activity", activity.getId());
-        }
-
+        // Find the day plan and activity index
         ActivityDoc updatedDoc = activityMapper.toDoc(activity);
-        activities.set(index, updatedDoc);
+        boolean found = false;
 
-        itineraryRepository.save(doc);
-        log.info(
-                "Updated activity {} in day plan {} in itinerary {}",
-                activity.getId(),
-                dayPlanId,
-                itineraryId);
+        for (DayPlanDoc dayPlan : doc.getDayPlans()) {
+            List<ActivityDoc> activities = dayPlan.getActivities();
+            if (activities == null) continue;
+
+            for (int i = 0; i < activities.size(); i++) {
+                if (activities.get(i).getId().equals(activity.getId())) {
+                    activities.set(i, updatedDoc);
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+
+        if (!found) {
+            throw new NotFoundException("Activity", activity.getId());
+        }
+
+        itineraryDocRepository.save(doc);
+        log.info("Updated activity {} in itinerary {}", activity.getId(), doc.getId());
 
         return activityMapper.toProto(updatedDoc);
     }
@@ -250,7 +239,7 @@ public class ItineraryServiceImpl implements ItineraryService {
             throw new NotFoundException("Activity", activityId);
         }
 
-        itineraryRepository.save(doc);
+        itineraryDocRepository.save(doc);
         log.info(
                 "Deleted activity {} from day plan {} in itinerary {}",
                 activityId,
@@ -261,7 +250,7 @@ public class ItineraryServiceImpl implements ItineraryService {
     // ==================== Helper Methods ====================
 
     private ItineraryDoc getItineraryDoc(String itineraryId) {
-        return itineraryRepository
+        return itineraryDocRepository
                 .findById(itineraryId)
                 .orElseThrow(() -> new NotFoundException("Itinerary", itineraryId));
     }

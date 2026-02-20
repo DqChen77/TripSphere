@@ -27,7 +27,6 @@ public interface ActivityMapper {
     @Mapping(target = "hotelId", source = "hotel.id")
     ActivityDoc toDoc(Activity activity);
 
-
     @Mapping(target = "attraction", ignore = true)
     @Mapping(target = "hotel", ignore = true)
     Activity toProto(ActivityDoc doc);

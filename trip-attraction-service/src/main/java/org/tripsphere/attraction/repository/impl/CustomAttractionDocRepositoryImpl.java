@@ -9,11 +9,11 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Repository;
 import org.tripsphere.attraction.model.AttractionDoc;
-import org.tripsphere.attraction.repository.CustomAttractionRepository;
+import org.tripsphere.attraction.repository.CustomAttractionDocRepository;
 
 @Repository
 @RequiredArgsConstructor
-public class CustomAttractionRepositoryImpl implements CustomAttractionRepository {
+public class CustomAttractionDocRepositoryImpl implements CustomAttractionDocRepository {
 
     private final MongoTemplate mongoTemplate;
 

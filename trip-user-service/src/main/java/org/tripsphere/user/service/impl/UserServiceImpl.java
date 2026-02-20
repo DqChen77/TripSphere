@@ -16,7 +16,7 @@ import org.tripsphere.user.exception.UnauthenticatedException;
 import org.tripsphere.user.mapper.UserMapper;
 import org.tripsphere.user.model.Role;
 import org.tripsphere.user.model.UserEntity;
-import org.tripsphere.user.repository.UserRepository;
+import org.tripsphere.user.repository.UserEntityRepository;
 import org.tripsphere.user.service.UserService;
 import org.tripsphere.user.util.JwtUtil;
 import org.tripsphere.user.v1.User;
@@ -32,7 +32,7 @@ public class UserServiceImpl implements UserService {
     // Password pattern: at least 6 characters, only letters and numbers
     private static final Pattern PASSWORD_PATTERN = Pattern.compile("^[a-zA-Z0-9]{6,}$");
 
-    private final UserRepository userRepository;
+    private final UserEntityRepository userEntityRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
@@ -45,7 +45,7 @@ public class UserServiceImpl implements UserService {
         validateUsername(username);
         validatePassword(password);
 
-        if (userRepository.existsByUsername(username)) {
+        if (userEntityRepository.existsByUsername(username)) {
             log.warn("Registration failed: username already exists - {}", username);
             throw new AlreadyExistsException("Username", username);
         }
@@ -55,7 +55,7 @@ public class UserServiceImpl implements UserService {
         user.setPassword(passwordEncoder.encode(password));
         user.getRoles().add(Role.USER);
 
-        userRepository.save(user);
+        userEntityRepository.save(user);
         log.info("User registered successfully - username: {}, userId: {}", username, user.getId());
     }
 
@@ -75,7 +75,7 @@ public class UserServiceImpl implements UserService {
         }
 
         UserEntity userEntity =
-                userRepository
+                userEntityRepository
                         .findByUsername(username)
                         .orElseThrow(() -> new NotFoundException("User", username));
 
@@ -101,7 +101,7 @@ public class UserServiceImpl implements UserService {
         validatePassword(newPassword, "New password");
 
         UserEntity user =
-                userRepository
+                userEntityRepository
                         .findByUsername(username)
                         .orElseThrow(() -> new NotFoundException("User", username));
 
@@ -111,7 +111,7 @@ public class UserServiceImpl implements UserService {
         }
 
         user.setPassword(passwordEncoder.encode(newPassword));
-        userRepository.save(user);
+        userEntityRepository.save(user);
         log.info(
                 "Password changed successfully - username: {}, userId: {}", username, user.getId());
     }
@@ -119,7 +119,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public Optional<User> findByUsername(String username) {
         log.debug("Finding user by username: {}", username);
-        return userRepository.findByUsername(username).map(userMapper::toProto);
+        return userEntityRepository.findByUsername(username).map(userMapper::toProto);
     }
 
     private void validateUsername(String username) {

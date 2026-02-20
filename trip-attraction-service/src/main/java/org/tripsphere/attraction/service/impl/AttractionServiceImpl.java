@@ -8,7 +8,7 @@ import org.springframework.data.geo.Point;
 import org.springframework.stereotype.Service;
 import org.tripsphere.attraction.mapper.AttractionMapper;
 import org.tripsphere.attraction.model.AttractionDoc;
-import org.tripsphere.attraction.repository.AttractionRepository;
+import org.tripsphere.attraction.repository.AttractionDocRepository;
 import org.tripsphere.attraction.service.AttractionService;
 import org.tripsphere.attraction.util.CoordinateTransformUtil;
 import org.tripsphere.attraction.v1.Attraction;
@@ -19,7 +19,7 @@ import org.tripsphere.common.v1.GeoPoint;
 @RequiredArgsConstructor
 public class AttractionServiceImpl implements AttractionService {
 
-    private final AttractionRepository attractionRepository;
+    private final AttractionDocRepository attractionDocRepository;
     private final AttractionMapper attractionMapper = AttractionMapper.INSTANCE;
 
     private static final int DEFAULT_NEARBY_LIMIT = 100;
@@ -27,13 +27,13 @@ public class AttractionServiceImpl implements AttractionService {
     @Override
     public Optional<Attraction> findById(String id) {
         log.debug("Finding attraction by id: {}", id);
-        return attractionRepository.findById(id).map(attractionMapper::toProto);
+        return attractionDocRepository.findById(id).map(attractionMapper::toProto);
     }
 
     @Override
     public List<Attraction> findAllByIds(List<String> ids) {
         log.debug("Finding attractions by ids, count: {}", ids.size());
-        List<AttractionDoc> docs = attractionRepository.findAllById(ids);
+        List<AttractionDoc> docs = attractionDocRepository.findAllById(ids);
         return attractionMapper.toProtoList(docs);
     }
 
@@ -50,7 +50,7 @@ public class AttractionServiceImpl implements AttractionService {
         Point wgs84Location = toWgs84Point(location);
 
         List<AttractionDoc> docs =
-                attractionRepository.findAllByLocationNear(
+                attractionDocRepository.findAllByLocationNear(
                         wgs84Location, radiusMeters, DEFAULT_NEARBY_LIMIT, tags);
         return attractionMapper.toProtoList(docs);
     }
@@ -58,7 +58,7 @@ public class AttractionServiceImpl implements AttractionService {
     @Override
     public Optional<Attraction> findByPoiId(String poiId) {
         log.debug("Finding attraction by poiId: {}", poiId);
-        return attractionRepository.findByPoiId(poiId).map(attractionMapper::toProto);
+        return attractionDocRepository.findByPoiId(poiId).map(attractionMapper::toProto);
     }
 
     /** Convert GeoPoint (GCJ-02) to Spring Point (WGS84) for MongoDB queries. */

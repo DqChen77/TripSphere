@@ -14,10 +14,6 @@ import org.tripsphere.attraction.v1.Attraction;
 public interface AttractionMapper {
     AttractionMapper INSTANCE = Mappers.getMapper(AttractionMapper.class);
 
-    // ===================================================================
-    // Attraction Mappings
-    // ===================================================================
-
     AttractionDoc toDoc(Attraction attraction);
 
     Attraction toProto(AttractionDoc attractionDoc);

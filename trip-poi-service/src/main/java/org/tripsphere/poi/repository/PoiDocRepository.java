@@ -4,6 +4,6 @@ import java.util.Optional;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.tripsphere.poi.model.PoiDoc;
 
-public interface PoiRepository extends MongoRepository<PoiDoc, String>, CustomPoiRepository {
+public interface PoiDocRepository extends MongoRepository<PoiDoc, String>, CustomPoiDocRepository {
     public Optional<PoiDoc> findByAmapId(String amapId);
 }

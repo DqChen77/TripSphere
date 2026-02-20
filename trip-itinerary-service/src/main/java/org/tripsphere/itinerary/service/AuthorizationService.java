@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 import org.tripsphere.itinerary.exception.PermissionDeniedException;
 import org.tripsphere.itinerary.exception.UnauthenticatedException;
 import org.tripsphere.itinerary.model.ItineraryDoc;
-import org.tripsphere.itinerary.repository.ItineraryRepository;
+import org.tripsphere.itinerary.repository.ItineraryDocRepository;
 import org.tripsphere.itinerary.security.GrpcAuthContext;
 
 /**
@@ -18,7 +18,7 @@ import org.tripsphere.itinerary.security.GrpcAuthContext;
 @RequiredArgsConstructor
 public class AuthorizationService {
 
-    private final ItineraryRepository itineraryRepository;
+    private final ItineraryDocRepository itineraryDocRepository;
 
     /**
      * Ensure the user is authenticated.
@@ -50,7 +50,7 @@ public class AuthorizationService {
         }
 
         // Check if user owns the itinerary
-        ItineraryDoc doc = itineraryRepository.findById(itineraryId).orElse(null);
+        ItineraryDoc doc = itineraryDocRepository.findById(itineraryId).orElse(null);
         if (doc == null) {
             // Let the service layer handle not found - don't leak existence info
             return;
@@ -61,6 +61,41 @@ public class AuthorizationService {
                     "User {} attempted to access itinerary {} owned by {}",
                     authContext.getUserId(),
                     itineraryId,
+                    doc.getUserId());
+            throw PermissionDeniedException.notOwner();
+        }
+    }
+
+    /**
+     * Check if the user can access a specific activity. Finds the itinerary containing the activity
+     * and checks ownership.
+     *
+     * @param authContext the auth context
+     * @param activityId the activity ID to access
+     * @throws PermissionDeniedException if user cannot access the activity
+     */
+    public void checkActivityAccess(GrpcAuthContext authContext, String activityId) {
+        requireAuthenticated(authContext);
+
+        // Admins can access any activity
+        if (authContext.isAdmin()) {
+            log.debug("Admin access granted for activity: {}", activityId);
+            return;
+        }
+
+        // Find the itinerary containing the activity
+        ItineraryDoc doc = itineraryDocRepository.findByActivityId(activityId).orElse(null);
+        if (doc == null) {
+            // Let the service layer handle not found - don't leak existence info
+            return;
+        }
+
+        if (!authContext.getUserId().equals(doc.getUserId())) {
+            log.warn(
+                    "User {} attempted to access activity {} in itinerary {} owned by {}",
+                    authContext.getUserId(),
+                    activityId,
+                    doc.getId(),
                     doc.getUserId());
             throw PermissionDeniedException.notOwner();
         }

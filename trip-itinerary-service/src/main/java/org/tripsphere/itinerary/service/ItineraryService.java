@@ -19,9 +19,9 @@ public interface ItineraryService {
 
     Activity addActivity(String itineraryId, String dayPlanId, Activity activity, int insertIndex);
 
-    Activity updateActivity(String itineraryId, String dayPlanId, Activity activity);
+    Activity updateActivity(Activity activity);
 
     void deleteActivity(String itineraryId, String dayPlanId, String activityId);
-    
+
     record PageResult<T>(List<T> items, String nextPageToken) {}
 }

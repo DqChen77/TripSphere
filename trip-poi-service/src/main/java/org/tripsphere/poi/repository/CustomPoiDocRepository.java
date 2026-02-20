@@ -5,7 +5,7 @@ import org.springframework.data.geo.Point;
 import org.tripsphere.poi.model.PoiDoc;
 import org.tripsphere.poi.model.PoiSearchFilter;
 
-public interface CustomPoiRepository {
+public interface CustomPoiDocRepository {
     public List<PoiDoc> findAllByLocationNear(
             Point point, double radiusMeters, int limit, PoiSearchFilter searchFilter);
 

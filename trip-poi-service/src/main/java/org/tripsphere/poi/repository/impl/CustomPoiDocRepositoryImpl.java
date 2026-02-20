@@ -12,11 +12,11 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Repository;
 import org.tripsphere.poi.model.PoiDoc;
 import org.tripsphere.poi.model.PoiSearchFilter;
-import org.tripsphere.poi.repository.CustomPoiRepository;
+import org.tripsphere.poi.repository.CustomPoiDocRepository;
 
 @Repository
 @RequiredArgsConstructor
-public class CustomPoiRepositoryImpl implements CustomPoiRepository {
+public class CustomPoiDocRepositoryImpl implements CustomPoiDocRepository {
     private final MongoTemplate mongoTemplate;
 
     @Override

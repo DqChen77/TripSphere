@@ -8,18 +8,18 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.tripsphere.user.model.Role;
 import org.tripsphere.user.model.UserEntity;
-import org.tripsphere.user.repository.UserRepository;
+import org.tripsphere.user.repository.UserEntityRepository;
 
 @Service
 @RequiredArgsConstructor
 public class CustomUserDetailsService implements UserDetailsService {
 
-    private final UserRepository userRepository;
+    private final UserEntityRepository userEntityRepository;
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         UserEntity user =
-                userRepository
+                userEntityRepository
                         .findByUsername(username)
                         .orElseThrow(
                                 () -> new UsernameNotFoundException("User not found: " + username));

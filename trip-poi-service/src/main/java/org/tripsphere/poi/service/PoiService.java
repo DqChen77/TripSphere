@@ -8,20 +8,8 @@ import org.tripsphere.poi.v1.PoiFilter;
 
 public interface PoiService {
 
-    /**
-     * Find a POI by its ID.
-     *
-     * @param id the POI ID
-     * @return the POI if found
-     */
     Optional<Poi> findById(String id);
 
-    /**
-     * Find a POI by its Amap ID.
-     *
-     * @param amapId the Amap ID
-     * @return the POI if found
-     */
     Optional<Poi> findByAmapId(String amapId);
 
     /**

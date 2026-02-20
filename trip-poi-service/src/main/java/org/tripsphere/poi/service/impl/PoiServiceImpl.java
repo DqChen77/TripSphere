@@ -10,7 +10,7 @@ import org.tripsphere.common.v1.GeoPoint;
 import org.tripsphere.poi.mapper.PoiMapper;
 import org.tripsphere.poi.model.PoiDoc;
 import org.tripsphere.poi.model.PoiSearchFilter;
-import org.tripsphere.poi.repository.PoiRepository;
+import org.tripsphere.poi.repository.PoiDocRepository;
 import org.tripsphere.poi.service.PoiService;
 import org.tripsphere.poi.util.CoordinateTransformUtil;
 import org.tripsphere.poi.v1.Poi;
@@ -21,25 +21,25 @@ import org.tripsphere.poi.v1.PoiFilter;
 @RequiredArgsConstructor
 public class PoiServiceImpl implements PoiService {
 
-    private final PoiRepository poiRepository;
+    private final PoiDocRepository poiDocRepository;
     private final PoiMapper poiMapper = PoiMapper.INSTANCE;
 
     @Override
     public Optional<Poi> findById(String id) {
         log.debug("Finding POI by id: {}", id);
-        return poiRepository.findById(id).map(poiMapper::toProto);
+        return poiDocRepository.findById(id).map(poiMapper::toProto);
     }
 
     @Override
     public Optional<Poi> findByAmapId(String amapId) {
         log.debug("Finding POI by amapId: {}", amapId);
-        return poiRepository.findByAmapId(amapId).map(poiMapper::toProto);
+        return poiDocRepository.findByAmapId(amapId).map(poiMapper::toProto);
     }
 
     @Override
     public List<Poi> findAllByIds(List<String> ids) {
         log.debug("Finding POIs by ids, count: {}", ids.size());
-        List<PoiDoc> docs = poiRepository.findAllById(ids);
+        List<PoiDoc> docs = poiDocRepository.findAllById(ids);
         return poiMapper.toProtoList(docs);
     }
 
@@ -58,7 +58,7 @@ public class PoiServiceImpl implements PoiService {
         PoiSearchFilter searchFilter = toSearchFilter(filter);
 
         List<PoiDoc> docs =
-                poiRepository.findAllByLocationNear(
+                poiDocRepository.findAllByLocationNear(
                         wgs84Location, radiusMeters, limit, searchFilter);
         return poiMapper.toProtoList(docs);
     }
@@ -80,7 +80,7 @@ public class PoiServiceImpl implements PoiService {
         PoiSearchFilter searchFilter = toSearchFilter(filter);
 
         List<PoiDoc> docs =
-                poiRepository.findAllByLocationInBox(swWgs84, neWgs84, limit, searchFilter);
+                poiDocRepository.findAllByLocationInBox(swWgs84, neWgs84, limit, searchFilter);
         return poiMapper.toProtoList(docs);
     }
 
@@ -92,7 +92,7 @@ public class PoiServiceImpl implements PoiService {
         // Server generates the ID, ignore any client-provided ID
         poiDoc.setId(null);
 
-        PoiDoc saved = poiRepository.save(poiDoc);
+        PoiDoc saved = poiDocRepository.save(poiDoc);
         log.info("Created POI with id: {}", saved.getId());
 
         return poiMapper.toProto(saved);
@@ -106,7 +106,7 @@ public class PoiServiceImpl implements PoiService {
         List<PoiDoc> toSave =
                 pois.stream().map(poiMapper::toDoc).peek(doc -> doc.setId(null)).toList();
 
-        List<PoiDoc> saved = poiRepository.saveAll(toSave);
+        List<PoiDoc> saved = poiDocRepository.saveAll(toSave);
         log.info("Batch created {} POIs", saved.size());
 
         return poiMapper.toProtoList(saved);

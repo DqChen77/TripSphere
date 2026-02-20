@@ -1,10 +1,10 @@
-package org.tripsphere.attraction.mapper;
+package org.tripsphere.hotel.mapper;
 
 import java.math.BigDecimal;
 import java.util.Currency;
 import org.mapstruct.*;
 import org.mapstruct.factory.Mappers;
-import org.tripsphere.attraction.model.Money;
+import org.tripsphere.hotel.model.Money;
 
 @Mapper(
         collectionMappingStrategy = CollectionMappingStrategy.ADDER_PREFERRED,
