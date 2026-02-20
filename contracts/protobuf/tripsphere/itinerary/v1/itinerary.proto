@@ -137,15 +137,6 @@ message AddDayPlanResponse {
   DayPlan day_plan = 1;
 }
 
-message UpdateDayPlanRequest {
-  string itinerary_id = 1;
-  DayPlan day_plan = 2;
-}
-
-message UpdateDayPlanResponse {
-  DayPlan day_plan = 1;
-}
-
 message DeleteDayPlanRequest {
   string itinerary_id = 1;
   string day_plan_id = 2;
