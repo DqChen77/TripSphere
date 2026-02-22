@@ -26,5 +26,6 @@ grpc:
     enable-reflection: true
 
 jwt:
-  secret: 2EnjghOTgY7CJv3mG5ISkwV5y7mIP00N
+  private-key: classpath:keys/private.pem
+  public-key: classpath:keys/public.pem
   expiration: 86400000

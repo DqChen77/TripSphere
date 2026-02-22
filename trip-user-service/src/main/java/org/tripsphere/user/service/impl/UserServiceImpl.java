@@ -31,8 +31,10 @@ public class UserServiceImpl implements UserService {
     private static final Pattern EMAIL_PATTERN =
             Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
 
-    // Password pattern: at least 6 characters, only letters and numbers
-    private static final Pattern PASSWORD_PATTERN = Pattern.compile("^[a-zA-Z0-9]{6,}$");
+    // Password pattern: at least 8 characters, must contain a letter, a number, and a special
+    // character
+    private static final Pattern PASSWORD_PATTERN =
+            Pattern.compile("^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9]).{8,}$");
 
     private final UserEntityRepository userEntityRepository;
     private final PasswordEncoder passwordEncoder;
@@ -86,7 +88,8 @@ public class UserServiceImpl implements UserService {
                         .orElseThrow(() -> new NotFoundException("User", email));
 
         List<String> rolesList = userEntity.getRoles().stream().map(Role::name).toList();
-        String token = jwtUtil.generateToken(email, rolesList);
+        String token =
+                jwtUtil.generateToken(userEntity.getId(), userEntity.getName(), email, rolesList);
 
         User user = userMapper.toProto(userEntity);
         log.info(
@@ -131,7 +134,8 @@ public class UserServiceImpl implements UserService {
         if (!PASSWORD_PATTERN.matcher(password).matches()) {
             throw InvalidArgumentException.invalid(
                     fieldName,
-                    "must be at least 6 characters and can only contain letters and numbers");
+                    "must be at least 8 characters and contain at least one letter, one number, and"
+                            + " one special character");
         }
     }
 

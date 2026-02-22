@@ -31,6 +31,22 @@ public class AuthContext {
     }
 
     /**
+     * Get the user ID of the current authenticated user.
+     *
+     * @return the user ID of the authenticated user
+     * @throws UnauthenticatedException if no valid authentication is present or user ID is empty
+     */
+    public String getUserId() {
+        String userId = getAuthentication().getUserId();
+
+        if (userId == null || userId.isBlank()) {
+            throw UnauthenticatedException.authenticationRequired();
+        }
+
+        return userId;
+    }
+
+    /**
      * Get the email of the current authenticated user.
      *
      * @return the email of the authenticated user

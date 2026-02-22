@@ -9,16 +9,18 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 public class JwtAuthenticationToken extends AbstractAuthenticationToken {
 
     private final String token;
+    private final String userId;
     private final String email;
     private final List<String> roles;
 
-    public JwtAuthenticationToken(String token, String email, List<String> roles) {
+    public JwtAuthenticationToken(String token, String userId, String email, List<String> roles) {
         super(
                 roles.stream()
                         .map(role -> role.startsWith("ROLE_") ? role : "ROLE_" + role)
                         .map(SimpleGrantedAuthority::new)
                         .collect(Collectors.toList()));
         this.token = token;
+        this.userId = userId;
         this.email = email;
         this.roles = roles;
         setAuthenticated(true);
@@ -31,11 +33,15 @@ public class JwtAuthenticationToken extends AbstractAuthenticationToken {
 
     @Override
     public Object getPrincipal() {
-        return email;
+        return userId;
     }
 
     public String getToken() {
         return token;
+    }
+
+    public String getUserId() {
+        return userId;
     }
 
     public String getEmail() {
