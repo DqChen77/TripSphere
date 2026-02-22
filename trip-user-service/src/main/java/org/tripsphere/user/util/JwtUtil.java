@@ -16,8 +16,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class JwtUtil {
 
-    @Value(
-            "${jwt.secret:MySecretKeyForJWTTokenGenerationThatIsAtLeast256BitsLongForHS256Algorithm}")
+    @Value("${jwt.secret:2EnjghOTgY7CJv3mG5ISkwV5y7mIP00N}")
     private String secret;
 
     @Value("${jwt.expiration:86400000}") // 24 hours
@@ -27,10 +26,10 @@ public class JwtUtil {
         return Keys.hmacShaKeyFor(secret.getBytes());
     }
 
-    public String generateToken(String username, List<String> roles) {
+    public String generateToken(String email, List<String> roles) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("roles", roles);
-        return createToken(claims, username);
+        return createToken(claims, email);
     }
 
     private String createToken(Map<String, Object> claims, String subject) {
@@ -43,7 +42,7 @@ public class JwtUtil {
                 .compact();
     }
 
-    public String extractUsername(String token) {
+    public String extractEmail(String token) {
         return extractClaim(token, Claims::getSubject);
     }
 
@@ -68,9 +67,9 @@ public class JwtUtil {
         return extractExpiration(token).before(new Date());
     }
 
-    public Boolean validateToken(String token, String username) {
-        final String extractedUsername = extractUsername(token);
-        return (extractedUsername.equals(username) && !isTokenExpired(token));
+    public Boolean validateToken(String token, String email) {
+        final String extractedEmail = extractEmail(token);
+        return (extractedEmail.equals(email) && !isTokenExpired(token));
     }
 
     @SuppressWarnings("unchecked")

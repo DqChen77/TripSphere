@@ -10,7 +10,7 @@ public class UnauthenticatedException extends BusinessException {
     }
 
     public static UnauthenticatedException invalidCredentials() {
-        return new UnauthenticatedException("Invalid username or password");
+        return new UnauthenticatedException("Invalid email or password");
     }
 
     public static UnauthenticatedException authenticationRequired() {

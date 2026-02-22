@@ -26,7 +26,7 @@ public class SecurityConfig {
     @Bean
     public AuthenticationManager authenticationManager(
             UserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
-        // Add DAO authentication provider for username/password authentication
+        // Add DAO authentication provider for email/password authentication
         DaoAuthenticationProvider daoAuthenticationProvider =
                 new DaoAuthenticationProvider(userDetailsService);
         daoAuthenticationProvider.setPasswordEncoder(passwordEncoder);

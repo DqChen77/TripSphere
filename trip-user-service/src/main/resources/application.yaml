@@ -12,11 +12,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-      show-sql: true
-      properties:
-        hibernate:
-          format_sql: true
-          dialect: org.hibernate.dialect.MySQL8Dialect
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
 
 server:
   port: 24217
@@ -27,5 +26,5 @@ grpc:
     enable-reflection: true
 
 jwt:
-  secret: MySecretKeyForJWTTokenGenerationThatIsAtLeast256BitsLongForHS256Algorithm
+  secret: 2EnjghOTgY7CJv3mG5ISkwV5y7mIP00N
   expiration: 86400000

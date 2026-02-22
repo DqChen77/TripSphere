@@ -35,18 +35,18 @@ public class JwtGrpcAuthenticationReader implements GrpcAuthenticationReader {
         }
 
         try {
-            String username = jwtUtil.extractUsername(token);
-            if (username == null || !jwtUtil.validateToken(token, username)) {
+            String email = jwtUtil.extractEmail(token);
+            if (email == null || !jwtUtil.validateToken(token, email)) {
                 // Invalid token, return null to allow anonymous access
-                // This allows public endpoints like Login and Register to work
+                // This allows public endpoints like Sign in and Sign up to work
                 return null;
             }
 
             List<String> roles = jwtUtil.extractRoles(token);
-            return new JwtAuthenticationToken(token, username, roles);
+            return new JwtAuthenticationToken(token, email, roles);
         } catch (Exception e) {
             // Token validation failed (e.g., expired, malformed, wrong signature)
-            // Return null to allow anonymous access for public endpoints like Login and Register
+            // Return null to allow anonymous access for public endpoints like Sign in and Sign up
             log.debug("JWT token validation failed: {}", e.getMessage());
             return null;
         }

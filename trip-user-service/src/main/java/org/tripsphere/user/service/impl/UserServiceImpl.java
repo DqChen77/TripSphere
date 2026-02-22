@@ -9,6 +9,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.tripsphere.user.exception.AlreadyExistsException;
 import org.tripsphere.user.exception.InvalidArgumentException;
 import org.tripsphere.user.exception.NotFoundException;
@@ -26,8 +27,9 @@ import org.tripsphere.user.v1.User;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
-    // Username pattern: allows letters, numbers, and underscores
-    private static final Pattern USERNAME_PATTERN = Pattern.compile("^\\w+$");
+    // Email pattern: basic email validation
+    private static final Pattern EMAIL_PATTERN =
+            Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
 
     // Password pattern: at least 6 characters, only letters and numbers
     private static final Pattern PASSWORD_PATTERN = Pattern.compile("^[a-zA-Z0-9]{6,}$");
@@ -36,105 +38,85 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
-    private final UserMapper userMapper = UserMapper.INSTANCE;
+    private final UserMapper userMapper;
 
     @Override
-    public void register(String username, String password) {
-        log.debug("Registering user: {}", username);
+    @Transactional
+    public void signUp(String name, String email, String password) {
+        log.debug("Signing up user with email: {}", email);
 
-        validateUsername(username);
+        validateName(name);
+        validateEmail(email);
         validatePassword(password);
 
-        if (userEntityRepository.existsByUsername(username)) {
-            log.warn("Registration failed: username already exists - {}", username);
-            throw new AlreadyExistsException("Username", username);
+        if (userEntityRepository.existsByEmail(email)) {
+            log.warn("Sign up failed: email already exists - {}", email);
+            throw new AlreadyExistsException("Email", email);
         }
 
         UserEntity user = new UserEntity();
-        user.setUsername(username);
+        user.setName(name);
+        user.setEmail(email);
         user.setPassword(passwordEncoder.encode(password));
         user.getRoles().add(Role.USER);
 
         userEntityRepository.save(user);
-        log.info("User registered successfully - username: {}, userId: {}", username, user.getId());
+        log.info("User signed up successfully - email: {}, userId: {}", email, user.getId());
     }
 
     @Override
-    public LoginResult login(String username, String password) {
-        log.debug("User login attempt: {}", username);
+    @Transactional(readOnly = true)
+    public SignInResult signIn(String email, String password) {
+        log.debug("User sign in attempt: {}", email);
 
-        validateUsername(username);
+        validateEmail(email);
         validatePasswordNotEmpty(password);
 
         try {
             authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(username, password));
+                    new UsernamePasswordAuthenticationToken(email, password));
         } catch (Exception e) {
-            log.warn("Login failed: invalid credentials - username: {}", username);
+            log.warn("Sign in failed: invalid credentials - email: {}", email);
             throw UnauthenticatedException.invalidCredentials();
         }
 
         UserEntity userEntity =
                 userEntityRepository
-                        .findByUsername(username)
-                        .orElseThrow(() -> new NotFoundException("User", username));
+                        .findByEmail(email)
+                        .orElseThrow(() -> new NotFoundException("User", email));
 
         List<String> rolesList = userEntity.getRoles().stream().map(Role::name).toList();
-        String token = jwtUtil.generateToken(username, rolesList);
+        String token = jwtUtil.generateToken(email, rolesList);
 
         User user = userMapper.toProto(userEntity);
         log.info(
-                "User login successful - username: {}, userId: {}, roles: {}",
-                username,
+                "User sign in successful - email: {}, userId: {}, roles: {}",
+                email,
                 userEntity.getId(),
                 rolesList);
 
-        return new LoginResult(user, token);
+        return new SignInResult(user, token);
     }
 
     @Override
-    public void changePassword(String username, String oldPassword, String newPassword) {
-        log.debug("Changing password for user: {}", username);
-
-        validateUsernameNotEmpty(username);
-        validatePasswordNotEmpty(oldPassword, "Old password");
-        validatePassword(newPassword, "New password");
-
-        UserEntity user =
-                userEntityRepository
-                        .findByUsername(username)
-                        .orElseThrow(() -> new NotFoundException("User", username));
-
-        if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
-            log.warn("Change password failed: invalid old password - username: {}", username);
-            throw new UnauthenticatedException("Invalid old password");
-        }
-
-        user.setPassword(passwordEncoder.encode(newPassword));
-        userEntityRepository.save(user);
-        log.info(
-                "Password changed successfully - username: {}, userId: {}", username, user.getId());
+    @Transactional(readOnly = true)
+    public Optional<User> findByEmail(String email) {
+        log.debug("Finding user by email: {}", email);
+        return userEntityRepository.findByEmail(email).map(userMapper::toProto);
     }
 
-    @Override
-    public Optional<User> findByUsername(String username) {
-        log.debug("Finding user by username: {}", username);
-        return userEntityRepository.findByUsername(username).map(userMapper::toProto);
-    }
-
-    private void validateUsername(String username) {
-        if (username == null || username.trim().isEmpty()) {
-            throw InvalidArgumentException.empty("Username");
-        }
-        if (!USERNAME_PATTERN.matcher(username).matches()) {
-            throw InvalidArgumentException.invalid(
-                    "Username", "can only contain letters, numbers, and underscores");
+    private void validateName(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            throw InvalidArgumentException.empty("Name");
         }
     }
 
-    private void validateUsernameNotEmpty(String username) {
-        if (username == null || username.trim().isEmpty()) {
-            throw InvalidArgumentException.empty("Username");
+    private void validateEmail(String email) {
+        if (email == null || email.trim().isEmpty()) {
+            throw InvalidArgumentException.empty("Email");
+        }
+        if (!EMAIL_PATTERN.matcher(email).matches()) {
+            throw InvalidArgumentException.invalid("Email", "must be a valid email address");
         }
     }
 

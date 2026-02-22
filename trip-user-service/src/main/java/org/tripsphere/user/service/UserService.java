@@ -5,13 +5,11 @@ import org.tripsphere.user.v1.User;
 
 public interface UserService {
 
-    void register(String username, String password);
+    void signUp(String name, String email, String password);
 
-    LoginResult login(String username, String password);
+    SignInResult signIn(String email, String password);
 
-    void changePassword(String username, String oldPassword, String newPassword);
+    Optional<User> findByEmail(String email);
 
-    Optional<User> findByUsername(String username);
-
-    record LoginResult(User user, String token) {}
+    record SignInResult(User user, String token) {}
 }

@@ -18,8 +18,11 @@ public class UserEntity {
     @Column(length = 36, nullable = false)
     private String id;
 
+    @Column(nullable = false)
+    private String name;
+
     @Column(unique = true, nullable = false)
-    private String username;
+    private String email;
 
     @Column(nullable = false)
     private String password;

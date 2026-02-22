@@ -17,16 +17,16 @@ public class CustomUserDetailsService implements UserDetailsService {
     private final UserEntityRepository userEntityRepository;
 
     @Override
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         UserEntity user =
                 userEntityRepository
-                        .findByUsername(username)
+                        .findByEmail(email)
                         .orElseThrow(
-                                () -> new UsernameNotFoundException("User not found: " + username));
+                                () -> new UsernameNotFoundException("User not found: " + email));
 
         String[] roleNames = user.getRoles().stream().map(Role::name).toArray(String[]::new);
         return User.builder()
-                .username(user.getUsername())
+                .username(user.getEmail())
                 .password(user.getPassword())
                 .roles(roleNames)
                 .build();
