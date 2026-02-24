@@ -47,14 +47,14 @@ CREATE TABLE IF NOT EXISTS daily_inventory (
     UNIQUE KEY uk_sku_date (sku_id, inv_date)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
--- Inventory lock table
+-- Inventory lock table (one order ↔ one lock)
 CREATE TABLE IF NOT EXISTS inventory_lock (
     lock_id     VARCHAR(64)   PRIMARY KEY,
     order_id    VARCHAR(64)   NOT NULL,
     status      VARCHAR(16)   NOT NULL DEFAULT 'LOCKED',
     created_at  BIGINT        NOT NULL,
     expire_at   BIGINT        NOT NULL,
-    INDEX idx_order_id (order_id),
+    UNIQUE KEY uk_order_id (order_id),
     INDEX idx_status_expire (status, expire_at)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 

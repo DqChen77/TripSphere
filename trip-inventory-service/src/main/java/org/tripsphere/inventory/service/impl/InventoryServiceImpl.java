@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,19 @@ import org.tripsphere.inventory.v1.DailyInventory;
 import org.tripsphere.inventory.v1.InventoryLock;
 import org.tripsphere.inventory.v1.LockItem;
 
+/**
+ * Inventory service implementation.
+ *
+ * <h3>Consistency strategy (MVP)</h3>
+ *
+ * <ul>
+ *   <li><b>MySQL is the single source of truth</b> for all inventory quantities.
+ *   <li>Lock / confirm / release use {@code SELECT … FOR UPDATE} to prevent concurrent
+ *       modification.
+ *   <li>Redis is a <b>read cache</b> only; updated best-effort after MySQL commits.
+ *   <li>If Redis is unavailable, the service degrades gracefully (reads fall through to MySQL).
+ * </ul>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -58,7 +72,6 @@ public class InventoryServiceImpl implements InventoryService {
                 dailyInventoryRepository.findBySkuIdAndInvDate(skuId, date).orElse(null);
 
         if (entity == null) {
-            // Create new
             entity =
                     DailyInventoryEntity.builder()
                             .skuId(skuId)
@@ -73,7 +86,6 @@ public class InventoryServiceImpl implements InventoryService {
                             .updatedAt(Instant.now())
                             .build();
         } else {
-            // Update: recalculate available = new_total - locked - sold
             int newAvailable = totalQuantity - entity.getLockedQty() - entity.getSoldQty();
             if (newAvailable < 0) {
                 throw new InvalidArgumentException(
@@ -90,7 +102,7 @@ public class InventoryServiceImpl implements InventoryService {
 
         entity = dailyInventoryRepository.save(entity);
 
-        // Sync to Redis cache
+        // Best-effort cache sync
         redisClient.cacheInventory(entity);
 
         log.info(
@@ -130,15 +142,16 @@ public class InventoryServiceImpl implements InventoryService {
             return buildDailyInventoryFromCache(skuId, date, cached);
         }
 
-        // Fallback to MySQL
+        // Cache miss — use mutex to prevent thundering-herd rebuild
+        boolean shouldRebuild = redisClient.tryAcquireCacheMutex(skuId, date);
         DailyInventoryEntity entity =
                 dailyInventoryRepository
                         .findBySkuIdAndInvDate(skuId, date)
                         .orElseThrow(
                                 () -> new NotFoundException("DailyInventory", skuId + "/" + date));
-
-        // Populate cache
-        redisClient.cacheInventory(entity);
+        if (shouldRebuild) {
+            redisClient.cacheInventory(entity);
+        }
         return inventoryMapper.toProto(entity);
     }
 
@@ -151,7 +164,7 @@ public class InventoryServiceImpl implements InventoryService {
                 dailyInventoryRepository.findBySkuIdAndInvDateBetweenOrderByInvDateAsc(
                         skuId, startDate, endDate);
 
-        // Populate cache for each entry
+        // Populate cache for each entry (best-effort)
         entities.forEach(redisClient::cacheInventory);
 
         return inventoryMapper.toProtoList(entities);
@@ -191,9 +204,18 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     // ===================================================================
-    // Inventory Lock Operations
+    // Inventory Lock Operations (MySQL-first)
     // ===================================================================
 
+    /**
+     * Lock inventory for an order.
+     *
+     * <ol>
+     *   <li>Idempotency: if a LOCKED lock already exists for this orderId, return it.
+     *   <li>MySQL transaction with {@code SELECT … FOR UPDATE} prevents overselling.
+     *   <li>Redis cache is updated best-effort after MySQL commits.
+     * </ol>
+     */
     @Override
     @Transactional
     public InventoryLock lockInventory(
@@ -204,10 +226,27 @@ public class InventoryServiceImpl implements InventoryService {
             lockTimeoutSeconds = DEFAULT_LOCK_TIMEOUT;
         }
 
-        // Prepare data for Redis Lua script
+        // --- Idempotency: return existing lock if already locked for this order ---
+        Optional<InventoryLockEntity> existingLock = inventoryLockRepository.findByOrderId(orderId);
+        if (existingLock.isPresent()) {
+            InventoryLockEntity existing = existingLock.get();
+            if ("LOCKED".equals(existing.getStatus())) {
+                log.info(
+                        "Lock already exists for order {}, returning existing lockId={}",
+                        orderId,
+                        existing.getLockId());
+                return inventoryMapper.toLockProto(existing);
+            }
+            // Lock was released/expired/confirmed — this orderId is already consumed
+            throw new InvalidArgumentException(
+                    "Order " + orderId + " already has a lock in status " + existing.getStatus());
+        }
+
+        // --- MySQL-first: SELECT FOR UPDATE + check + update ---
         List<String> skuIds = new ArrayList<>();
         List<LocalDate> dates = new ArrayList<>();
         List<Integer> quantities = new ArrayList<>();
+        List<DailyInventoryEntity> lockedEntities = new ArrayList<>();
 
         for (LockItem item : items) {
             String skuId = item.getSkuId();
@@ -218,41 +257,29 @@ public class InventoryServiceImpl implements InventoryService {
             dates.add(date);
             quantities.add(qty);
 
-            // Ensure cache is populated
-            Map<String, String> cached = redisClient.getCachedInventory(skuId, date);
-            if (cached == null) {
-                DailyInventoryEntity entity =
-                        dailyInventoryRepository
-                                .findBySkuIdAndInvDate(skuId, date)
-                                .orElseThrow(
-                                        () ->
-                                                new NotFoundException(
-                                                        "DailyInventory", skuId + "/" + date));
-                redisClient.cacheInventory(entity);
+            // Pessimistic lock at DB level
+            DailyInventoryEntity entity =
+                    dailyInventoryRepository
+                            .findBySkuIdAndInvDateForUpdate(skuId, date)
+                            .orElseThrow(
+                                    () ->
+                                            new NotFoundException(
+                                                    "DailyInventory", skuId + "/" + date));
+
+            if (entity.getAvailableQty() < qty) {
+                throw new InsufficientInventoryException(
+                        skuId, date.toString(), qty, entity.getAvailableQty());
             }
+
+            entity.setAvailableQty(entity.getAvailableQty() - qty);
+            entity.setLockedQty(entity.getLockedQty() + qty);
+            lockedEntities.add(entity);
         }
 
-        // Atomic lock via Redis Lua script
-        boolean success = redisClient.lockInventoryAtomic(skuIds, dates, quantities);
-        if (!success) {
-            // Find which item failed for better error message
-            for (int i = 0; i < skuIds.size(); i++) {
-                Map<String, String> cached =
-                        redisClient.getCachedInventory(skuIds.get(i), dates.get(i));
-                int available =
-                        cached != null
-                                ? Integer.parseInt(cached.getOrDefault("available", "0"))
-                                : 0;
-                if (available < quantities.get(i)) {
-                    throw new InsufficientInventoryException(
-                            skuIds.get(i), dates.get(i).toString(), quantities.get(i), available);
-                }
-            }
-            throw new InsufficientInventoryException(
-                    skuIds.getFirst(), dates.getFirst().toString(), quantities.getFirst(), 0);
-        }
+        // Persist quantity changes
+        dailyInventoryRepository.saveAll(lockedEntities);
 
-        // Persist lock to MySQL
+        // Create lock record
         long now = Instant.now().getEpochSecond();
         long expireAt = now + lockTimeoutSeconds;
         String lockId = UUID.randomUUID().toString();
@@ -267,33 +294,34 @@ public class InventoryServiceImpl implements InventoryService {
                         .build();
         lockEntity = inventoryLockRepository.save(lockEntity);
 
-        // Save lock items
         List<InventoryLockItemEntity> lockItems = new ArrayList<>();
         for (int i = 0; i < skuIds.size(); i++) {
-            InventoryLockItemEntity lockItem =
+            lockItems.add(
                     InventoryLockItemEntity.builder()
                             .lockId(lockId)
                             .skuId(skuIds.get(i))
                             .invDate(dates.get(i))
                             .quantity(quantities.get(i))
-                            .build();
-            lockItems.add(lockItem);
+                            .build());
         }
         inventoryLockItemRepository.saveAll(lockItems);
         lockEntity.setItems(lockItems);
 
-        // Update MySQL inventory
-        for (int i = 0; i < skuIds.size(); i++) {
-            updateMysqlInventoryForLock(skuIds.get(i), dates.get(i), quantities.get(i));
-        }
-
-        // Add to Redis lock expiry sorted set
+        // --- Best-effort: sync Redis cache + expiry set ---
+        lockedEntities.forEach(redisClient::cacheInventory);
         redisClient.addLockExpiry(lockId, expireAt);
 
         log.info("Inventory locked: lockId={}, orderId={}, expireAt={}", lockId, orderId, expireAt);
         return inventoryMapper.toLockProto(lockEntity);
     }
 
+    /**
+     * Confirm a lock after payment.
+     *
+     * <p><b>Idempotent</b>: if the lock is already CONFIRMED, returns success without side effects.
+     * This handles the case where the Inventory service confirmed successfully but the gRPC
+     * response was lost, and the Order service retries.
+     */
     @Override
     @Transactional
     public InventoryLock confirmLock(String lockId) {
@@ -303,6 +331,12 @@ public class InventoryServiceImpl implements InventoryService {
                 inventoryLockRepository
                         .findByLockId(lockId)
                         .orElseThrow(() -> new NotFoundException("InventoryLock", lockId));
+
+        // --- Idempotent: already confirmed → return immediately ---
+        if ("CONFIRMED".equals(lockEntity.getStatus())) {
+            log.info("Lock {} already confirmed, returning idempotent response", lockId);
+            return inventoryMapper.toLockProto(lockEntity);
+        }
 
         if (!"LOCKED".equals(lockEntity.getStatus())) {
             throw new InvalidArgumentException(
@@ -314,38 +348,43 @@ public class InventoryServiceImpl implements InventoryService {
         }
 
         List<InventoryLockItemEntity> lockItems = inventoryLockItemRepository.findByLockId(lockId);
-
-        // Prepare data for Redis
-        List<String> skuIds = new ArrayList<>();
-        List<LocalDate> dates = new ArrayList<>();
-        List<Integer> quantities = new ArrayList<>();
+        List<DailyInventoryEntity> updatedEntities = new ArrayList<>();
 
         for (InventoryLockItemEntity item : lockItems) {
-            skuIds.add(item.getSkuId());
-            dates.add(item.getInvDate());
-            quantities.add(item.getQuantity());
+            DailyInventoryEntity entity =
+                    dailyInventoryRepository
+                            .findBySkuIdAndInvDateForUpdate(item.getSkuId(), item.getInvDate())
+                            .orElseThrow(
+                                    () ->
+                                            new NotFoundException(
+                                                    "DailyInventory",
+                                                    item.getSkuId() + "/" + item.getInvDate()));
+            entity.setLockedQty(entity.getLockedQty() - item.getQuantity());
+            entity.setSoldQty(entity.getSoldQty() + item.getQuantity());
+            updatedEntities.add(entity);
         }
 
-        // Update Redis: locked -> sold
-        redisClient.confirmLockAtomic(skuIds, dates, quantities);
+        dailyInventoryRepository.saveAll(updatedEntities);
 
-        // Update MySQL: locked -> sold
-        for (int i = 0; i < skuIds.size(); i++) {
-            updateMysqlInventoryForConfirm(skuIds.get(i), dates.get(i), quantities.get(i));
-        }
-
-        // Update lock status
         lockEntity.setStatus("CONFIRMED");
         lockEntity = inventoryLockRepository.save(lockEntity);
         lockEntity.setItems(lockItems);
 
-        // Remove from expiry set
+        // Best-effort: sync Redis
+        updatedEntities.forEach(redisClient::cacheInventory);
         redisClient.removeLockExpiry(lockId);
 
         log.info("Lock confirmed: {}", lockId);
         return inventoryMapper.toLockProto(lockEntity);
     }
 
+    /**
+     * Release a lock on cancellation or timeout.
+     *
+     * <p><b>Idempotent</b>: if the lock is already RELEASED or EXPIRED, returns success. This
+     * handles: (a) response-lost retries, (b) race between scheduler auto-release and manual
+     * cancel.
+     */
     @Override
     @Transactional
     public InventoryLock releaseLock(String lockId, String reason) {
@@ -355,6 +394,15 @@ public class InventoryServiceImpl implements InventoryService {
                 inventoryLockRepository
                         .findByLockId(lockId)
                         .orElseThrow(() -> new NotFoundException("InventoryLock", lockId));
+
+        // --- Idempotent: already released / expired → return immediately ---
+        if ("RELEASED".equals(lockEntity.getStatus()) || "EXPIRED".equals(lockEntity.getStatus())) {
+            log.info(
+                    "Lock {} already in status {}, returning idempotent response",
+                    lockId,
+                    lockEntity.getStatus());
+            return inventoryMapper.toLockProto(lockEntity);
+        }
 
         if (!"LOCKED".equals(lockEntity.getStatus())) {
             throw new InvalidArgumentException(
@@ -366,73 +414,34 @@ public class InventoryServiceImpl implements InventoryService {
         }
 
         List<InventoryLockItemEntity> lockItems = inventoryLockItemRepository.findByLockId(lockId);
-
-        // Prepare data for Redis
-        List<String> skuIds = new ArrayList<>();
-        List<LocalDate> dates = new ArrayList<>();
-        List<Integer> quantities = new ArrayList<>();
+        List<DailyInventoryEntity> updatedEntities = new ArrayList<>();
 
         for (InventoryLockItemEntity item : lockItems) {
-            skuIds.add(item.getSkuId());
-            dates.add(item.getInvDate());
-            quantities.add(item.getQuantity());
+            DailyInventoryEntity entity =
+                    dailyInventoryRepository
+                            .findBySkuIdAndInvDateForUpdate(item.getSkuId(), item.getInvDate())
+                            .orElseThrow(
+                                    () ->
+                                            new NotFoundException(
+                                                    "DailyInventory",
+                                                    item.getSkuId() + "/" + item.getInvDate()));
+            entity.setLockedQty(entity.getLockedQty() - item.getQuantity());
+            entity.setAvailableQty(entity.getAvailableQty() + item.getQuantity());
+            updatedEntities.add(entity);
         }
 
-        // Update Redis: locked -> available
-        redisClient.releaseLockAtomic(skuIds, dates, quantities);
+        dailyInventoryRepository.saveAll(updatedEntities);
 
-        // Update MySQL: locked -> available
-        for (int i = 0; i < skuIds.size(); i++) {
-            updateMysqlInventoryForRelease(skuIds.get(i), dates.get(i), quantities.get(i));
-        }
-
-        // Update lock status
         lockEntity.setStatus("RELEASED");
         lockEntity = inventoryLockRepository.save(lockEntity);
         lockEntity.setItems(lockItems);
 
-        // Remove from expiry set
+        // Best-effort: sync Redis
+        updatedEntities.forEach(redisClient::cacheInventory);
         redisClient.removeLockExpiry(lockId);
 
         log.info("Lock released: {}, reason: {}", lockId, reason);
         return inventoryMapper.toLockProto(lockEntity);
-    }
-
-    // ===================================================================
-    // MySQL inventory update helpers
-    // ===================================================================
-
-    private void updateMysqlInventoryForLock(String skuId, LocalDate date, int qty) {
-        dailyInventoryRepository
-                .findBySkuIdAndInvDate(skuId, date)
-                .ifPresent(
-                        entity -> {
-                            entity.setAvailableQty(entity.getAvailableQty() - qty);
-                            entity.setLockedQty(entity.getLockedQty() + qty);
-                            dailyInventoryRepository.save(entity);
-                        });
-    }
-
-    private void updateMysqlInventoryForConfirm(String skuId, LocalDate date, int qty) {
-        dailyInventoryRepository
-                .findBySkuIdAndInvDate(skuId, date)
-                .ifPresent(
-                        entity -> {
-                            entity.setLockedQty(entity.getLockedQty() - qty);
-                            entity.setSoldQty(entity.getSoldQty() + qty);
-                            dailyInventoryRepository.save(entity);
-                        });
-    }
-
-    private void updateMysqlInventoryForRelease(String skuId, LocalDate date, int qty) {
-        dailyInventoryRepository
-                .findBySkuIdAndInvDate(skuId, date)
-                .ifPresent(
-                        entity -> {
-                            entity.setLockedQty(entity.getLockedQty() - qty);
-                            entity.setAvailableQty(entity.getAvailableQty() + qty);
-                            dailyInventoryRepository.save(entity);
-                        });
     }
 
     // ===================================================================

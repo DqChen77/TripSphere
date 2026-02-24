@@ -23,11 +23,14 @@ public class OrderExpiryScheduler {
 
     private static final String ORDER_EXPIRE_KEY = "order:expire";
 
+    /** Max orders to process per scheduler tick to avoid blocking. */
+    private static final int BATCH_SIZE = 50;
+
     @Scheduled(fixedDelay = 30000)
     public void cancelExpiredOrders() {
         long now = Instant.now().getEpochSecond();
         Set<String> expiredOrderIds =
-                redisTemplate.opsForZSet().rangeByScore(ORDER_EXPIRE_KEY, 0, now);
+                redisTemplate.opsForZSet().rangeByScore(ORDER_EXPIRE_KEY, 0, now, 0, BATCH_SIZE);
 
         if (expiredOrderIds == null || expiredOrderIds.isEmpty()) {
             return;

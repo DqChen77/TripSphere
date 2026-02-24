@@ -15,4 +15,7 @@ public interface CustomSpuDocRepository {
 
     /** Update specific fields of a SPU using field mask. */
     void updateSpuFields(String id, SpuDoc updates, java.util.List<String> fieldPaths);
+
+    /** Find SPUs that contain any of the given SKU IDs. */
+    java.util.List<SpuDoc> findBySkuIds(java.util.List<String> skuIds);
 }

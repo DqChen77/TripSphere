@@ -1,8 +1,10 @@
 package org.tripsphere.product.service.impl;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -153,9 +155,20 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public List<StockKeepingUnit> batchGetSkus(List<String> skuIds) {
         log.debug("Batch getting SKUs, count: {}", skuIds.size());
+
+        // Single query using $in instead of N individual queries
+        List<SpuDoc> spuDocs = spuDocRepository.findBySkuIds(skuIds);
+        Set<String> requestedIds = new HashSet<>(skuIds);
         List<StockKeepingUnit> result = new ArrayList<>();
-        for (String skuId : skuIds) {
-            getSkuById(skuId).ifPresent(result::add);
+
+        for (SpuDoc spuDoc : spuDocs) {
+            if (spuDoc.getSkus() != null) {
+                for (SkuDoc skuDoc : spuDoc.getSkus()) {
+                    if (requestedIds.contains(skuDoc.getId())) {
+                        result.add(productMapper.toSkuProto(skuDoc, spuDoc.getId()));
+                    }
+                }
+            }
         }
         return result;
     }

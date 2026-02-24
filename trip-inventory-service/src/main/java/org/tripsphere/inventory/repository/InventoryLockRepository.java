@@ -9,7 +9,7 @@ public interface InventoryLockRepository extends JpaRepository<InventoryLockEnti
 
     Optional<InventoryLockEntity> findByLockId(String lockId);
 
-    Optional<InventoryLockEntity> findByOrderIdAndStatus(String orderId, String status);
+    Optional<InventoryLockEntity> findByOrderId(String orderId);
 
     List<InventoryLockEntity> findByStatusAndExpireAtLessThan(String status, long expireAt);
 }

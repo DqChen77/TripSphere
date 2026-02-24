@@ -63,4 +63,20 @@ public class InventoryServiceClient {
                                 .build());
         return response.getInventory();
     }
+
+    /** Query inventory calendar for a SKU over a date range (for batch price lookup). */
+    public List<DailyInventory> queryInventoryCalendar(
+            String skuId,
+            org.tripsphere.common.v1.Date startDate,
+            org.tripsphere.common.v1.Date endDate) {
+        log.debug("Querying inventory calendar: sku={}, from={}, to={}", skuId, startDate, endDate);
+        QueryInventoryCalendarResponse response =
+                inventoryStub.queryInventoryCalendar(
+                        QueryInventoryCalendarRequest.newBuilder()
+                                .setSkuId(skuId)
+                                .setStartDate(startDate)
+                                .setEndDate(endDate)
+                                .build());
+        return response.getEntriesList();
+    }
 }

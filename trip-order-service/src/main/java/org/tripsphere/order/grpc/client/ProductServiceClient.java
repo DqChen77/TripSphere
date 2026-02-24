@@ -41,4 +41,13 @@ public class ProductServiceClient {
                 productStub.getSpuById(GetSpuByIdRequest.newBuilder().setId(spuId).build());
         return response.getSpu();
     }
+
+    /** Batch get SPUs by IDs (for product name snapshots). */
+    public List<StandardProductUnit> batchGetSpus(List<String> spuIds) {
+        log.debug("Batch fetching {} SPUs", spuIds.size());
+        BatchGetSpusResponse response =
+                productStub.batchGetSpus(
+                        BatchGetSpusRequest.newBuilder().addAllIds(spuIds).build());
+        return response.getSpusList();
+    }
 }

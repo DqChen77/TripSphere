@@ -41,6 +41,12 @@ public class CustomSpuDocRepositoryImpl implements CustomSpuDocRepository {
     }
 
     @Override
+    public List<SpuDoc> findBySkuIds(List<String> skuIds) {
+        Query query = new Query(Criteria.where("skus.id").in(skuIds));
+        return mongoTemplate.find(query, SpuDoc.class);
+    }
+
+    @Override
     public void updateSpuFields(String id, SpuDoc updates, List<String> fieldPaths) {
         Query query = new Query(Criteria.where("_id").is(id));
         Update update = new Update();

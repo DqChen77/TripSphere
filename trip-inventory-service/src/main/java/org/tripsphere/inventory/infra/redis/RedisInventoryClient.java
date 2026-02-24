@@ -1,21 +1,20 @@
 package org.tripsphere.inventory.infra.redis;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 import org.tripsphere.inventory.model.DailyInventoryEntity;
 
 /**
- * Redis operations for inventory management. Uses Redis as a cache layer and for atomic lock
- * operations.
+ * Redis operations for inventory management. Redis serves as a <b>read cache</b> only — MySQL is
+ * the source of truth for all writes. Cache updates are best-effort after MySQL commits.
  */
 @Slf4j
 @Component
@@ -26,6 +25,7 @@ public class RedisInventoryClient {
 
     private static final String INV_KEY_PREFIX = "inv:";
     private static final String LOCK_EXPIRY_KEY = "inv:lock:expiry";
+    private static final String MUTEX_KEY_PREFIX = "inv:mutex:";
 
     // ===================================================================
     // Inventory Cache Operations
@@ -36,20 +36,27 @@ public class RedisInventoryClient {
         return INV_KEY_PREFIX + skuId + ":" + date.toString();
     }
 
-    /** Cache a daily inventory record in Redis. */
+    /** Cache a daily inventory record in Redis (best-effort, called after MySQL commit). */
     public void cacheInventory(DailyInventoryEntity entity) {
-        String key = buildKey(entity.getSkuId(), entity.getInvDate());
-        Map<String, String> hash = new HashMap<>();
-        hash.put("total", String.valueOf(entity.getTotalQty()));
-        hash.put("available", String.valueOf(entity.getAvailableQty()));
-        hash.put("locked", String.valueOf(entity.getLockedQty()));
-        hash.put("sold", String.valueOf(entity.getSoldQty()));
-        hash.put("price_units", String.valueOf(entity.getPriceUnits()));
-        hash.put("price_nanos", String.valueOf(entity.getPriceNanos()));
-        hash.put("price_ccy", entity.getPriceCurrency());
-        redisTemplate.opsForHash().putAll(key, hash);
-        // Set expiry to 7 days
-        redisTemplate.expire(key, 7, TimeUnit.DAYS);
+        try {
+            String key = buildKey(entity.getSkuId(), entity.getInvDate());
+            Map<String, String> hash = new HashMap<>();
+            hash.put("total", String.valueOf(entity.getTotalQty()));
+            hash.put("available", String.valueOf(entity.getAvailableQty()));
+            hash.put("locked", String.valueOf(entity.getLockedQty()));
+            hash.put("sold", String.valueOf(entity.getSoldQty()));
+            hash.put("price_units", String.valueOf(entity.getPriceUnits()));
+            hash.put("price_nanos", String.valueOf(entity.getPriceNanos()));
+            hash.put("price_ccy", entity.getPriceCurrency());
+            redisTemplate.opsForHash().putAll(key, hash);
+            redisTemplate.expire(key, 7, TimeUnit.DAYS);
+        } catch (Exception e) {
+            log.warn(
+                    "Failed to cache inventory for sku={}, date={}: {}",
+                    entity.getSkuId(),
+                    entity.getInvDate(),
+                    e.getMessage());
+        }
     }
 
     /** Get cached inventory. Returns null if not cached. */
@@ -62,6 +69,18 @@ public class RedisInventoryClient {
         return result;
     }
 
+    /**
+     * Try to acquire a short-lived mutex for cache rebuild, preventing thundering-herd on cache
+     * miss. Returns true if this caller should rebuild the cache; false if another thread is
+     * already doing it.
+     */
+    public boolean tryAcquireCacheMutex(String skuId, LocalDate date) {
+        String mutexKey = MUTEX_KEY_PREFIX + skuId + ":" + date.toString();
+        Boolean acquired =
+                redisTemplate.opsForValue().setIfAbsent(mutexKey, "1", 5, TimeUnit.SECONDS);
+        return Boolean.TRUE.equals(acquired);
+    }
+
     /** Delete cached inventory. */
     public void evictInventory(String skuId, LocalDate date) {
         String key = buildKey(skuId, date);
@@ -69,108 +88,17 @@ public class RedisInventoryClient {
     }
 
     // ===================================================================
-    // Atomic Lock Operations (Lua Scripts)
+    // Batch Cache Sync (called after MySQL transaction commits)
     // ===================================================================
 
     /**
-     * Atomically lock inventory for multiple (sku, date, qty) tuples. All items succeed or all
-     * fail.
-     *
-     * @return true if all locks succeeded, false if any item has insufficient inventory
+     * Atomically sync multiple inventory cache entries from committed MySQL state. Uses a Lua
+     * script so the hash updates are atomic per key.
      */
-    public boolean lockInventoryAtomic(
-            List<String> skuIds, List<LocalDate> dates, List<Integer> quantities) {
-        String luaScript =
-                """
-                local n = tonumber(ARGV[1])
-                for i = 1, n do
-                    local key = KEYS[i]
-                    local qty = tonumber(ARGV[i + 1])
-                    local available = tonumber(redis.call('HGET', key, 'available') or '0')
-                    if available < qty then
-                        return 0
-                    end
-                end
-                for i = 1, n do
-                    local key = KEYS[i]
-                    local qty = tonumber(ARGV[i + 1])
-                    redis.call('HINCRBY', key, 'available', -qty)
-                    redis.call('HINCRBY', key, 'locked', qty)
-                end
-                return 1
-                """;
-
-        DefaultRedisScript<Long> script = new DefaultRedisScript<>(luaScript, Long.class);
-
-        List<String> keys = new ArrayList<>();
-        List<String> args = new ArrayList<>();
-        args.add(String.valueOf(skuIds.size()));
-
-        for (int i = 0; i < skuIds.size(); i++) {
-            keys.add(buildKey(skuIds.get(i), dates.get(i)));
-            args.add(String.valueOf(quantities.get(i)));
+    public void batchSyncCache(List<DailyInventoryEntity> entities) {
+        for (DailyInventoryEntity entity : entities) {
+            cacheInventory(entity);
         }
-
-        Long result = redisTemplate.execute(script, keys, (Object[]) args.toArray(new String[0]));
-        return result != null && result == 1L;
-    }
-
-    /** Atomically confirm locked inventory (locked -> sold). */
-    public void confirmLockAtomic(
-            List<String> skuIds, List<LocalDate> dates, List<Integer> quantities) {
-        String luaScript =
-                """
-                local n = tonumber(ARGV[1])
-                for i = 1, n do
-                    local key = KEYS[i]
-                    local qty = tonumber(ARGV[i + 1])
-                    redis.call('HINCRBY', key, 'locked', -qty)
-                    redis.call('HINCRBY', key, 'sold', qty)
-                end
-                return 1
-                """;
-
-        DefaultRedisScript<Long> script = new DefaultRedisScript<>(luaScript, Long.class);
-
-        List<String> keys = new ArrayList<>();
-        List<String> args = new ArrayList<>();
-        args.add(String.valueOf(skuIds.size()));
-
-        for (int i = 0; i < skuIds.size(); i++) {
-            keys.add(buildKey(skuIds.get(i), dates.get(i)));
-            args.add(String.valueOf(quantities.get(i)));
-        }
-
-        redisTemplate.execute(script, keys, (Object[]) args.toArray(new String[0]));
-    }
-
-    /** Atomically release locked inventory (locked -> available). */
-    public void releaseLockAtomic(
-            List<String> skuIds, List<LocalDate> dates, List<Integer> quantities) {
-        String luaScript =
-                """
-                local n = tonumber(ARGV[1])
-                for i = 1, n do
-                    local key = KEYS[i]
-                    local qty = tonumber(ARGV[i + 1])
-                    redis.call('HINCRBY', key, 'locked', -qty)
-                    redis.call('HINCRBY', key, 'available', qty)
-                end
-                return 1
-                """;
-
-        DefaultRedisScript<Long> script = new DefaultRedisScript<>(luaScript, Long.class);
-
-        List<String> keys = new ArrayList<>();
-        List<String> args = new ArrayList<>();
-        args.add(String.valueOf(skuIds.size()));
-
-        for (int i = 0; i < skuIds.size(); i++) {
-            keys.add(buildKey(skuIds.get(i), dates.get(i)));
-            args.add(String.valueOf(quantities.get(i)));
-        }
-
-        redisTemplate.execute(script, keys, (Object[]) args.toArray(new String[0]));
     }
 
     // ===================================================================
@@ -179,16 +107,27 @@ public class RedisInventoryClient {
 
     /** Add a lock to the expiry sorted set. */
     public void addLockExpiry(String lockId, long expireTimestamp) {
-        redisTemplate.opsForZSet().add(LOCK_EXPIRY_KEY, lockId, expireTimestamp);
+        try {
+            redisTemplate.opsForZSet().add(LOCK_EXPIRY_KEY, lockId, expireTimestamp);
+        } catch (Exception e) {
+            log.warn("Failed to add lock expiry for lockId={}: {}", lockId, e.getMessage());
+        }
     }
 
     /** Remove a lock from the expiry sorted set. */
     public void removeLockExpiry(String lockId) {
-        redisTemplate.opsForZSet().remove(LOCK_EXPIRY_KEY, lockId);
+        try {
+            redisTemplate.opsForZSet().remove(LOCK_EXPIRY_KEY, lockId);
+        } catch (Exception e) {
+            log.warn("Failed to remove lock expiry for lockId={}: {}", lockId, e.getMessage());
+        }
     }
 
-    /** Get all expired lock IDs (score <= now). */
-    public java.util.Set<String> getExpiredLockIds(long now) {
-        return redisTemplate.opsForZSet().rangeByScore(LOCK_EXPIRY_KEY, 0, now);
+    /**
+     * Get a batch of expired lock IDs (score &le; now), limited to {@code batchSize} to avoid
+     * blocking Redis with a huge scan.
+     */
+    public Set<String> getExpiredLockIds(long now, int batchSize) {
+        return redisTemplate.opsForZSet().rangeByScore(LOCK_EXPIRY_KEY, 0, now, 0, batchSize);
     }
 }
