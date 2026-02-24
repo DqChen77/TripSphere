@@ -5,7 +5,7 @@ spring:
     active: dev
 
 server:
-  port: 24216
+  port: 24221
 
 management:
   endpoints:

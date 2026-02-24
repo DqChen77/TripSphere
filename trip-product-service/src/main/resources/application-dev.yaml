@@ -1,13 +1,19 @@
 spring:
   cloud:
     nacos:
+      server-addr: localhost:8848
       discovery:
         namespace: public
         group: DEFAULT_GROUP
+  data:
+    mongodb:
+      uri: mongodb://root:fudanse@localhost:27017
+      database: product_db
 
 grpc:
   server:
-    port: 50055
+    port: 50060
+    enable-reflection: true
 
 logging:
   level:

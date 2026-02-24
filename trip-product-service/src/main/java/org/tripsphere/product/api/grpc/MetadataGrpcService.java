@@ -1,14 +1,12 @@
-package org.tripsphere.product.grpc;
+package org.tripsphere.product.api.grpc;
 
+import io.grpc.stub.StreamObserver;
+import net.devh.boot.grpc.server.service.GrpcService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.info.BuildProperties;
 import org.tripsphere.product.v1.GetVersionRequest;
 import org.tripsphere.product.v1.GetVersionResponse;
 import org.tripsphere.product.v1.MetadataServiceGrpc;
-
-import io.grpc.stub.StreamObserver;
-
-import net.devh.boot.grpc.server.service.GrpcService;
 
 @GrpcService
 public class MetadataGrpcService extends MetadataServiceGrpc.MetadataServiceImplBase {
@@ -21,10 +19,7 @@ public class MetadataGrpcService extends MetadataServiceGrpc.MetadataServiceImpl
     @Override
     public void getVersion(
             GetVersionRequest request, StreamObserver<GetVersionResponse> responseObserver) {
-        String version =
-                buildProperties != null
-                        ? buildProperties.getVersion()
-                        : "develop"; // Default version in development environment
+        String version = buildProperties != null ? buildProperties.getVersion() : "develop";
         GetVersionResponse response = GetVersionResponse.newBuilder().setVersion(version).build();
         responseObserver.onNext(response);
         responseObserver.onCompleted();
