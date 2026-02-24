@@ -1,0 +1,14 @@
+spring:
+  cloud:
+    nacos:
+      discovery:
+        namespace: public
+        group: DEFAULT_GROUP
+
+grpc:
+  server:
+    port: 50055
+
+logging:
+  level:
+    org.tripsphere.inventory: DEBUG
