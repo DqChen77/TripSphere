@@ -127,8 +127,8 @@ def create_fastapi_app() -> FastAPI:
     )
 
     # Include routers
-    app.include_router(indices, prefix="/api")
-    app.include_router(summaries, prefix="/api")
+    app.include_router(indices, prefix="/api/v1")
+    app.include_router(summaries, prefix="/api/v1")
     return app
 
 
