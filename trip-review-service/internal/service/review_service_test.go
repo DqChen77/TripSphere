@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	pb "trip-review-service/api/grpc/gen/tripsphere/review/v1"
+	pb "trip-review-service/api/grpc/generated/tripsphere/review/v1"
 	"trip-review-service/internal/domain"
 	domainmock "trip-review-service/internal/domain/mock"
 )

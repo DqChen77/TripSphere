@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	pb "trip-review-service/api/grpc/gen/tripsphere/review/v1"
+	pb "trip-review-service/api/grpc/generated/tripsphere/review/v1"
 	"trip-review-service/internal/domain"
 )
 
