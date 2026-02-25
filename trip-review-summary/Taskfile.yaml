@@ -31,8 +31,8 @@ tasks:
       - libs/tripsphere/src/**/*_pb2_grpc.py
     cmds:
       - buf generate
-      - echo "" > libs/tripsphere/src/tripsphere/__init__.py
       - echo "" > libs/tripsphere/src/tripsphere/py.typed
+      - for dir in $(find libs/tripsphere/src/tripsphere -type d); do echo "" > "$dir/__init__.py"; done
 
   protoc-gen:
     desc: Generate protobuf and gRPC codes using grpcio-tools
