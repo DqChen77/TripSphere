@@ -65,7 +65,7 @@ services:
         - "CMD" 
         - "python"
         - "-c"
-        - "import urllib.request; urllib.request.urlopen('http://localhost:24210/health').read()"
+        - "import urllib.request; urllib.request.urlopen('http://localhost:24210/api/v1/health').read()"
       interval: 30s
       timeout: 10s
       retries: 3

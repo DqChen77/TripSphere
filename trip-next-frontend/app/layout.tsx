@@ -1,12 +1,13 @@
-import { ChatSidebar } from "@/components/chat/chat-sidebar";
-import { ConditionalFooter } from "@/components/layout/conditional-footer";
-import { Header } from "@/components/layout/header";
-import { AuthProvider } from "@/components/providers/auth-provider";
 import type { Metadata } from "next";
 import "./globals.css";
+import { CopilotKit } from "@copilotkit/react-core";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
+import { SiteHeader } from "@/components/site-header";
 
 export const metadata: Metadata = {
-  title: "TripSphere - AI-Native Travel Platform",
+  title: "TripSphere",
+  description: "AI-Native Travel Platform",
 };
 
 export default function RootLayout({
@@ -15,16 +16,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-scroll-behavior="smooth">
+    <html lang="zh-CN" data-scroll-behavior="smooth">
       <body className="antialiased">
-        <AuthProvider>
-          <div className="relative flex min-h-screen flex-col">
-            <Header />
-            <main className="flex flex-1 flex-col">{children}</main>
-            <ConditionalFooter />
-            <ChatSidebar />
-          </div>
-        </AuthProvider>
+        <SidebarProvider
+          style={
+            {
+              "--sidebar-width": "10rem",
+              "--sidebar-width-mobile": "10rem",
+            } as React.CSSProperties
+          }
+        >
+          <AppSidebar />
+          <SidebarInset>
+            <SiteHeader />
+            <CopilotKit runtimeUrl="/api/v1/copilotkit">
+              {children}
+            </CopilotKit>
+          </SidebarInset>
+        </SidebarProvider>
       </body>
     </html>
   );

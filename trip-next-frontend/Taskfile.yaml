@@ -14,7 +14,7 @@ tasks:
     sources:
       - ../contracts/protobuf/**/*.proto
     generates:
-      - lib/grpc/gen/**/*.ts
+      - lib/grpc/generated/**/*.ts
     cmds:
       - buf generate
 
