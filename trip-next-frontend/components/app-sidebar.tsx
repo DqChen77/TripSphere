@@ -46,7 +46,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={toggleSidebar} tooltip="展开/收起">
+            <SidebarMenuButton
+              onClick={toggleSidebar}
+              className="text-base [&>svg]:size-5"
+              tooltip="展开/收起"
+            >
               <PanelLeft />
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -63,6 +67,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     asChild
                     isActive={pathname.startsWith(item.url)}
                     tooltip={item.title}
+                    className="text-base [&>svg]:size-5"
                   >
                     <Link href={item.url}>
                       <item.icon />
@@ -84,6 +89,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     asChild
                     isActive={pathname === item.url}
                     tooltip={item.title}
+                    className="text-base [&>svg]:size-5"
                   >
                     <Link href={item.url}>
                       <item.icon />

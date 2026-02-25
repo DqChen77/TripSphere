@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import "./globals.css";
 import { CopilotKit } from "@copilotkit/react-core";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
+import "@copilotkit/react-core/v2/styles.css";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "TripSphere",
@@ -29,9 +30,7 @@ export default function RootLayout({
           <AppSidebar />
           <SidebarInset>
             <SiteHeader />
-            <CopilotKit runtimeUrl="/api/v1/copilotkit">
-              {children}
-            </CopilotKit>
+            <CopilotKit runtimeUrl="/api/v1/copilotkit">{children}</CopilotKit>
           </SidebarInset>
         </SidebarProvider>
       </body>
