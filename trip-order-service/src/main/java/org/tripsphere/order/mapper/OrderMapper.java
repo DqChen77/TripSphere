@@ -17,10 +17,6 @@ import org.tripsphere.order.v1.*;
 public interface OrderMapper {
     OrderMapper INSTANCE = Mappers.getMapper(OrderMapper.class);
 
-    // ===================================================================
-    // Order Mappings
-    // ===================================================================
-
     default Order toProto(OrderEntity entity) {
         if (entity == null) return null;
         Order.Builder builder =
@@ -80,10 +76,6 @@ public interface OrderMapper {
         return entities.stream().map(this::toProto).toList();
     }
 
-    // ===================================================================
-    // OrderItem Mappings
-    // ===================================================================
-
     default OrderItem toItemProto(OrderItemEntity entity) {
         if (entity == null) return null;
         OrderItem.Builder builder =
@@ -132,10 +124,6 @@ public interface OrderMapper {
         return builder.build();
     }
 
-    // ===================================================================
-    // Date Conversions
-    // ===================================================================
-
     default LocalDate protoToLocalDate(Date date) {
         if (date == null || (date.getYear() == 0 && date.getMonth() == 0 && date.getDay() == 0)) {
             return null;
@@ -151,10 +139,6 @@ public interface OrderMapper {
                 .setDay(date.getDayOfMonth())
                 .build();
     }
-
-    // ===================================================================
-    // Enum Conversions
-    // ===================================================================
 
     default String orderStatusToString(OrderStatus status) {
         return switch (status) {

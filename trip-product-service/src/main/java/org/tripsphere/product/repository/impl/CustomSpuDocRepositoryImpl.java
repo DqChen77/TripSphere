@@ -73,9 +73,7 @@ public class CustomSpuDocRepositoryImpl implements CustomSpuDocRepository {
                 case "skus" -> {
                     if (updates.getSkus() != null) update.set("skus", updates.getSkus());
                 }
-                default -> {
-                    // ignore unknown fields
-                }
+                default -> {}
             }
         }
 

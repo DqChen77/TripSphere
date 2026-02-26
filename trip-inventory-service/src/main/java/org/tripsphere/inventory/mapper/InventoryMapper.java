@@ -21,10 +21,6 @@ import org.tripsphere.inventory.v1.LockStatus;
 public interface InventoryMapper {
     InventoryMapper INSTANCE = Mappers.getMapper(InventoryMapper.class);
 
-    // ===================================================================
-    // DailyInventory Mappings
-    // ===================================================================
-
     default DailyInventory toProto(DailyInventoryEntity entity) {
         if (entity == null) return null;
         DailyInventory.Builder builder =
@@ -49,10 +45,6 @@ public interface InventoryMapper {
         return entities.stream().map(this::toProto).toList();
     }
 
-    // ===================================================================
-    // InventoryLock Mappings
-    // ===================================================================
-
     default InventoryLock toLockProto(InventoryLockEntity entity) {
         if (entity == null) return null;
         InventoryLock.Builder builder =
@@ -76,10 +68,6 @@ public interface InventoryMapper {
         return builder.build();
     }
 
-    // ===================================================================
-    // Date Conversions
-    // ===================================================================
-
     default LocalDate protoToLocalDate(Date date) {
         if (date == null) return null;
         return LocalDate.of(date.getYear(), date.getMonth(), date.getDay());
@@ -93,10 +81,6 @@ public interface InventoryMapper {
                 .setDay(date.getDayOfMonth())
                 .build();
     }
-
-    // ===================================================================
-    // Enum Conversions
-    // ===================================================================
 
     default String lockStatusToString(LockStatus status) {
         return switch (status) {

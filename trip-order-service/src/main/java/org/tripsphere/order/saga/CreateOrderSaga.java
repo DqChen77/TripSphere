@@ -33,14 +33,7 @@ import org.tripsphere.product.v1.SkuStatus;
 import org.tripsphere.product.v1.StandardProductUnit;
 import org.tripsphere.product.v1.StockKeepingUnit;
 
-/**
- * Saga Orchestrator for CreateOrder. Coordinates: Product validation → Inventory locking → Order
- * persistence. Includes compensation (inventory release) on failure.
- *
- * <p>The persist step uses {@link TransactionTemplate} so that the DB transaction only covers the
- * local write — gRPC calls to Product and Inventory services run outside any DB transaction,
- * avoiding connection-pool exhaustion under load.
- */
+/** CreateOrder saga: validate SKUs → lock inventory → persist order. Compensates on failure. */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -53,9 +46,8 @@ public class CreateOrderSaga {
     private final PlatformTransactionManager transactionManager;
     private final OrderMapper orderMapper = OrderMapper.INSTANCE;
 
-    private static final int ORDER_EXPIRE_SECONDS = 900; // 15 minutes
+    private static final int ORDER_EXPIRE_SECONDS = 900;
 
-    /** Execute the CreateOrder saga. */
     public OrderEntity execute(
             String userId,
             List<CreateOrderItem> items,
@@ -65,9 +57,7 @@ public class CreateOrderSaga {
 
         log.info("Starting CreateOrder saga for user: {}, items: {}", userId, items.size());
 
-        // ============================================================
-        // Step 1: Validate SKUs via Product Service (batch)
-        // ============================================================
+        // Step 1: Validate SKUs
         List<String> skuIds = items.stream().map(CreateOrderItem::getSkuId).distinct().toList();
         List<StockKeepingUnit> skus = productClient.batchGetSkus(skuIds);
 
@@ -85,14 +75,10 @@ public class CreateOrderSaga {
             }
         }
 
-        // ============================================================
-        // Step 1.5: Batch fetch SPU names for product snapshots
-        // ============================================================
+        // Step 1.5: Fetch SPU names for snapshots
         Map<String, String> spuNameMap = fetchSpuNames(skus);
 
-        // ============================================================
-        // Step 2: Lock Inventory (with hotel date expansion)
-        // ============================================================
+        // Step 2: Lock inventory
         String orderId = UUID.randomUUID().toString();
         List<LockItem> lockItems = buildLockItems(items);
 
@@ -104,14 +90,10 @@ public class CreateOrderSaga {
             throw e;
         }
 
-        // ============================================================
-        // Step 2.5: Batch fetch prices for all (sku, date) pairs
-        // ============================================================
+        // Step 2.5: Fetch prices
         Map<String, Money> priceCache = fetchPrices(items, skuMap);
 
-        // ============================================================
-        // Step 3: Create Order locally (in its own DB transaction)
-        // ============================================================
+        // Step 3: Persist order
         try {
             return persistOrder(
                     orderId,
@@ -125,9 +107,7 @@ public class CreateOrderSaga {
                     priceCache,
                     inventoryLock);
         } catch (Exception e) {
-            // ============================================================
-            // Compensation: Release locked inventory
-            // ============================================================
+            // Compensation: release locked inventory
             log.error(
                     "Failed to create order locally, releasing inventory lock: {}",
                     inventoryLock.getLockId(),
@@ -145,14 +125,6 @@ public class CreateOrderSaga {
         }
     }
 
-    // ===================================================================
-    // Helper: Batch fetch SPU names
-    // ===================================================================
-
-    /**
-     * Batch fetch SPU names for product snapshots using a single batchGetSpus call instead of N
-     * individual getSpuById calls.
-     */
     private Map<String, String> fetchSpuNames(List<StockKeepingUnit> skus) {
         List<String> spuIds =
                 skus.stream()
@@ -175,15 +147,7 @@ public class CreateOrderSaga {
         return spuNameMap;
     }
 
-    // ===================================================================
-    // Helper: Build lock items with hotel date expansion
-    // ===================================================================
-
-    /**
-     * Build lock items from order items. For hotel bookings (where end_date is present), expands
-     * the date range into individual daily lock items — e.g. check-in Feb 25, check-out Feb 28
-     * produces lock items for Feb 25, Feb 26, Feb 27 (3 nights).
-     */
+    /** Build lock items. Expands hotel date ranges into individual nights. */
     private List<LockItem> buildLockItems(List<CreateOrderItem> items) {
         List<LockItem> lockItems = new ArrayList<>();
         for (CreateOrderItem item : items) {
@@ -192,7 +156,6 @@ public class CreateOrderSaga {
                     item.hasEndDate() ? orderMapper.protoToLocalDate(item.getEndDate()) : null;
 
             if (endDate != null && endDate.isAfter(startDate)) {
-                // Hotel: lock each night from check-in to check-out (exclusive)
                 for (LocalDate d = startDate; d.isBefore(endDate); d = d.plusDays(1)) {
                     lockItems.add(
                             LockItem.newBuilder()
@@ -202,7 +165,6 @@ public class CreateOrderSaga {
                                     .build());
                 }
             } else {
-                // Attraction or single-date item
                 lockItems.add(
                         LockItem.newBuilder()
                                 .setSkuId(item.getSkuId())
@@ -214,19 +176,10 @@ public class CreateOrderSaga {
         return lockItems;
     }
 
-    // ===================================================================
-    // Helper: Batch fetch prices
-    // ===================================================================
-
-    /**
-     * Batch fetch prices for all (sku, date) combinations needed, using QueryInventoryCalendar per
-     * distinct SKU instead of N individual GetDailyInventory calls. Returns a map keyed by
-     * "skuId:date" → Money.
-     */
+    /** Fetch prices for all (sku, date) combinations via calendar queries. */
     private Map<String, Money> fetchPrices(
             List<CreateOrderItem> items, Map<String, StockKeepingUnit> skuMap) {
 
-        // Collect all (skuId → dates) needed (including expanded hotel dates)
         Map<String, List<LocalDate>> skuDatesMap = new LinkedHashMap<>();
         for (CreateOrderItem item : items) {
             LocalDate startDate = orderMapper.protoToLocalDate(item.getDate());
@@ -245,7 +198,6 @@ public class CreateOrderSaga {
             }
         }
 
-        // Fetch prices per SKU using calendar query (1 gRPC call per distinct SKU)
         Map<String, Money> priceCache = new HashMap<>();
         for (Map.Entry<String, List<LocalDate>> entry : skuDatesMap.entrySet()) {
             String skuId = entry.getKey();
@@ -275,14 +227,7 @@ public class CreateOrderSaga {
         return priceCache;
     }
 
-    // ===================================================================
-    // Helper: Persist order in a dedicated DB transaction
-    // ===================================================================
-
-    /**
-     * Persist order and items within a narrow DB transaction (via TransactionTemplate). This
-     * ensures the DB connection is NOT held during the preceding gRPC calls.
-     */
+    /** Persist order in a dedicated DB transaction. */
     private OrderEntity persistOrder(
             String orderId,
             String orderNo,
@@ -309,7 +254,6 @@ public class CreateOrderSaga {
                         StockKeepingUnit sku = skuMap.get(createItem.getSkuId());
                         String itemId = UUID.randomUUID().toString();
 
-                        // Calculate price — supports hotel multi-night ranges
                         LocalDate startDate = orderMapper.protoToLocalDate(createItem.getDate());
                         LocalDate endDate =
                                 createItem.hasEndDate()
@@ -321,7 +265,6 @@ public class CreateOrderSaga {
                         Money firstDayPrice = null;
 
                         if (endDate != null && endDate.isAfter(startDate)) {
-                            // Hotel: sum prices for each night
                             for (LocalDate d = startDate; d.isBefore(endDate); d = d.plusDays(1)) {
                                 Money dayPrice =
                                         lookupPrice(createItem.getSkuId(), d, priceCache, sku);
@@ -330,7 +273,6 @@ public class CreateOrderSaga {
                                 itemSubtotalNanos += dayPrice.getNanos() * createItem.getQuantity();
                             }
                         } else {
-                            // Attraction or single-date
                             Money unitPrice =
                                     lookupPrice(createItem.getSkuId(), startDate, priceCache, sku);
                             firstDayPrice = unitPrice;
@@ -338,7 +280,6 @@ public class CreateOrderSaga {
                             itemSubtotalNanos = unitPrice.getNanos() * createItem.getQuantity();
                         }
 
-                        // Handle nanos overflow
                         itemSubtotalUnits += itemSubtotalNanos / 1_000_000_000;
                         itemSubtotalNanos = itemSubtotalNanos % 1_000_000_000;
 
@@ -350,7 +291,6 @@ public class CreateOrderSaga {
                                         ? "CNY"
                                         : firstDayPrice.getCurrency();
 
-                        // Product name from pre-fetched SPU map
                         String productName = spuNameMap.getOrDefault(sku.getSpuId(), sku.getName());
 
                         OrderItemEntity orderItem =
@@ -378,7 +318,6 @@ public class CreateOrderSaga {
                         totalNanos += itemSubtotalNanos;
                     }
 
-                    // Handle total nanos overflow
                     totalUnits += totalNanos / 1_000_000_000;
                     totalNanos = totalNanos % 1_000_000_000;
 
@@ -415,10 +354,6 @@ public class CreateOrderSaga {
                 });
     }
 
-    /**
-     * Look up price for a specific SKU on a specific date from the pre-fetched cache. Falls back to
-     * the SKU's base_price if no calendar price is available.
-     */
     private Money lookupPrice(
             String skuId, LocalDate date, Map<String, Money> priceCache, StockKeepingUnit sku) {
         Money cached = priceCache.get(skuId + ":" + date);

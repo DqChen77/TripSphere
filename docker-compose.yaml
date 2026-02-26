@@ -427,7 +427,7 @@ services:
     image: otel/opentelemetry-collector-contrib:0.144.0
     container_name: otel-collector
     volumes:
-      - ./otel-collector/config.yaml:/etc/otelcol/config.yaml
+      - ./infra/otel-collector/config.yaml:/etc/otelcol/config.yaml
     ports:
       - "4317:4317"  # OTLP gRPC receiver
       - "4318:4318"  # OTLP HTTP receiver
@@ -443,7 +443,7 @@ services:
     command: ["-config.file=/etc/tempo.yaml"]
     user: root  # r/w permissions to the mounted directory
     volumes:
-      - ./tempo/tempo.yaml:/etc/tempo.yaml
+      - ./infra/tempo/tempo.yaml:/etc/tempo.yaml
       - ./volumes/tempo:/var/tempo
     ports:
       - "3200:3200"  # Tempo HTTP API
@@ -455,12 +455,12 @@ services:
     image: prom/prometheus:v3.9.1
     container_name: prometheus
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./infra/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml
       - ./volumes/prometheus:/prometheus
     ports:
       - "9090:9090"
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--config.file=/etc/prometheus/prometheus.yaml'
       - '--web.enable-lifecycle'
       - '--storage.tsdb.path=/prometheus'
 
@@ -574,7 +574,7 @@ services:
       - "3306:3306"
     volumes:
       - ./volumes/mysql:/var/lib/mysql
-      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./infra/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: mysql --user=root --password=fudanse --execute="SHOW DATABASES;"
       interval: 30s
@@ -661,5 +661,5 @@ services:
       - "28080:8080"  # HTTP
       - "8443:8443"  # HTTPS
     volumes:
-      - ./higress:/etc/higress/config:ro
+      - ./infra/higress:/etc/higress/config:ro
     restart: unless-stopped

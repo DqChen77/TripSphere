@@ -14,7 +14,6 @@ public interface DailyInventoryRepository extends JpaRepository<DailyInventoryEn
 
     Optional<DailyInventoryEntity> findBySkuIdAndInvDate(String skuId, LocalDate invDate);
 
-    /** SELECT … FOR UPDATE — used by lock/confirm/release to prevent concurrent modification. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query(
             "SELECT d FROM DailyInventoryEntity d"

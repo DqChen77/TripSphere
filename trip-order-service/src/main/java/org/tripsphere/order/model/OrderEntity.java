@@ -80,10 +80,5 @@ public class OrderEntity {
 
     private Long cancelledAt;
 
-    /**
-     * Order items are loaded manually via {@code OrderItemRepository.findByOrderId()}.
-     * Using @Transient because the child entity uses a plain String FK, not a @ManyToOne
-     * association, which is incompatible with @OneToMany(mappedBy).
-     */
     @Transient private List<OrderItemEntity> items;
 }

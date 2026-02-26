@@ -27,8 +27,9 @@ tasks:
     sources:
       - ../contracts/protobuf/**/*.proto
     generates:
-      - libs/tripsphere/src/**/*_pb2.py
-      - libs/tripsphere/src/**/*_pb2_grpc.py
+      - libs/tripsphere/src/tripsphere/**/*.py
+      - libs/tripsphere/src/tripsphere/**/*.pyi
+      - libs/tripsphere/src/tripsphere/py.typed
     cmds:
       - buf generate
       - echo "" > libs/tripsphere/src/tripsphere/py.typed
@@ -40,7 +41,9 @@ tasks:
       - ../contracts/protobuf/**/*.proto
     generates:
       - libs/tripsphere/src/**/*_pb2.py
+      - libs/tripsphere/src/**/*_pb2.pyi
       - libs/tripsphere/src/**/*_pb2_grpc.py
+      - libs/tripsphere/src/**/*_pb2_grpc.pyi
     cmds:
       - for: sources
         cmd: |

@@ -6,10 +6,6 @@ import net.devh.boot.grpc.client.inject.GrpcClient;
 import org.springframework.stereotype.Component;
 import org.tripsphere.inventory.v1.*;
 
-/**
- * gRPC client for trip-inventory-service. Used by Order Service for locking, confirming, and
- * releasing inventory.
- */
 @Slf4j
 @Component
 public class InventoryServiceClient {
@@ -17,7 +13,6 @@ public class InventoryServiceClient {
     @GrpcClient("trip-inventory-service")
     private InventoryServiceGrpc.InventoryServiceBlockingStub inventoryStub;
 
-    /** Lock inventory for a set of items. */
     public InventoryLock lockInventory(
             List<LockItem> items, String orderId, int lockTimeoutSeconds) {
         log.debug("Locking inventory for order: {}, items: {}", orderId, items.size());
@@ -31,7 +26,6 @@ public class InventoryServiceClient {
         return response.getLock();
     }
 
-    /** Confirm a lock after payment. */
     public InventoryLock confirmLock(String lockId) {
         log.debug("Confirming inventory lock: {}", lockId);
         ConfirmLockResponse response =
@@ -40,7 +34,6 @@ public class InventoryServiceClient {
         return response.getLock();
     }
 
-    /** Release a lock (on cancel or timeout). */
     public InventoryLock releaseLock(String lockId, String reason) {
         log.debug("Releasing inventory lock: {}, reason: {}", lockId, reason);
         ReleaseLockResponse response =
@@ -52,7 +45,6 @@ public class InventoryServiceClient {
         return response.getLock();
     }
 
-    /** Get daily inventory (for price lookup). */
     public DailyInventory getDailyInventory(String skuId, org.tripsphere.common.v1.Date date) {
         log.debug("Getting daily inventory: sku={}, date={}", skuId, date);
         GetDailyInventoryResponse response =
@@ -64,7 +56,6 @@ public class InventoryServiceClient {
         return response.getInventory();
     }
 
-    /** Query inventory calendar for a SKU over a date range (for batch price lookup). */
     public List<DailyInventory> queryInventoryCalendar(
             String skuId,
             org.tripsphere.common.v1.Date startDate,

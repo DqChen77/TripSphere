@@ -6,10 +6,6 @@ import net.devh.boot.grpc.client.inject.GrpcClient;
 import org.springframework.stereotype.Component;
 import org.tripsphere.product.v1.*;
 
-/**
- * gRPC client for trip-product-service. Used by Order Service to validate SKUs and fetch product
- * snapshots.
- */
 @Slf4j
 @Component
 public class ProductServiceClient {
@@ -17,7 +13,6 @@ public class ProductServiceClient {
     @GrpcClient("trip-product-service")
     private ProductServiceGrpc.ProductServiceBlockingStub productStub;
 
-    /** Get a single SKU by ID. */
     public StockKeepingUnit getSkuById(String skuId) {
         log.debug("Fetching SKU: {}", skuId);
         GetSkuByIdResponse response =
@@ -25,7 +20,6 @@ public class ProductServiceClient {
         return response.getSku();
     }
 
-    /** Batch get SKUs by IDs. */
     public List<StockKeepingUnit> batchGetSkus(List<String> skuIds) {
         log.debug("Batch fetching {} SKUs", skuIds.size());
         BatchGetSkusResponse response =
@@ -34,7 +28,6 @@ public class ProductServiceClient {
         return response.getSkusList();
     }
 
-    /** Get SPU by ID (for product name snapshot). */
     public StandardProductUnit getSpuById(String spuId) {
         log.debug("Fetching SPU: {}", spuId);
         GetSpuByIdResponse response =
@@ -42,7 +35,6 @@ public class ProductServiceClient {
         return response.getSpu();
     }
 
-    /** Batch get SPUs by IDs (for product name snapshots). */
     public List<StandardProductUnit> batchGetSpus(List<String> spuIds) {
         log.debug("Batch fetching {} SPUs", spuIds.size());
         BatchGetSpusResponse response =

@@ -12,10 +12,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.tripsphere.inventory.model.DailyInventoryEntity;
 
-/**
- * Redis operations for inventory management. Redis serves as a <b>read cache</b> only — MySQL is
- * the source of truth for all writes. Cache updates are best-effort after MySQL commits.
- */
+/** Redis read cache for inventory. MySQL is the source of truth. */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -27,16 +24,10 @@ public class RedisInventoryClient {
     private static final String LOCK_EXPIRY_KEY = "inv:lock:expiry";
     private static final String MUTEX_KEY_PREFIX = "inv:mutex:";
 
-    // ===================================================================
-    // Inventory Cache Operations
-    // ===================================================================
-
-    /** Build the Redis key for a given SKU and date. */
     public String buildKey(String skuId, LocalDate date) {
         return INV_KEY_PREFIX + skuId + ":" + date.toString();
     }
 
-    /** Cache a daily inventory record in Redis (best-effort, called after MySQL commit). */
     public void cacheInventory(DailyInventoryEntity entity) {
         try {
             String key = buildKey(entity.getSkuId(), entity.getInvDate());
@@ -59,7 +50,6 @@ public class RedisInventoryClient {
         }
     }
 
-    /** Get cached inventory. Returns null if not cached. */
     public Map<String, String> getCachedInventory(String skuId, LocalDate date) {
         String key = buildKey(skuId, date);
         Map<Object, Object> entries = redisTemplate.opsForHash().entries(key);
@@ -69,11 +59,7 @@ public class RedisInventoryClient {
         return result;
     }
 
-    /**
-     * Try to acquire a short-lived mutex for cache rebuild, preventing thundering-herd on cache
-     * miss. Returns true if this caller should rebuild the cache; false if another thread is
-     * already doing it.
-     */
+    /** Mutex to prevent thundering-herd on cache miss. */
     public boolean tryAcquireCacheMutex(String skuId, LocalDate date) {
         String mutexKey = MUTEX_KEY_PREFIX + skuId + ":" + date.toString();
         Boolean acquired =
@@ -81,31 +67,17 @@ public class RedisInventoryClient {
         return Boolean.TRUE.equals(acquired);
     }
 
-    /** Delete cached inventory. */
     public void evictInventory(String skuId, LocalDate date) {
         String key = buildKey(skuId, date);
         redisTemplate.delete(key);
     }
 
-    // ===================================================================
-    // Batch Cache Sync (called after MySQL transaction commits)
-    // ===================================================================
-
-    /**
-     * Atomically sync multiple inventory cache entries from committed MySQL state. Uses a Lua
-     * script so the hash updates are atomic per key.
-     */
     public void batchSyncCache(List<DailyInventoryEntity> entities) {
         for (DailyInventoryEntity entity : entities) {
             cacheInventory(entity);
         }
     }
 
-    // ===================================================================
-    // Lock Expiry Sorted Set
-    // ===================================================================
-
-    /** Add a lock to the expiry sorted set. */
     public void addLockExpiry(String lockId, long expireTimestamp) {
         try {
             redisTemplate.opsForZSet().add(LOCK_EXPIRY_KEY, lockId, expireTimestamp);
@@ -114,7 +86,6 @@ public class RedisInventoryClient {
         }
     }
 
-    /** Remove a lock from the expiry sorted set. */
     public void removeLockExpiry(String lockId) {
         try {
             redisTemplate.opsForZSet().remove(LOCK_EXPIRY_KEY, lockId);
@@ -123,10 +94,6 @@ public class RedisInventoryClient {
         }
     }
 
-    /**
-     * Get a batch of expired lock IDs (score &le; now), limited to {@code batchSize} to avoid
-     * blocking Redis with a huge scan.
-     */
     public Set<String> getExpiredLockIds(long now, int batchSize) {
         return redisTemplate.opsForZSet().rangeByScore(LOCK_EXPIRY_KEY, 0, now, 0, batchSize);
     }

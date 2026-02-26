@@ -18,10 +18,6 @@ public class InventoryGrpcService extends InventoryServiceGrpc.InventoryServiceI
     private final InventoryService inventoryService;
     private final InventoryMapper inventoryMapper = InventoryMapper.INSTANCE;
 
-    // ===================================================================
-    // Calendar Inventory Management
-    // ===================================================================
-
     @Override
     public void setDailyInventory(
             SetDailyInventoryRequest request,
@@ -99,10 +95,6 @@ public class InventoryGrpcService extends InventoryServiceGrpc.InventoryServiceI
         responseObserver.onCompleted();
     }
 
-    // ===================================================================
-    // Query
-    // ===================================================================
-
     @Override
     public void getDailyInventory(
             GetDailyInventoryRequest request,
@@ -173,10 +165,6 @@ public class InventoryGrpcService extends InventoryServiceGrpc.InventoryServiceI
         responseObserver.onNext(responseBuilder.build());
         responseObserver.onCompleted();
     }
-
-    // ===================================================================
-    // Lock Operations
-    // ===================================================================
 
     @Override
     public void lockInventory(

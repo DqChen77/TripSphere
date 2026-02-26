@@ -32,9 +32,7 @@ public class ProductServiceImpl implements ProductService {
     public StandardProductUnit createSpu(StandardProductUnit spu) {
         log.debug("Creating SPU: {}", spu.getName());
         SpuDoc doc = productMapper.toDoc(spu);
-        // Server generates the ID
         doc.setId(null);
-        // Generate IDs for embedded SKUs
         if (doc.getSkus() != null) {
             for (SkuDoc sku : doc.getSkus()) {
                 if (sku.getId() == null || sku.getId().isEmpty()) {
@@ -42,7 +40,6 @@ public class ProductServiceImpl implements ProductService {
                 }
             }
         }
-        // Default status
         if (doc.getStatus() == null || doc.getStatus().equals("DRAFT")) {
             doc.setStatus("DRAFT");
         }
@@ -121,7 +118,6 @@ public class ProductServiceImpl implements ProductService {
         String id = spu.getId();
         log.debug("Updating SPU id={}, fields={}", id, fieldPaths);
 
-        // Verify SPU exists
         if (!spuDocRepository.existsById(id)) {
             throw new NotFoundException("SPU", id);
         }
@@ -156,7 +152,6 @@ public class ProductServiceImpl implements ProductService {
     public List<StockKeepingUnit> batchGetSkus(List<String> skuIds) {
         log.debug("Batch getting SKUs, count: {}", skuIds.size());
 
-        // Single query using $in instead of N individual queries
         List<SpuDoc> spuDocs = spuDocRepository.findBySkuIds(skuIds);
         Set<String> requestedIds = new HashSet<>(skuIds);
         List<StockKeepingUnit> result = new ArrayList<>();

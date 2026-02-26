@@ -29,10 +29,6 @@ import org.tripsphere.product.v1.StockKeepingUnit;
 public interface ProductMapper {
     ProductMapper INSTANCE = Mappers.getMapper(ProductMapper.class);
 
-    // ===================================================================
-    // SPU Mappings
-    // ===================================================================
-
     default SpuDoc toDoc(StandardProductUnit proto) {
         if (proto == null) return null;
         SpuDoc doc = new SpuDoc();
@@ -73,10 +69,6 @@ public interface ProductMapper {
         return docs.stream().map(this::toProto).toList();
     }
 
-    // ===================================================================
-    // SKU Mappings
-    // ===================================================================
-
     default SkuDoc toSkuDoc(StockKeepingUnit proto) {
         if (proto == null) return null;
         SkuDoc doc = new SkuDoc();
@@ -107,10 +99,6 @@ public interface ProductMapper {
         return builder.build();
     }
 
-    // ===================================================================
-    // Money Mappings
-    // ===================================================================
-
     default Money toMoney(org.tripsphere.common.v1.Money proto) {
         if (proto == null || proto.equals(org.tripsphere.common.v1.Money.getDefaultInstance())) {
             return null;
@@ -136,10 +124,6 @@ public interface ProductMapper {
         }
         return builder.build();
     }
-
-    // ===================================================================
-    // Struct <-> Map Conversion
-    // ===================================================================
 
     default Map<String, Object> structToMap(Struct struct) {
         if (struct == null) return null;
@@ -202,10 +186,6 @@ public interface ProductMapper {
         }
         return Value.newBuilder().setStringValue(obj.toString()).build();
     }
-
-    // ===================================================================
-    // Enum Conversions
-    // ===================================================================
 
     default String resourceTypeToString(ResourceType type) {
         return switch (type) {

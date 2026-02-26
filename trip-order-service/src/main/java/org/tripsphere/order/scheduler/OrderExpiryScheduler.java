@@ -9,10 +9,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.tripsphere.order.service.OrderService;
 
-/**
- * Scheduled task to auto-cancel expired orders. Runs every 30 seconds, checking the Redis sorted
- * set for expired orders.
- */
+/** Auto-cancels expired orders every 30 seconds. */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -22,8 +19,6 @@ public class OrderExpiryScheduler {
     private final OrderService orderService;
 
     private static final String ORDER_EXPIRE_KEY = "order:expire";
-
-    /** Max orders to process per scheduler tick to avoid blocking. */
     private static final int BATCH_SIZE = 50;
 
     @Scheduled(fixedDelay = 30000)

@@ -47,19 +47,9 @@ public class OrderServiceImpl implements OrderService {
     private static final String ORDER_SEQ_KEY_PREFIX = "order:seq:";
     private static final String ORDER_EXPIRE_KEY = "order:expire";
     private static final String ORDER_DEDUP_KEY_PREFIX = "order:dedup:";
-
-    /** Dedup window — reject identical submissions within this period. */
     private static final Duration DEDUP_WINDOW = Duration.ofSeconds(10);
 
-    // ===================================================================
-    // Create Order
-    // ===================================================================
-
-    /**
-     * Create a new order. Note: NOT @Transactional here — the saga makes gRPC calls to external
-     * services, and we don't want to hold a DB connection during those calls. The saga uses
-     * TransactionTemplate for the local persistence step only.
-     */
+    /** Not @Transactional: saga makes gRPC calls; DB tx only in persistOrder step. */
     @Override
     public Order createOrder(
             String userId, List<CreateOrderItem> items, ContactInfo contact, OrderSource source) {
@@ -88,10 +78,6 @@ public class OrderServiceImpl implements OrderService {
         return orderMapper.toProto(order);
     }
 
-    // ===================================================================
-    // Get Order
-    // ===================================================================
-
     @Override
     public Optional<Order> getOrder(String orderId) {
         log.debug("Getting order: {}", orderId);
@@ -105,10 +91,6 @@ public class OrderServiceImpl implements OrderService {
                             return orderMapper.toProto(entity);
                         });
     }
-
-    // ===================================================================
-    // List User Orders
-    // ===================================================================
 
     @Override
     public Page<Order> listUserOrders(
@@ -151,10 +133,6 @@ public class OrderServiceImpl implements OrderService {
                 });
     }
 
-    // ===================================================================
-    // Cancel Order
-    // ===================================================================
-
     @Override
     @Transactional
     public Order cancelOrder(String orderId, String reason) {
@@ -169,8 +147,6 @@ public class OrderServiceImpl implements OrderService {
             throw new OrderStateException(orderId, order.getStatus(), "PENDING_PAYMENT");
         }
 
-        // Release inventory locks — collect distinct lock IDs first (all items
-        // share one lock per design, avoids redundant gRPC calls).
         List<OrderItemEntity> items = orderItemRepository.findByOrderId(orderId);
         Set<String> lockIds =
                 items.stream()
@@ -180,14 +156,12 @@ public class OrderServiceImpl implements OrderService {
 
         for (String lockId : lockIds) {
             try {
-                // releaseLock is idempotent — safe even if scheduler already released it.
                 inventoryClient.releaseLock(lockId, reason);
             } catch (Exception e) {
                 log.error("Failed to release inventory lock: {} for order: {}", lockId, orderId, e);
             }
         }
 
-        // Update order status
         long now = Instant.now().getEpochSecond();
         order.setStatus("CANCELLED");
         order.setCancelReason(reason);
@@ -196,7 +170,6 @@ public class OrderServiceImpl implements OrderService {
         order = orderRepository.save(order);
         order.setItems(items);
 
-        // Remove from expiry sorted set
         try {
             redisTemplate.opsForZSet().remove(ORDER_EXPIRE_KEY, orderId);
         } catch (Exception e) {
@@ -206,10 +179,6 @@ public class OrderServiceImpl implements OrderService {
         log.info("Order cancelled: {}", orderId);
         return orderMapper.toProto(order);
     }
-
-    // ===================================================================
-    // Confirm Payment
-    // ===================================================================
 
     @Override
     @Transactional
@@ -231,8 +200,6 @@ public class OrderServiceImpl implements OrderService {
             throw new OrderStateException("Order " + orderId + " has expired");
         }
 
-        // Confirm inventory locks — collect distinct lock IDs first (all items
-        // share one lock per design, avoids redundant gRPC calls).
         List<OrderItemEntity> items = orderItemRepository.findByOrderId(orderId);
         Set<String> lockIds =
                 items.stream()
@@ -242,7 +209,6 @@ public class OrderServiceImpl implements OrderService {
 
         for (String lockId : lockIds) {
             try {
-                // confirmLock is idempotent — safe to retry if gRPC response was lost.
                 inventoryClient.confirmLock(lockId);
             } catch (Exception e) {
                 log.error("Failed to confirm inventory lock: {} for order: {}", lockId, orderId, e);
@@ -250,14 +216,12 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        // Update order status
         order.setStatus("PAID");
         order.setPaidAt(now);
         order.setUpdatedAt(now);
         order = orderRepository.save(order);
         order.setItems(items);
 
-        // Remove from expiry sorted set
         try {
             redisTemplate.opsForZSet().remove(ORDER_EXPIRE_KEY, orderId);
         } catch (Exception e) {
@@ -268,18 +232,7 @@ public class OrderServiceImpl implements OrderService {
         return orderMapper.toProto(order);
     }
 
-    // ===================================================================
-    // Dedup & Order Number Generation
-    // ===================================================================
-
-    /**
-     * Prevent duplicate order submission within a short time window. The dedup key is derived from
-     * userId + sorted (skuId, date, qty) fingerprint. A 10-second window prevents double-click
-     * without blocking legitimate re-orders minutes later.
-     *
-     * <p>Fail-open: if Redis is unavailable, the order proceeds without dedup protection. The DB
-     * unique constraint on order_no provides a secondary safeguard.
-     */
+    /** Dedup by userId + items fingerprint. Fail-open if Redis unavailable. */
     private void checkDuplicateSubmission(String userId, List<CreateOrderItem> items) {
         try {
             String fingerprint =
@@ -318,10 +271,8 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * Generate order number: TS + yyyyMMdd + 6-digit sequence. Uses Redis INCR for daily sequence.
-     *
-     * <p>Fallback: if Redis is unavailable, generates a timestamp-based order number to avoid
-     * blocking order creation.
+     * Generate order number: TS + yyyyMMdd + 6-digit sequence. Falls back to nanos if Redis
+     * unavailable.
      */
     private String generateOrderNo() {
         String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
