@@ -4,8 +4,6 @@
 
 This monorepo contains the TripSphere, an AI-native distributed system based on microservices architecture.
 
-![Overview](./assets/overview.png)
-
 ## Quick Start
 
 ### Prerequisites

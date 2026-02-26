@@ -56,7 +56,7 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
                 aria-invalid={!!state?.errors?.email?.length}
               />
               <FieldDescription>
-                我们将使用此邮箱与您联系，不会与任何人分享您的邮箱。
+                该邮箱仅用于与您联系，不会与任何人分享。
               </FieldDescription>
               {state?.errors?.email && (
                 <FieldError>{state.errors.email[0]}</FieldError>

@@ -1,3 +1,80 @@
-export function SiteHeader({ ...props }: React.ComponentProps<"header">) {
-  return <header {...props}></header>;
+import Link from "next/link";
+import { Search, Bell, ShoppingBag, Sailboat } from "lucide-react";
+import { getSession } from "@/lib/session";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { UserNavigation } from "@/components/user-navigation";
+
+export async function SiteHeader({ ...props }: React.ComponentProps<"header">) {
+  const session = await getSession();
+
+  return (
+    <header
+      className="bg-background/80 sticky top-0 z-50 flex h-16 shrink-0 items-center border-b backdrop-blur-sm"
+      {...props}
+    >
+      <div className="mx-auto flex w-full max-w-screen-2xl items-center gap-4 px-[10rem]">
+        {/* Logo */}
+        <Link
+          href="/"
+          className="text-primary flex shrink-0 items-center gap-2 text-xl font-semibold tracking-tight"
+        >
+          <Sailboat className="size-6" />
+          <span className="hidden sm:inline">TripSphere</span>
+        </Link>
+
+        {/* Search */}
+        <div className="relative mx-auto w-full max-w-md">
+          <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+          <Input
+            type="search"
+            placeholder="搜索酒店、景点、目的地..."
+            className="h-9 pr-4 pl-9"
+          />
+        </div>
+
+        {/* Right section */}
+        <div className="flex shrink-0 items-center gap-1">
+          {/* User section */}
+          {session ? (
+            <UserNavigation user={session} />
+          ) : (
+            <div className="flex items-center">
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/signin">登录</Link>
+              </Button>
+              <Separator orientation="vertical" className="mx-1 h-4" />
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/signup">注册</Link>
+              </Button>
+            </div>
+          )}
+
+          {/* My Orders */}
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/order" className="gap-1.5">
+              <ShoppingBag className="size-4" />
+              <span className="hidden md:inline">我的订单</span>
+            </Link>
+          </Button>
+
+          {/* Notifications */}
+          <Button variant="ghost" size="icon-sm" className="relative" asChild>
+            <Link href="/notifications">
+              <Bell className="size-4" />
+              <Badge
+                variant="destructive"
+                className="absolute -top-1 -right-1 size-4 justify-center p-0 text-[10px]"
+              >
+                3
+              </Badge>
+              <span className="sr-only">消息通知</span>
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </header>
+  );
 }

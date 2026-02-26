@@ -31,7 +31,8 @@ export async function verifyToken(
       roles: payload.roles as string[],
       expiresAt: new Date(payload.exp! * 1000),
     };
-  } catch {
+  } catch (error) {
+    console.error("[session] verifyToken failed:", error);
     return null;
   }
 }
@@ -57,6 +58,7 @@ export async function getToken(): Promise<string | null> {
 
 export async function getSession(): Promise<SessionPayload | null> {
   const token = await getToken();
+  console.log("[session] getSession - token exists:", !!token);
   if (!token) return null;
   return verifyToken(token);
 }
