@@ -4,21 +4,23 @@
 
 采用 **Next.js Server Actions + gRPC 直连 + JWT 无状态会话** 的方案。前端（`trip-next-frontend`）既作为 UI 渲染层，也作为 BFF 层，通过 Server Actions 直接调用后端 `trip-user-service` 的 gRPC 接口，无需额外的 REST API 网关。
 
-```
-┌──────────────┐    Server Actions (gRPC)      ┌──────────────────┐
-│   Browser    │  ──────────────────────────>  │ trip-user-service │
-│  (React UI)  │  <──────────────────────────  │  (gRPC :50056)   │
-└──────┬───────┘    SignInResponse { token }   └──────────────────┘
-       │
-       │  cookie: session=<JWT>
-       │
-┌──────┴───────┐
-│  Next.js BFF │
-│ (middleware) │
-└──────────────┘
-```
+```mermaid
+flowchart LR
+    Browser["Browser (React UI)"]
 
----
+    subgraph NextJS["trip-next-frontend (Next.js)"]
+        Middleware["proxy.ts (middleware)"]
+        ServerActions["Server Actions"]
+    end
+
+    UserService["trip-user-service <br/> (gRPC: 50056)"]
+
+    Browser -- "form submit / HTTP" --> Middleware
+    Middleware -- "route guard + header injection" --> ServerActions
+    ServerActions -- "gRPC" --> UserService
+    UserService -- "SignInResponse { token }" --> ServerActions
+    ServerActions -- "Set-Cookie: session=token" --> Browser
+```
 
 ## 用户注册（Sign Up）
 
@@ -50,13 +52,11 @@ message SignUpResponse {}
 
 ### 错误处理
 
-| gRPC Status Code    | 用户提示               |
-| ------------------- | ---------------------- |
-| `ALREADY_EXISTS`    | 该邮箱已被注册。       |
-| `INVALID_ARGUMENT`  | 输入信息无效，请检查后重试。 |
-| 其他错误            | 注册失败，请稍后再试。 |
-
----
+| gRPC Status Code   | 用户提示                     |
+| ------------------ | ---------------------------- |
+| `ALREADY_EXISTS`   | 该邮箱已被注册。             |
+| `INVALID_ARGUMENT` | 输入信息无效，请检查后重试。 |
+| 其他错误           | 注册失败，请稍后再试。       |
 
 ## 用户登录（Sign In）
 
@@ -98,14 +98,12 @@ message SignInResponse {
 
 ### 错误处理
 
-| gRPC Status Code    | 用户提示               |
-| ------------------- | ---------------------- |
-| `UNAUTHENTICATED`   | 邮箱或密码错误。       |
-| `NOT_FOUND`         | 邮箱或密码错误。       |
-| `INVALID_ARGUMENT`  | 输入信息无效，请检查后重试。 |
-| 其他错误            | 登录失败，请稍后再试。 |
-
----
+| gRPC Status Code   | 用户提示                     |
+| ------------------ | ---------------------------- |
+| `UNAUTHENTICATED`  | 邮箱或密码错误。             |
+| `NOT_FOUND`        | 邮箱或密码错误。             |
+| `INVALID_ARGUMENT` | 输入信息无效，请检查后重试。 |
+| 其他错误           | 登录失败，请稍后再试。       |
 
 ## 退出登录（Sign Out）
 
@@ -115,8 +113,6 @@ message SignInResponse {
 2. 触发 Server Action `signOut`
 3. 调用 `deleteSession()`，清除 `session` cookie
 4. 重定向到 `/signin`
-
----
 
 ## 会话管理（Session）
 
@@ -144,15 +140,13 @@ type SessionPayload = {
 
 ### 关键函数
 
-| 函数             | 说明                                                         |
-| ---------------- | ------------------------------------------------------------ |
-| `createSession`  | 验证 token 并写入 `session` cookie                           |
-| `getSession`     | 从 cookie 中读取 token 并验证，返回 `SessionPayload \| null` |
-| `getToken`       | 仅读取 cookie 中的原始 token 字符串                          |
-| `verifyToken`    | 使用 RS256 公钥验证 JWT，返回解析后的 `SessionPayload`       |
-| `deleteSession`  | 删除 `session` cookie                                        |
-
----
+| 函数            | 说明                                                         |
+| --------------- | ------------------------------------------------------------ |
+| `createSession` | 验证 token 并写入 `session` cookie                           |
+| `getSession`    | 从 cookie 中读取 token 并验证，返回 `SessionPayload \| null` |
+| `getToken`      | 仅读取 cookie 中的原始 token 字符串                          |
+| `verifyToken`   | 使用 RS256 公钥验证 JWT，返回解析后的 `SessionPayload`       |
+| `deleteSession` | 删除 `session` cookie                                        |
 
 ## 路由保护（Middleware / Proxy）
 
@@ -160,11 +154,11 @@ type SessionPayload = {
 
 ### 路由规则
 
-| 路由类别         | 路径                                  | 行为                                   |
-| ---------------- | ------------------------------------- | -------------------------------------- |
-| 仅游客可访问     | `/signin`、`/signup`                  | 已登录用户访问时重定向到 `/`           |
-| 需要认证         | `/order`、`/profile`、`/itinerary`    | 未登录用户访问时重定向到 `/signin`     |
-| 公开             | 其他路径                              | 无限制                                 |
+| 路由类别     | 路径                               | 行为                               |
+| ------------ | ---------------------------------- | ---------------------------------- |
+| 仅游客可访问 | `/signin`、`/signup`               | 已登录用户访问时重定向到 `/`       |
+| 需要认证     | `/order`、`/profile`、`/itinerary` | 未登录用户访问时重定向到 `/signin` |
+| 公开         | 其他路径                           | 无限制                             |
 
 ### Header 注入
 
@@ -177,8 +171,6 @@ Middleware 会在每个请求中：
    - `authorization` — `Bearer <token>`
 
 这些 header 会被 `getAuthMetadata()` 读取，转化为 gRPC Metadata 传递给各后端微服务。
-
----
 
 ## UI 层会话状态
 
@@ -197,35 +189,18 @@ Middleware 会在每个请求中：
 - 用户名
 - 下拉菜单：个人中心、账户设置、退出登录
 
----
-
 ## 关键文件索引
 
-| 文件路径                              | 职责                                       |
-| ------------------------------------- | ------------------------------------------ |
-| `actions/auth.ts`                     | Server Actions：signUp / signIn / signOut  |
-| `lib/session.ts`                      | 会话管理：JWT 验证、Cookie 读写            |
-| `lib/definitions.ts`                  | 表单校验 Schema、类型定义                  |
-| `lib/grpc/client.ts`                  | gRPC 客户端工厂 + Auth Metadata 构建       |
-| `proxy.ts`                            | Middleware：路由保护 + Header 注入         |
-| `components/signin-form.tsx`          | 登录表单组件                               |
-| `components/signup-form.tsx`          | 注册表单组件                               |
-| `components/user-navigation-menu.tsx` | 已登录用户导航菜单                         |
-| `components/site-header.tsx`          | 站点顶栏（含登录态判断）                   |
-| `app/(auth)/signin/page.tsx`          | 登录页面                                   |
-| `app/(auth)/signup/page.tsx`          | 注册页面                                   |
-
----
-
-## 与旧方案的对比
-
-| 对比项           | 旧方案                                     | 新方案                                          |
-| ---------------- | ------------------------------------------ | ----------------------------------------------- |
-| 登录标识         | `username` + `password`                    | `email` + `password`                            |
-| BFF 转发方式     | gRPC Proxy（独立代理层）                   | Next.js Server Actions 直接调用 gRPC            |
-| Token 存储       | `cookie["token"]`                          | `cookie["session"]`（httpOnly, sameSite: lax）  |
-| Token 验证       | BFF 不验证，直接透传                       | BFF 使用 RS256 公钥本地验证 JWT                 |
-| 退出登录         | BFF 清除 `cookie["token"]`                 | Server Action 清除 `cookie["session"]` 并重定向 |
-| 路由保护         | 无（或手动检查）                           | Middleware 自动路由保护 + Header 注入            |
-| 表单校验         | 无（或后端校验）                           | 前端 Zod Schema 校验 + 后端 gRPC 校验           |
-| 注册功能         | 未描述                                     | 完整的注册流程（姓名 + 邮箱 + 密码 + 确认密码）|
+| 文件路径                              | 职责                                      |
+| ------------------------------------- | ----------------------------------------- |
+| `actions/auth.ts`                     | Server Actions：signUp / signIn / signOut |
+| `lib/session.ts`                      | 会话管理：JWT 验证、Cookie 读写           |
+| `lib/definitions.ts`                  | 表单校验 Schema、类型定义                 |
+| `lib/grpc/client.ts`                  | gRPC 客户端工厂 + Auth Metadata 构建      |
+| `proxy.ts`                            | Middleware：路由保护 + Header 注入        |
+| `components/signin-form.tsx`          | 登录表单组件                              |
+| `components/signup-form.tsx`          | 注册表单组件                              |
+| `components/user-navigation-menu.tsx` | 已登录用户导航菜单                        |
+| `components/site-header.tsx`          | 站点顶栏（含登录态判断）                  |
+| `app/(auth)/signin/page.tsx`          | 登录页面                                  |
+| `app/(auth)/signup/page.tsx`          | 注册页面                                  |
