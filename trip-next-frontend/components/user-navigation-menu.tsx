@@ -67,10 +67,6 @@ export function UserNavigationMenu({ user }: UserNavigationMenuProps) {
             </Link>
             <Separator className="my-2" />
             <ul>
-              <ListItem href="/profile">
-                <User className="size-4" />
-                个人中心
-              </ListItem>
               <ListItem href="/settings">
                 <Settings className="size-4" />
                 账户设置

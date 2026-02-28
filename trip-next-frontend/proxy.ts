@@ -25,10 +25,10 @@ export default async function proxy(request: NextRequest) {
     if (GUEST_ONLY_ROUTES.some((route) => path.startsWith(route))) {
       return NextResponse.redirect(new URL("/", request.url));
     }
-  }
-
-  if (AUTHENTICATED_ROUTES.some((route) => path.startsWith(route))) {
-    return NextResponse.redirect(new URL("/signin", request.url));
+  } else {
+    if (AUTHENTICATED_ROUTES.some((route) => path.startsWith(route))) {
+      return NextResponse.redirect(new URL("/signin", request.url));
+    }
   }
 
   return NextResponse.next({

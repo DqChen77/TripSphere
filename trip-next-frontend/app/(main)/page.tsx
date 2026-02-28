@@ -1,6 +1,6 @@
 import { CopilotSidebar } from "@copilotkit/react-core/v2";
 
-export default function Home() {
+export default function HomePage() {
   return (
     <div className="flex flex-1 flex-col gap-4">
       <h1 className="text-2xl font-bold">欢迎来到 TripSphere</h1>

@@ -1,3 +1,3 @@
-export default function DetailPage() {
+export default function HotelDetailPage() {
   return <div></div>;
 }

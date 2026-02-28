@@ -23,8 +23,8 @@ services:
     image: tripsphere/trip-attraction-service:latest
     container_name: trip-attraction-service
     ports:
-      - "24213:24213"  # HTTP
-      - "50053:50053"  # gRPC
+      - "24213:24213" # HTTP
+      - "50053:50053" # gRPC
     environment:
       - SPRING_DATA_MONGODB_URI=mongodb://root:fudanse@mongodb:27017
       - SPRING_DATA_MONGODB_DATABASE=attraction_db
@@ -44,7 +44,7 @@ services:
     image: tripsphere/trip-chat-service:latest
     container_name: trip-chat-service
     ports:
-      - "24210:24210"  # HTTP
+      - "24210:24210" # HTTP
     environment:
       - NACOS_SERVER_ADDRESS=${NACOS_SERVER_ADDRESS:-nacos:8848}
       - QDRANT_URL=${QDRANT_URL:-http://qdrant:6333}
@@ -62,7 +62,7 @@ services:
         condition: service_started
     healthcheck:
       test:
-        - "CMD" 
+        - "CMD"
         - "python"
         - "-c"
         - "import urllib.request; urllib.request.urlopen('http://localhost:24210/api/v1/health').read()"
@@ -80,7 +80,7 @@ services:
     image: tripsphere/trip-file-service:latest
     container_name: trip-file-service
     ports:
-      - "50051:50051"  # gRPC
+      - "50051:50051" # gRPC
     environment:
       - APP_ENV=dev
       - APP_NAME=trip-file-service
@@ -98,7 +98,7 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "50051"]
+      test: [ "CMD", "nc", "-z", "localhost", "50051" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -113,8 +113,8 @@ services:
     image: tripsphere/trip-hotel-service:latest
     container_name: trip-hotel-service
     ports:
-      - "50054:50054"  # gRPC
-      - "24214:24214"  # HTTP
+      - "50054:50054" # gRPC
+      - "24214:24214" # HTTP
     environment:
       - SPRING_DATA_MONGODB_URI=mongodb://root:fudanse@mongodb:27017
       - SPRING_DATA_MONGODB_DATABASE=hotel_db
@@ -151,8 +151,8 @@ services:
     image: tripsphere/trip-itinerary-service:latest
     container_name: trip-itinerary-service
     ports:
-      - "24219:24219"  # HTTP
-      - "50052:50052"  # gRPC
+      - "24219:24219" # HTTP
+      - "50052:50052" # gRPC
     depends_on:
       nacos:
         condition: service_healthy
@@ -168,7 +168,7 @@ services:
     image: tripsphere/trip-journey-assistant:latest
     container_name: trip-journey-assistant
     ports:
-      - "24211:24211"  # HTTP
+      - "24211:24211" # HTTP
     environment:
       - NACOS_SERVER_ADDRESS=${NACOS_SERVER_ADDRESS:-nacos:8848}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -186,7 +186,7 @@ services:
     image: tripsphere/trip-next-frontend:latest
     container_name: trip-next-frontend
     ports:
-      - "3000:3000"  # HTTP
+      - "3000:3000" # HTTP
     environment:
       - NODE_ENV=production
       - GRPC_ATTRACTION_URL=trip-attraction-service:50053
@@ -213,8 +213,8 @@ services:
     image: tripsphere/trip-note-service:latest
     container_name: trip-note-service
     ports:
-      - "24216:24216"  # HTTP
-      - "50055:50055"  # gRPC
+      - "24216:24216" # HTTP
+      - "50055:50055" # gRPC
     depends_on:
       nacos:
         condition: service_healthy
@@ -228,8 +228,8 @@ services:
     image: tripsphere/trip-poi-service:latest
     container_name: trip-poi-service
     ports:
-      - "24218:24218"  # HTTP
-      - "50058:50058"  # gRPC
+      - "24218:24218" # HTTP
+      - "50058:50058" # gRPC
     depends_on:
       nacos:
         condition: service_healthy
@@ -245,7 +245,7 @@ services:
     image: tripsphere/trip-review-service:latest
     container_name: trip-review-service
     ports:
-      - "50057:50057"  # gRPC
+      - "50057:50057" # gRPC
     environment:
       - APP_ENV=dev
       - APP_NAME=trip-review-service
@@ -272,7 +272,7 @@ services:
       rmq-proxy:
         condition: service_started
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "50057"]
+      test: [ "CMD", "nc", "-z", "localhost", "50057" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -287,7 +287,7 @@ services:
     image: tripsphere/trip-review-summary:latest
     container_name: trip-review-summary
     ports:
-      - "24212:24212"  # HTTP
+      - "24212:24212" # HTTP
     environment:
       - NACOS_SERVER_ADDRESS=${NACOS_SERVER_ADDRESS:-nacos:8848}
       - QDRANT_URL=http://qdrant:6333
@@ -377,12 +377,10 @@ services:
     image: tripsphere/trip-user-service:latest
     container_name: trip-user-service
     ports:
-      - "50056:50056"  # gRPC
-      - "24217:24217"  # HTTP
+      - "50056:50056" # gRPC
+      - "24217:24217" # HTTP
     environment:
-      - "SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/user_db?\
-        useUnicode=true&characterEncoding=utf8&useSSL=false&\
-        serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true"
+      - "SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/user_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true"
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=fudanse
       - SPRING_CLOUD_NACOS_SERVER_ADDR=nacos:8848
@@ -408,11 +406,11 @@ services:
       - NACOS_AUTH_IDENTITY_VALUE=security
       - NACOS_AUTH_TOKEN=VGhpc0lzTXlDdXN0b21TZWNyZXRLZXkwMTIzNDU2Nzg=
     ports:
-      - "18080:8080"  # Console
+      - "18080:8080" # Console
       - "8848:8848"
       - "9848:9848"
     healthcheck:
-      test: 
+      test:
         - "CMD"
         - "curl"
         - "-f"
@@ -427,24 +425,24 @@ services:
     image: otel/opentelemetry-collector-contrib:0.144.0
     container_name: otel-collector
     volumes:
-      - ./infrastructure/otel-collector/config.yaml:/etc/otelcol/config.yaml
+      - ./infra/otel-collector/config.yaml:/etc/otelcol/config.yaml
     ports:
-      - "4317:4317"  # OTLP gRPC receiver
-      - "4318:4318"  # OTLP HTTP receiver
-      - "8889:8889"  # Prometheus exporter metrics
+      - "4317:4317" # OTLP gRPC receiver
+      - "4318:4318" # OTLP HTTP receiver
+      - "8889:8889" # Prometheus exporter metrics
 
   # Tempo
   tempo:
     image: grafana/tempo:2.8.3
     container_name: tempo
-    command: ["-config.file=/etc/tempo.yaml"]
-    user: root  # r/w permissions to the mounted directory
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    user: root # r/w permissions to the mounted directory
     volumes:
-      - ./infrastructure/tempo/tempo.yaml:/etc/tempo.yaml
+      - ./infra/tempo/tempo.yaml:/etc/tempo.yaml
       - ./volumes/tempo:/var/tempo
     ports:
-      - "3200:3200"  # Tempo HTTP API
-      - "4317"       # OTLP gRPC receiver (internal only)
+      - "3200:3200" # Tempo HTTP API
+      - "4317" # OTLP gRPC receiver (internal only)
     restart: unless-stopped
 
   # Prometheus
@@ -452,7 +450,7 @@ services:
     image: prom/prometheus:v3.9.1
     container_name: prometheus
     volumes:
-      - ./infrastructure/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml
+      - ./infra/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml
       - ./volumes/prometheus:/prometheus
     ports:
       - "9090:9090"
@@ -465,7 +463,7 @@ services:
   grafana:
     image: grafana/grafana:12.3.1
     container_name: grafana
-    user: root  # r/w permissions to the mounted directory
+    user: root # r/w permissions to the mounted directory
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
@@ -473,12 +471,12 @@ services:
     volumes:
       - ./volumes/grafana:/var/lib/grafana
     ports:
-      - "13000:3000"  # Use port 13000 to avoid conflict with frontend
+      - "13000:3000" # Use port 13000 to avoid conflict with frontend
     depends_on:
       tempo:
         condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/api/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -541,7 +539,7 @@ services:
   mongodb:
     image: mongodb/mongodb-community-server:8.0-ubi8
     container_name: mongodb
-    user: root  # r/w permissions to the mounted directory
+    user: root # r/w permissions to the mounted directory
     environment:
       MONGODB_INITDB_ROOT_USERNAME: root
       MONGODB_INITDB_ROOT_PASSWORD: fudanse
@@ -550,7 +548,7 @@ services:
     volumes:
       - ./volumes/mongodb:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -571,7 +569,7 @@ services:
       - "3306:3306"
     volumes:
       - ./volumes/mysql:/var/lib/mysql
-      - ./infrastructure/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./infra/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: mysql --user=root --password=fudanse --execute="SHOW DATABASES;"
       interval: 30s
@@ -593,7 +591,7 @@ services:
       - ./volumes/minio:/minio_data
     command: minio server /minio_data --console-address ":9001"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
       interval: 30s
       timeout: 20s
       retries: 3
@@ -643,7 +641,7 @@ services:
       - "6379:6379"
     restart: "always"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -654,9 +652,9 @@ services:
       higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one:latest
     container_name: higress
     ports:
-      - "8001:8001"  # Console
-      - "28080:8080"  # HTTP
-      - "8443:8443"  # HTTPS
+      - "8001:8001" # Console
+      - "28080:8080" # HTTP
+      - "8443:8443" # HTTPS
     volumes:
-      - ./infrastructure/higress:/etc/higress/config:ro
+      - ./infra/higress:/etc/higress/config:ro
     restart: unless-stopped

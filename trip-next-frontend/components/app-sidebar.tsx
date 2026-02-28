@@ -48,7 +48,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={toggleSidebar}
-              className="my-2 text-base [&>svg]:size-5"
+              className="my-2.5"
               tooltip="展开/收起"
             >
               <PanelLeft className="text-muted-foreground" />
@@ -67,7 +67,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     asChild
                     isActive={pathname.startsWith(item.url)}
                     tooltip={item.title}
-                    className="text-base [&>svg]:size-5"
                   >
                     <Link href={item.url}>
                       <item.icon />
@@ -87,9 +86,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === item.url}
+                    isActive={pathname.startsWith(item.url)}
                     tooltip={item.title}
-                    className="text-base [&>svg]:size-5"
                   >
                     <Link href={item.url}>
                       <item.icon />
