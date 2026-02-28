@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   MapPin,
@@ -36,23 +36,36 @@ function calcNights(checkIn: Date, checkOut: Date): number {
   return Math.max(1, Math.round(diff / (1000 * 60 * 60 * 24)));
 }
 
+function getInitialDates() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return { today, tomorrow };
+}
+
 export function HotelHeroSearch() {
   const router = useRouter();
 
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
+  // Hydration fix: `new Date()` produces different values on server vs client,
+  // causing a hydration mismatch. We defer date initialization to a client-only
+  // useEffect and use `mounted` to guard date-dependent rendering, so the server
+  // and first client render both output the same placeholder ("选择日期").
+  const [mounted, setMounted] = useState(false);
   const [location, setLocation] = useState("上海");
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: today,
-    to: tomorrow,
-  });
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [rooms] = useState(1);
   const [adults] = useState(1);
   const [children] = useState(0);
   const [keyword, setKeyword] = useState("");
 
+  useEffect(() => {
+    const { today, tomorrow } = getInitialDates();
+    setDateRange({ from: today, to: tomorrow });
+    setMounted(true);
+  }, []);
+
+  const { today, tomorrow } = useMemo(() => getInitialDates(), []);
   const checkIn = dateRange?.from ?? today;
   const checkOut = dateRange?.to ?? tomorrow;
   const nights = calcNights(checkIn, checkOut);
@@ -118,19 +131,28 @@ export function HotelHeroSearch() {
             <PopoverTrigger asChild>
               <button className="flex min-w-[220px] cursor-pointer items-center gap-2 rounded-lg px-3 py-2 transition-colors hover:bg-gray-50">
                 <CalendarDays className="size-4 shrink-0 text-blue-500" />
-                <span className="text-sm font-medium text-gray-800">
-                  {formatDate(checkIn)}
-                </span>
-                <span className="mx-3 text-xs text-gray-400">-</span>
-                <span className="text-sm font-medium text-gray-800">
-                  {formatDate(checkOut)}
-                </span>
-                <Badge
-                  variant="secondary"
-                  className="ml-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-600"
-                >
-                  {nights}晚
-                </Badge>
+                {/* Only render formatted dates after client mount to avoid hydration mismatch */}
+                {mounted ? (
+                  <>
+                    <span className="text-sm font-medium text-gray-800">
+                      {formatDate(checkIn)}
+                    </span>
+                    <span className="mx-3 text-xs text-gray-400">-</span>
+                    <span className="text-sm font-medium text-gray-800">
+                      {formatDate(checkOut)}
+                    </span>
+                    <Badge
+                      variant="secondary"
+                      className="ml-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-600"
+                    >
+                      {nights}晚
+                    </Badge>
+                  </>
+                ) : (
+                  <span className="text-sm font-medium text-gray-800">
+                    选择日期
+                  </span>
+                )}
               </button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">

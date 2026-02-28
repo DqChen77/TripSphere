@@ -4,8 +4,10 @@ import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { SessionPayload } from "@/lib/definitions";
 
-// Dynamic import with ssr: false to prevent hydration mismatch
-// Radix UI NavigationMenu generates different IDs on server vs client
+// Hydration fix: Radix UI NavigationMenu internally generates unique IDs
+// (e.g. aria-controls="radix-xxx") that differ between server and client.
+// Unlike variable data (Date, Math.random), we can't control the library's
+// ID generation, so we skip SSR entirely and render a skeleton placeholder.
 const UserNavigationMenu = dynamic(
   () =>
     import("@/components/user-navigation-menu").then(
