@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/session";
 
 const GUEST_ONLY_ROUTES = ["/signin", "/signup"];
+const AUTHENTICATED_ROUTES = ["/order", "/profile", "/itinerary"];
 
 export default async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
@@ -24,6 +25,10 @@ export default async function proxy(request: NextRequest) {
     if (GUEST_ONLY_ROUTES.some((route) => path.startsWith(route))) {
       return NextResponse.redirect(new URL("/", request.url));
     }
+  }
+
+  if (AUTHENTICATED_ROUTES.some((route) => path.startsWith(route))) {
+    return NextResponse.redirect(new URL("/signin", request.url));
   }
 
   return NextResponse.next({

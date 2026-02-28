@@ -48,7 +48,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={toggleSidebar}
-              className="text-base [&>svg]:size-5 my-2"
+              className="my-2 text-base [&>svg]:size-5"
               tooltip="展开/收起"
             >
               <PanelLeft className="text-muted-foreground" />

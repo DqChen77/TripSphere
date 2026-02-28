@@ -30,22 +30,22 @@ export async function SiteHeader({ ...props }: React.ComponentProps<"header">) {
           <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input
             type="search"
-            placeholder="搜索酒店、景点、目的地..."
+            placeholder="搜索任何旅游相关......"
             className="h-9 pr-4 pl-9"
           />
         </div>
 
         {/* Right section */}
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-3">
           {/* User section */}
           {session ? (
             <UserNavigation user={session} />
           ) : (
-            <div className="flex items-center">
+            <div className="flex h-5 items-center gap-1.5">
               <Button variant="ghost" size="sm" asChild>
                 <Link href="/signin">登录</Link>
               </Button>
-              <Separator orientation="vertical" className="mx-1 h-4" />
+              <Separator orientation="vertical" />
               <Button variant="ghost" size="sm" asChild>
                 <Link href="/signup">注册</Link>
               </Button>
@@ -62,7 +62,7 @@ export async function SiteHeader({ ...props }: React.ComponentProps<"header">) {
 
           {/* Notifications */}
           <Button variant="ghost" size="icon-sm" className="relative" asChild>
-            <Link href="/notifications">
+            <Link href="/notification">
               <Bell className="size-4" />
               <Badge
                 variant="destructive"
