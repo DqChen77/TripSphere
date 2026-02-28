@@ -9,7 +9,6 @@ import { UserNavigation } from "@/components/user-navigation";
 
 export async function SiteHeader({ ...props }: React.ComponentProps<"header">) {
   const session = await getSession();
-
   return (
     <header
       className="bg-background/80 sticky top-0 z-50 flex h-16 shrink-0 items-center border-b backdrop-blur-sm"
