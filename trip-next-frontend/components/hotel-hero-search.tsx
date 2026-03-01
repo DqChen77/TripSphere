@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   MapPin,
@@ -8,7 +8,8 @@ import {
   Users,
   Search,
   X,
-  ChevronDown,
+  Minus,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,36 +37,28 @@ function calcNights(checkIn: Date, checkOut: Date): number {
   return Math.max(1, Math.round(diff / (1000 * 60 * 60 * 24)));
 }
 
-function getInitialDates() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return { today, tomorrow };
+interface HotelHeroSearchProps {
+  // Pass a stable "today" string (YYYY-MM-DD) from the Server Component
+  // so the server and client render the same initial dates (no hydration mismatch).
+  today: string;
 }
 
-export function HotelHeroSearch() {
+export function HotelHeroSearch({ today: todayStr }: HotelHeroSearchProps) {
   const router = useRouter();
 
-  // Hydration fix: `new Date()` produces different values on server vs client,
-  // causing a hydration mismatch. We defer date initialization to a client-only
-  // useEffect and use `mounted` to guard date-dependent rendering, so the server
-  // and first client render both output the same placeholder ("选择日期").
-  const [mounted, setMounted] = useState(false);
+  const today = new Date(todayStr + "T00:00:00");
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
   const [location, setLocation] = useState("上海");
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-  const [rooms] = useState(1);
-  const [adults] = useState(1);
-  const [children] = useState(0);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: today,
+    to: tomorrow,
+  });
+  const [rooms, setRooms] = useState(1);
+  const [adults, setAdults] = useState(1);
+  const [children, setChildren] = useState(0);
   const [keyword, setKeyword] = useState("");
-
-  useEffect(() => {
-    const { today, tomorrow } = getInitialDates();
-    setDateRange({ from: today, to: tomorrow });
-    setMounted(true);
-  }, []);
-
-  const { today, tomorrow } = useMemo(() => getInitialDates(), []);
   const checkIn = dateRange?.from ?? today;
   const checkOut = dateRange?.to ?? tomorrow;
   const nights = calcNights(checkIn, checkOut);
@@ -104,9 +97,9 @@ export function HotelHeroSearch() {
         </h1>
 
         {/* Search Card */}
-        <div className="flex items-center gap-0 rounded-xl bg-white p-2 shadow-lg">
+        <div className="flex h-14 items-center rounded-xl bg-white p-2 shadow-lg">
           {/* Location */}
-          <SearchField>
+          <SearchField className="w-1/6">
             <MapPin className="size-4 shrink-0 text-blue-500" />
             <span className="text-sm font-medium text-gray-800">
               {location || "目的地"}
@@ -121,38 +114,26 @@ export function HotelHeroSearch() {
             )}
           </SearchField>
 
-          <Separator
-            orientation="vertical"
-            className="mx-1 data-[orientation=vertical]:h-8"
-          />
+          <Separator orientation="vertical" className="mx-1" />
 
           {/* Date Range */}
           <Popover>
             <PopoverTrigger asChild>
               <button className="flex min-w-[220px] cursor-pointer items-center gap-2 rounded-lg px-3 py-2 transition-colors hover:bg-gray-50">
                 <CalendarDays className="size-4 shrink-0 text-blue-500" />
-                {/* Only render formatted dates after client mount to avoid hydration mismatch */}
-                {mounted ? (
-                  <>
-                    <span className="text-sm font-medium text-gray-800">
-                      {formatDate(checkIn)}
-                    </span>
-                    <span className="mx-3 text-xs text-gray-400">-</span>
-                    <span className="text-sm font-medium text-gray-800">
-                      {formatDate(checkOut)}
-                    </span>
-                    <Badge
-                      variant="secondary"
-                      className="ml-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-600"
-                    >
-                      {nights}晚
-                    </Badge>
-                  </>
-                ) : (
-                  <span className="text-sm font-medium text-gray-800">
-                    选择日期
-                  </span>
-                )}
+                <span className="text-sm font-medium text-gray-800">
+                  {formatDate(checkIn)}
+                </span>
+                <span className="mx-3 text-xs text-gray-400">-</span>
+                <span className="text-sm font-medium text-gray-800">
+                  {formatDate(checkOut)}
+                </span>
+                <Badge
+                  variant="secondary"
+                  className="ml-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-600"
+                >
+                  {nights}晚
+                </Badge>
               </button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
@@ -171,42 +152,68 @@ export function HotelHeroSearch() {
             </PopoverContent>
           </Popover>
 
-          <Separator
-            orientation="vertical"
-            className="mx-1 data-[orientation=vertical]:h-8"
-          />
+          <Separator orientation="vertical" className="mx-1" />
 
           {/* Rooms & Guests */}
-          <SearchField>
-            <Users className="size-4 shrink-0 text-blue-500" />
-            <span className="text-sm font-medium text-gray-800">
-              {rooms}间, {adults}成人, {children}儿童
-            </span>
-            <ChevronDown className="ml-auto size-3.5 shrink-0 text-gray-400" />
-          </SearchField>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 transition-colors hover:bg-gray-50">
+                <Users className="size-4 shrink-0 text-blue-500" />
+                <span className="text-sm font-medium text-gray-800">
+                  {rooms}间, {adults}成人, {children}儿童
+                </span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72" align="start">
+              <div className="flex flex-col gap-4">
+                {/* Constraint: rooms >= 1, rooms <= adults */}
+                <GuestCounterRow
+                  label="房间"
+                  value={rooms}
+                  min={1}
+                  max={adults}
+                  onDecrement={() => setRooms((r) => Math.max(1, r - 1))}
+                  onIncrement={() => setRooms((r) => Math.min(adults, r + 1))}
+                />
+                {/* Constraint: adults >= 1, adults >= rooms */}
+                <GuestCounterRow
+                  label="成人"
+                  description="18岁及以上"
+                  value={adults}
+                  min={rooms}
+                  max={30}
+                  onDecrement={() => setAdults((a) => Math.max(rooms, a - 1))}
+                  onIncrement={() => setAdults((a) => a + 1)}
+                />
+                <GuestCounterRow
+                  label="儿童"
+                  description="0-17岁"
+                  value={children}
+                  min={0}
+                  max={10}
+                  onDecrement={() => setChildren((c) => Math.max(0, c - 1))}
+                  onIncrement={() => setChildren((c) => c + 1)}
+                />
+              </div>
+            </PopoverContent>
+          </Popover>
 
-          <Separator
-            orientation="vertical"
-            className="mx-1 data-[orientation=vertical]:h-8"
-          />
+          <Separator orientation="vertical" className="mx-1" />
 
           {/* Keyword */}
-          <div className="flex flex-1 items-center px-3">
+          <div className="flex flex-1 items-center rounded-lg px-3 hover:bg-gray-50">
             <Input
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               placeholder="位置/品牌/酒店（选填）"
-              className="h-8 border-none bg-transparent text-sm shadow-none placeholder:text-gray-400 focus-visible:ring-0"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSearch();
-              }}
+              className="h-9 border-none bg-transparent px-0 text-sm shadow-none placeholder:text-gray-400 focus-visible:ring-0"
             />
           </div>
 
           {/* Search Button */}
           <Button
             onClick={handleSearch}
-            className="ml-2 h-10 gap-1.5 rounded-lg bg-blue-600 px-6 text-white hover:bg-blue-700"
+            className="ml-2 h-10 cursor-pointer gap-1.5 rounded-lg bg-blue-600 px-6 text-white hover:bg-blue-700"
           >
             <Search className="size-4" />
             搜索
@@ -229,6 +236,59 @@ function SearchField({
       className={`flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 transition-colors hover:bg-gray-50 ${className ?? ""}`}
     >
       {children}
+    </div>
+  );
+}
+
+function GuestCounterRow({
+  label,
+  description,
+  value,
+  min,
+  max,
+  onDecrement,
+  onIncrement,
+}: {
+  label: string;
+  description?: string;
+  value: number;
+  min: number;
+  max: number;
+  onDecrement: () => void;
+  onIncrement: () => void;
+}) {
+  const canDecrement = value > min;
+  const canIncrement = value < max;
+
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex flex-col">
+        <span className="text-sm font-medium text-gray-800">{label}</span>
+        {description && (
+          <span className="text-muted-foreground text-xs">{description}</span>
+        )}
+      </div>
+      <div className="flex items-center gap-3">
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-8 rounded-full"
+          disabled={!canDecrement}
+          onClick={onDecrement}
+        >
+          <Minus className="size-3.5" />
+        </Button>
+        <span className="w-5 text-center text-sm font-medium">{value}</span>
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-8 rounded-full"
+          disabled={!canIncrement}
+          onClick={onIncrement}
+        >
+          <Plus className="size-3.5" />
+        </Button>
+      </div>
     </div>
   );
 }

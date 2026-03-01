@@ -69,7 +69,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     tooltip={item.title}
                   >
                     <Link href={item.url}>
-                      <item.icon />
+                      <item.icon className="text-blue-600" />
                       <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
@@ -90,7 +90,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     tooltip={item.title}
                   >
                     <Link href={item.url}>
-                      <item.icon />
+                      <item.icon className="text-blue-600" />
                       <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>

@@ -11,7 +11,7 @@ export default function MainLayout({
 }) {
   return (
     <SidebarProvider
-      defaultOpen={false}
+      defaultOpen={true}
       style={
         {
           "--sidebar-width": "10rem",
