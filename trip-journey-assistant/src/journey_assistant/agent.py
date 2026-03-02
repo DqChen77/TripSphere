@@ -18,15 +18,14 @@ logger = logging.getLogger(__name__)
 
 
 AGENT_NAME = "journey_assistant"
-AGENT_DESCRIPTION = (
-    "An agent that can help users with journey information, such as weather details."
-)
+AGENT_DESCRIPTION = "An agent that can help users with their journey."
 INSTRUCTION = """Role: You are a helpful journey assistant agent.
 
 Capabilities:
 - You are integrated with weather information tools.
 
-Current Datetime (with Timezone): {current_datetime}"""
+Current Datetime (with Timezone): {current_datetime}
+"""
 
 
 def root_instruction(_: ReadonlyContext) -> str:
@@ -62,7 +61,7 @@ def get_root_agent(model: str = "openai/gpt-4o-mini") -> LlmAgent:
 weather_info = AgentSkill(
     id="weather_information",
     name="Weather Information",
-    description="Provides weather information for travel destinations.",
+    description="Provides weather information for destinations.",
     tags=["weather"],
     examples=["How's the weather in Shanghai tomorrow?"],
 )

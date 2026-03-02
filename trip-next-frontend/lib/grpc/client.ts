@@ -9,16 +9,16 @@ import { PoiServiceClient } from "./generated/tripsphere/poi/v1/poi";
 
 // Static service addresses
 const SERVICE_ADDRESSES = {
-  attraction: "localhost:50053",
-  hotel: "localhost:50054",
-  itinerary: "localhost:50052",
-  poi: "localhost:50058",
-  user: "localhost:50056",
+  "trip-attraction-service": "http://localhost:50053",
+  "trip-hotel-service": "http://localhost:50054",
+  "trip-itinerary-service": "http://localhost:50052",
+  "trip-poi-service": "http://localhost:50058",
+  "trip-user-service": "http://localhost:50056",
 };
 
 const clientCache = new Map<string, unknown>();
 
-function getClient<T>(
+function getGrpcClient<T>(
   ClientConstructor: new (
     address: string,
     credentials: ChannelCredentials,
@@ -36,23 +36,23 @@ function getClient<T>(
 }
 
 export function getUserService() {
-  return getClient(UserServiceClient, SERVICE_ADDRESSES.user);
+  return getGrpcClient(UserServiceClient, SERVICE_ADDRESSES["trip-user-service"]);
 }
 
 export function getHotelService() {
-  return getClient(HotelServiceClient, SERVICE_ADDRESSES.hotel);
+  return getGrpcClient(HotelServiceClient, SERVICE_ADDRESSES["trip-hotel-service"]);
 }
 
 export function getAttractionService() {
-  return getClient(AttractionServiceClient, SERVICE_ADDRESSES.attraction);
+  return getGrpcClient(AttractionServiceClient, SERVICE_ADDRESSES["trip-attraction-service"]);
 }
 
 export function getItineraryService() {
-  return getClient(ItineraryServiceClient, SERVICE_ADDRESSES.itinerary);
+  return getGrpcClient(ItineraryServiceClient, SERVICE_ADDRESSES["trip-itinerary-service"]);
 }
 
 export function getPoiService() {
-  return getClient(PoiServiceClient, SERVICE_ADDRESSES.poi);
+  return getGrpcClient(PoiServiceClient, SERVICE_ADDRESSES["trip-poi-service"]);
 }
 
 export async function getAuthMetadata(): Promise<Metadata> {

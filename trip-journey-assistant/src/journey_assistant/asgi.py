@@ -66,7 +66,7 @@ def create_app() -> Starlette:
     a2a_app.router.on_startup = [combined_startup]
     a2a_app.router.on_shutdown = [combined_shutdown]
 
-    return a2a_app
+    return a2a_app  # type: ignore
 
 
 app = create_app()

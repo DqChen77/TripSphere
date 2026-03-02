@@ -1,4 +1,9 @@
 import socket
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from journey_assistant.nacos.ai import NacosAI
+    from journey_assistant.nacos.naming import NacosNaming
 
 
 def get_local_ip() -> str:
@@ -9,3 +14,13 @@ def get_local_ip() -> str:
             return str(s.getsockname()[0])
     except Exception:
         return socket.gethostbyname(socket.gethostname())
+
+
+async def client_shutdown(
+    nacos_ai: "NacosAI | None", nacos_naming: "NacosNaming | None"
+) -> None:
+    if nacos_ai is not None:
+        await nacos_ai.shutdown()
+        return  # Return early to avoid double shutdown
+    if nacos_naming is not None:
+        await nacos_naming.shutdown()
