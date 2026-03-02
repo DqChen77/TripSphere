@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package tripsphere.order.v1;
 
+import "google/protobuf/timestamp.proto";
 import "tripsphere/common/v1/date.proto";
 import "tripsphere/common/v1/money.proto";
 
@@ -48,12 +49,12 @@ message Order {
 
   string cancel_reason = 9;
   // Payment deadline. Order auto-cancels after this time.
-  int64 expire_at = 10;
+  google.protobuf.Timestamp expire_at = 10;
 
-  int64 created_at = 11;
-  int64 updated_at = 12;
-  int64 paid_at = 13;
-  int64 cancelled_at = 14;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+  google.protobuf.Timestamp paid_at = 13;
+  google.protobuf.Timestamp cancelled_at = 14;
 }
 
 message OrderItem {

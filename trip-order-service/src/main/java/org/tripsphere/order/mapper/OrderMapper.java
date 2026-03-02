@@ -1,5 +1,6 @@
 package org.tripsphere.order.mapper;
 
+import com.google.protobuf.Timestamp;
 import java.time.LocalDate;
 import java.util.List;
 import org.mapstruct.*;
@@ -31,8 +32,8 @@ public interface OrderMapper {
                                         .setUnits(entity.getTotalUnits())
                                         .setNanos(entity.getTotalNanos())
                                         .build())
-                        .setCreatedAt(entity.getCreatedAt())
-                        .setUpdatedAt(entity.getUpdatedAt());
+                        .setCreatedAt(epochSecondToTimestamp(entity.getCreatedAt()))
+                        .setUpdatedAt(epochSecondToTimestamp(entity.getUpdatedAt()));
 
         if (entity.getContactName() != null
                 || entity.getContactPhone() != null
@@ -58,9 +59,12 @@ public interface OrderMapper {
         }
 
         if (entity.getCancelReason() != null) builder.setCancelReason(entity.getCancelReason());
-        if (entity.getExpireAt() != null) builder.setExpireAt(entity.getExpireAt());
-        if (entity.getPaidAt() != null) builder.setPaidAt(entity.getPaidAt());
-        if (entity.getCancelledAt() != null) builder.setCancelledAt(entity.getCancelledAt());
+        if (entity.getExpireAt() != null)
+            builder.setExpireAt(epochSecondToTimestamp(entity.getExpireAt()));
+        if (entity.getPaidAt() != null)
+            builder.setPaidAt(epochSecondToTimestamp(entity.getPaidAt()));
+        if (entity.getCancelledAt() != null)
+            builder.setCancelledAt(epochSecondToTimestamp(entity.getCancelledAt()));
 
         if (entity.getItems() != null) {
             for (OrderItemEntity item : entity.getItems()) {
@@ -159,5 +163,13 @@ public interface OrderMapper {
             case "CANCELLED" -> OrderStatus.ORDER_STATUS_CANCELLED;
             default -> OrderStatus.ORDER_STATUS_UNSPECIFIED;
         };
+    }
+
+    default Timestamp epochSecondToTimestamp(long epochSecond) {
+        return Timestamp.newBuilder().setSeconds(epochSecond).build();
+    }
+
+    default long timestampToEpochSecond(Timestamp ts) {
+        return (ts == null) ? 0L : ts.getSeconds();
     }
 }

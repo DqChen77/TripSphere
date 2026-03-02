@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package tripsphere.inventory.v1;
 
+import "google/protobuf/timestamp.proto";
 import "tripsphere/common/v1/date.proto";
 import "tripsphere/common/v1/money.proto";
 
@@ -72,8 +73,8 @@ message InventoryLock {
   string order_id = 2;
   repeated LockItem items = 3;
   LockStatus status = 4;
-  int64 created_at = 5;
-  int64 expire_at = 6;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp expire_at = 6;
 }
 
 // A single (sku, date, quantity) tuple to lock.

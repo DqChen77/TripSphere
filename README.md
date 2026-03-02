@@ -28,21 +28,3 @@ For development environment, you can use Docker Compose to start the system. Run
 ## Deployment
 
 Kubernetes deployment is on the way soon. Currently, you can deploy the system using Docker Compose.
-
-## Verification
-
-After starting services, verify the system is running:
-
-<div align="center">
-
-| Service            | URL                             | Description              |
-| ------------------ | ------------------------------- | ------------------------ |
-| Frontend           | http://localhost:3000           | Next.js Web UI           |
-| Nacos Console      | http://localhost:18080          | Service & Agent Registry |
-| Grafana            | http://localhost:13000          | Observability            |
-| MinIO Console      | http://localhost:9001           | Object Storage           |
-| RocketMQ Dashboard | http://localhost:8082           | Message Queue            |
-| Neo4j Browser      | http://localhost:7474           | Graph Database           |
-| Qdrant Dashboard   | http://localhost:6333/dashboard | Vector Database          |
-
-</div>

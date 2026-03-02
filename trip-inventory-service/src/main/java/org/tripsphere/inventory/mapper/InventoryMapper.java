@@ -1,5 +1,6 @@
 package org.tripsphere.inventory.mapper;
 
+import com.google.protobuf.Timestamp;
 import java.time.LocalDate;
 import java.util.List;
 import org.mapstruct.*;
@@ -52,8 +53,8 @@ public interface InventoryMapper {
                         .setLockId(entity.getLockId())
                         .setOrderId(entity.getOrderId())
                         .setStatus(stringToLockStatus(entity.getStatus()))
-                        .setCreatedAt(entity.getCreatedAt())
-                        .setExpireAt(entity.getExpireAt());
+                        .setCreatedAt(epochSecondToTimestamp(entity.getCreatedAt()))
+                        .setExpireAt(epochSecondToTimestamp(entity.getExpireAt()));
 
         if (entity.getItems() != null) {
             for (InventoryLockItemEntity item : entity.getItems()) {
@@ -101,5 +102,13 @@ public interface InventoryMapper {
             case "EXPIRED" -> LockStatus.LOCK_STATUS_EXPIRED;
             default -> LockStatus.LOCK_STATUS_UNSPECIFIED;
         };
+    }
+
+    default Timestamp epochSecondToTimestamp(long epochSecond) {
+        return Timestamp.newBuilder().setSeconds(epochSecond).build();
+    }
+
+    default long timestampToEpochSecond(Timestamp ts) {
+        return (ts == null) ? 0L : ts.getSeconds();
     }
 }
