@@ -1,8 +1,9 @@
 package org.tripsphere.user.util;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,10 +17,7 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
@@ -37,13 +35,14 @@ public class JwtUtil {
     private Long expiration;
 
     private PrivateKey privateKey;
-    private PublicKey publicKey;
+    private JwtParser jwtParser;
 
     @PostConstruct
     public void init() {
         try {
             this.privateKey = loadPrivateKey(privateKeyResource);
-            this.publicKey = loadPublicKey(publicKeyResource);
+            PublicKey publicKey = loadPublicKey(publicKeyResource);
+            this.jwtParser = Jwts.parser().verifyWith(publicKey).build();
         } catch (Exception e) {
             throw new IllegalStateException("Failed to load RSA keys", e);
         }
@@ -91,72 +90,61 @@ public class JwtUtil {
      * @return signed JWT token string
      */
     public String generateToken(String userId, String name, String email, List<String> roles) {
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("name", name);
-        claims.put("email", email);
-        claims.put("roles", roles);
-        return createToken(claims, userId);
-    }
-
-    private String createToken(Map<String, Object> claims, String subject) {
+        Date now = new Date();
         return Jwts.builder()
-                .setClaims(claims)
-                .setSubject(subject)
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(privateKey, SignatureAlgorithm.RS256)
+                .subject(userId)
+                .claim("name", name)
+                .claim("email", email)
+                .claim("roles", roles)
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + expiration))
+                .signWith(privateKey, Jwts.SIG.RS256)
                 .compact();
     }
 
-    public String extractUserId(String token) {
-        return extractClaim(token, Claims::getSubject);
+    /**
+     * Parse and validate a JWT token in a single operation. Verifies the signature and checks
+     * expiration, then extracts all claims at once — avoiding redundant parsing.
+     *
+     * @param token the raw JWT token string
+     * @return parsed token claims
+     * @throws JwtException if the token is invalid, expired, or has a bad signature
+     */
+    public TokenClaims parseAndValidate(String token) {
+        Claims claims = jwtParser.parseSignedClaims(token).getPayload();
+        return TokenClaims.from(claims);
     }
 
-    public String extractEmail(String token) {
-        return extractClaim(token, claims -> claims.get("email", String.class));
-    }
-
-    public String extractName(String token) {
-        return extractClaim(token, claims -> claims.get("name", String.class));
-    }
-
-    public Date extractExpiration(String token) {
-        return extractClaim(token, Claims::getExpiration);
-    }
-
-    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = extractAllClaims(token);
-        return claimsResolver.apply(claims);
-    }
-
-    private Claims extractAllClaims(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(publicKey)
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
-    }
-
-    private Boolean isTokenExpired(String token) {
-        return extractExpiration(token).before(new Date());
-    }
-
-    public Boolean validateToken(String token) {
+    /**
+     * Check whether a JWT token is valid (well-formed, not expired, correct signature).
+     *
+     * @param token the raw JWT token string
+     * @return true if valid, false otherwise
+     */
+    public boolean validateToken(String token) {
         try {
-            extractAllClaims(token);
-            return !isTokenExpired(token);
-        } catch (Exception e) {
+            jwtParser.parseSignedClaims(token);
+            return true;
+        } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public List<String> extractRoles(String token) {
-        Claims claims = extractAllClaims(token);
-        Object rolesObj = claims.get("roles");
-        if (rolesObj instanceof List) {
-            return (List<String>) rolesObj;
+    /** Immutable holder for parsed JWT token claims. */
+    public record TokenClaims(String userId, String name, String email, List<String> roles) {
+
+        static TokenClaims from(Claims claims) {
+            String userId = claims.getSubject();
+            String name = claims.get("name", String.class);
+            String email = claims.get("email", String.class);
+
+            List<String> roles = List.of();
+            Object rolesObj = claims.get("roles");
+            if (rolesObj instanceof List<?> list) {
+                roles = list.stream().map(Object::toString).toList();
+            }
+
+            return new TokenClaims(userId, name, email, roles);
         }
-        return List.of();
     }
 }

@@ -1,8 +1,10 @@
 package org.tripsphere.user.security;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 /** JWT authentication token for Spring Security. */
@@ -13,17 +15,59 @@ public class JwtAuthenticationToken extends AbstractAuthenticationToken {
     private final String email;
     private final List<String> roles;
 
-    public JwtAuthenticationToken(String token, String userId, String email, List<String> roles) {
-        super(
-                roles.stream()
-                        .map(role -> role.startsWith("ROLE_") ? role : "ROLE_" + role)
-                        .map(SimpleGrantedAuthority::new)
-                        .collect(Collectors.toList()));
+    /**
+     * Create an unauthenticated token with only the raw JWT string. Used by {@link
+     * JwtGrpcAuthenticationReader} to pass the token to the {@link
+     * org.tripsphere.user.config.JwtAuthenticationProvider} for validation.
+     *
+     * @param token the raw JWT token string
+     */
+    public JwtAuthenticationToken(String token) {
+        super(null);
+        this.token = token;
+        this.userId = null;
+        this.email = null;
+        this.roles = null;
+        setAuthenticated(false);
+    }
+
+    /**
+     * Create a fully authenticated token with user details and authorities. This constructor should
+     * only be called by the {@link org.tripsphere.user.config.JwtAuthenticationProvider} after
+     * successful token validation.
+     *
+     * @param token the raw JWT token string
+     * @param userId the user's unique ID
+     * @param email the user's email address
+     * @param roles the user's role names
+     * @param authorities the granted authorities derived from roles
+     */
+    private JwtAuthenticationToken(
+            String token,
+            String userId,
+            String email,
+            List<String> roles,
+            Collection<? extends GrantedAuthority> authorities) {
+        super(authorities);
         this.token = token;
         this.userId = userId;
         this.email = email;
         this.roles = roles;
         setAuthenticated(true);
+    }
+
+    /**
+     * Factory method to create an authenticated token. Should only be called by {@link
+     * org.tripsphere.user.config.JwtAuthenticationProvider} after validating the JWT.
+     */
+    public static JwtAuthenticationToken authenticated(
+            String token, String userId, String email, List<String> roles) {
+        Collection<SimpleGrantedAuthority> authorities =
+                roles.stream()
+                        .map(role -> role.startsWith("ROLE_") ? role : "ROLE_" + role)
+                        .map(SimpleGrantedAuthority::new)
+                        .collect(Collectors.toList());
+        return new JwtAuthenticationToken(token, userId, email, roles, authorities);
     }
 
     @Override

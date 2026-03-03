@@ -3,8 +3,10 @@ package org.tripsphere.user.api.grpc;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 import net.devh.boot.grpc.server.service.GrpcService;
+import org.springframework.security.access.annotation.Secured;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.tripsphere.user.exception.NotFoundException;
-import org.tripsphere.user.security.AuthContext;
+import org.tripsphere.user.security.JwtAuthenticationToken;
 import org.tripsphere.user.service.UserService;
 import org.tripsphere.user.v1.GetCurrentUserRequest;
 import org.tripsphere.user.v1.GetCurrentUserResponse;
@@ -20,8 +22,8 @@ import org.tripsphere.user.v1.UserServiceGrpc;
 public class UserGrpcService extends UserServiceGrpc.UserServiceImplBase {
 
     private final UserService userService;
-    private final AuthContext authContext;
 
+    /** Public endpoint — no authentication required. */
     @Override
     public void signUp(SignUpRequest request, StreamObserver<SignUpResponse> responseObserver) {
         String name = request.getName();
@@ -34,6 +36,7 @@ public class UserGrpcService extends UserServiceGrpc.UserServiceImplBase {
         responseObserver.onCompleted();
     }
 
+    /** Public endpoint — no authentication required. */
     @Override
     public void signIn(SignInRequest request, StreamObserver<SignInResponse> responseObserver) {
         String email = request.getEmail();
@@ -48,11 +51,14 @@ public class UserGrpcService extends UserServiceGrpc.UserServiceImplBase {
         responseObserver.onCompleted();
     }
 
+    /** Protected endpoint — requires an authenticated user with ROLE_USER. */
     @Override
+    @Secured({"ROLE_USER"})
     public void getCurrentUser(
             GetCurrentUserRequest request,
             StreamObserver<GetCurrentUserResponse> responseObserver) {
-        String email = authContext.getEmail();
+        var auth = (JwtAuthenticationToken) SecurityContextHolder.getContext().getAuthentication();
+        String email = auth.getEmail();
 
         User user =
                 userService
