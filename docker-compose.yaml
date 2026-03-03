@@ -5,23 +5,26 @@ networks:
     name: tripsphere
     driver: bridge
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 configs:
   qdrant_config:
     content: |
       log_level: INFO
 
 services:
-  # ===================================================================
-  # TripSphere Services & Agents
-  # ===================================================================
-
-  # Attraction Service
   trip-attraction-service:
     build:
       context: trip-attraction-service
       dockerfile: Dockerfile
     image: tripsphere/trip-attraction-service:latest
+    profiles: [ "service" ]
     container_name: trip-attraction-service
+    logging: *default-logging
     ports:
       - "24213:24213" # HTTP
       - "50053:50053" # gRPC
@@ -36,13 +39,14 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # Chat Service
   trip-chat-service:
     build:
       context: trip-chat-service
       dockerfile: Dockerfile
     image: tripsphere/trip-chat-service:latest
+    profiles: [ "agent" ]
     container_name: trip-chat-service
+    logging: *default-logging
     ports:
       - "24210:24210" # HTTP
     environment:
@@ -72,13 +76,14 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  # File Service
   trip-file-service:
     build:
       context: trip-file-service
       dockerfile: Dockerfile
     image: tripsphere/trip-file-service:latest
+    profiles: [ "service" ]
     container_name: trip-file-service
+    logging: *default-logging
     ports:
       - "50051:50051" # gRPC
     environment:
@@ -105,13 +110,14 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  # Hotel Service
   trip-hotel-service:
     build:
       context: trip-hotel-service
       dockerfile: Dockerfile
     image: tripsphere/trip-hotel-service:latest
+    profiles: [ "service" ]
     container_name: trip-hotel-service
+    logging: *default-logging
     ports:
       - "50054:50054" # gRPC
       - "24214:24214" # HTTP
@@ -125,13 +131,14 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # Itinerary Planner
   trip-itinerary-planner:
     build:
       context: trip-itinerary-planner
       dockerfile: Dockerfile
     image: tripsphere/trip-itinerary-planner:latest
+    profiles: [ "agent" ]
     container_name: trip-itinerary-planner
+    logging: *default-logging
     ports:
       - "24215:24215"
     environment:
@@ -143,13 +150,14 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # Itinerary Service
   trip-itinerary-service:
     build:
       context: trip-itinerary-service
       dockerfile: Dockerfile
     image: tripsphere/trip-itinerary-service:latest
+    profiles: [ "service" ]
     container_name: trip-itinerary-service
+    logging: *default-logging
     ports:
       - "24219:24219" # HTTP
       - "50052:50052" # gRPC
@@ -160,13 +168,14 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # Journey Assistant
   trip-journey-assistant:
     build:
       context: trip-journey-assistant
       dockerfile: Dockerfile
     image: tripsphere/trip-journey-assistant:latest
+    profiles: [ "agent" ]
     container_name: trip-journey-assistant
+    logging: *default-logging
     ports:
       - "24211:24211" # HTTP
     environment:
@@ -178,13 +187,14 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # Next.js Frontend
   trip-next-frontend:
     build:
       context: trip-next-frontend
       dockerfile: Dockerfile
     image: tripsphere/trip-next-frontend:latest
+    profiles: [ "service" ]
     container_name: trip-next-frontend
+    logging: *default-logging
     ports:
       - "3000:3000" # HTTP
     environment:
@@ -205,13 +215,14 @@ services:
         condition: service_started
     restart: unless-stopped
 
-  # Note Service
   trip-note-service:
     build:
       context: trip-note-service
       dockerfile: Dockerfile
     image: tripsphere/trip-note-service:latest
+    profiles: [ "service" ]
     container_name: trip-note-service
+    logging: *default-logging
     ports:
       - "24216:24216" # HTTP
       - "50055:50055" # gRPC
@@ -220,13 +231,14 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # POI Service
   trip-poi-service:
     build:
       context: trip-poi-service
       dockerfile: Dockerfile
     image: tripsphere/trip-poi-service:latest
+    profiles: [ "service" ]
     container_name: trip-poi-service
+    logging: *default-logging
     ports:
       - "24218:24218" # HTTP
       - "50058:50058" # gRPC
@@ -237,13 +249,14 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # Review Service
   trip-review-service:
     build:
       context: trip-review-service
       dockerfile: Dockerfile
     image: tripsphere/trip-review-service:latest
+    profiles: [ "service" ]
     container_name: trip-review-service
+    logging: *default-logging
     ports:
       - "50057:50057" # gRPC
     environment:
@@ -279,13 +292,14 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  # Review Summary
   trip-review-summary:
     build:
       context: trip-review-summary
       dockerfile: Dockerfile
     image: tripsphere/trip-review-summary:latest
+    profiles: [ "service", "agent" ]
     container_name: trip-review-summary
+    logging: *default-logging
     ports:
       - "24212:24212" # HTTP
     environment:
@@ -311,33 +325,11 @@ services:
       higress:
         condition: service_started
 
-  # Review Summary RocketMQ Consumer
-  trip-review-summary-consumer:
-    image: tripsphere/trip-review-summary:latest
-    container_name: trip-review-summary-consumer
-    environment:
-      - OTEL_SERVICE_NAME=trip-review-summary-consumer
-      - NACOS_SERVER_ADDRESS=${NACOS_SERVER_ADDRESS:-nacos:8848}
-      - QDRANT_URL=http://qdrant:6333
-      - ROCKETMQ_ENDPOINTS=rmq-proxy:8081
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://higress:8080/v1}
-    command:
-      - python
-      - -m
-      - review_summary.rocketmq
-    depends_on:
-      rmq-proxy:
-        condition: service_started
-      rmq-broker:
-        condition: service_started
-      qdrant:
-        condition: service_started
-
-  # Review Summary Celery Worker
   trip-review-summary-worker:
     image: tripsphere/trip-review-summary:latest
     container_name: trip-review-summary-worker
+    profiles: [ "service", "agent" ]
+    logging: *default-logging
     environment:
       - OTEL_SERVICE_NAME=trip-review-summary-worker
       - NACOS_SERVER_ADDRESS=${NACOS_SERVER_ADDRESS:-nacos:8848}
@@ -369,13 +361,14 @@ services:
       neo4j:
         condition: service_started
 
-  # User Service
   trip-user-service:
     build:
       context: trip-user-service
       dockerfile: Dockerfile
     image: tripsphere/trip-user-service:latest
+    profiles: [ "service" ]
     container_name: trip-user-service
+    logging: *default-logging
     ports:
       - "50056:50056" # gRPC
       - "24217:24217" # HTTP
@@ -391,14 +384,11 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # ===================================================================
-  # TripSphere Middlewares & Databases
-  # ===================================================================
-
-  # Nacos
   nacos:
     image: nacos/nacos-server:v3.1.1
+    profiles: [ "infra" ]
     container_name: nacos
+    logging: *default-logging
     environment:
       - PREFER_HOST_MODE=hostname
       - MODE=standalone
@@ -420,10 +410,11 @@ services:
       retries: 20
       start_period: 90s
 
-  # OpenTelemetry Collector
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.144.0
+    profiles: [ "infra" ]
     container_name: otel-collector
+    logging: *default-logging
     volumes:
       - ./infra/otel-collector/config.yaml:/etc/otelcol/config.yaml
     ports:
@@ -431,10 +422,11 @@ services:
       - "4318:4318" # OTLP HTTP receiver
       - "8889:8889" # Prometheus exporter metrics
 
-  # Tempo
   tempo:
     image: grafana/tempo:2.8.3
+    profiles: [ "infra" ]
     container_name: tempo
+    logging: *default-logging
     command: [ "-config.file=/etc/tempo.yaml" ]
     user: root # r/w permissions to the mounted directory
     volumes:
@@ -445,10 +437,11 @@ services:
       - "4317" # OTLP gRPC receiver (internal only)
     restart: unless-stopped
 
-  # Prometheus
   prometheus:
     image: prom/prometheus:v3.9.1
+    profiles: [ "infra" ]
     container_name: prometheus
+    logging: *default-logging
     volumes:
       - ./infra/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml
       - ./volumes/prometheus:/prometheus
@@ -459,10 +452,11 @@ services:
       - '--web.enable-lifecycle'
       - '--storage.tsdb.path=/prometheus'
 
-  # Grafana
   grafana:
     image: grafana/grafana:12.3.1
+    profiles: [ "infra" ]
     container_name: grafana
+    logging: *default-logging
     user: root # r/w permissions to the mounted directory
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
@@ -483,18 +477,20 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  # RocketMQ Name Server
   rmq-namesrv:
     image: apache/rocketmq:5.3.2
+    profiles: [ "infra" ]
     container_name: rmq-namesrv
+    logging: *default-logging
     ports:
       - "9876:9876"
     command: sh mqnamesrv
 
-  # RocketMQ Broker
   rmq-broker:
     image: apache/rocketmq:5.3.2
+    profiles: [ "infra" ]
     container_name: rmq-broker
+    logging: *default-logging
     ports:
       - "10909:10909"
       - "10911:10911"
@@ -506,10 +502,11 @@ services:
         condition: service_started
     command: sh mqbroker
 
-  # RocketMQ Proxy
   rmq-proxy:
     image: apache/rocketmq:5.3.2
+    profiles: [ "infra" ]
     container_name: rmq-proxy
+    logging: *default-logging
     depends_on:
       rmq-broker:
         condition: service_started
@@ -523,10 +520,11 @@ services:
       - NAMESRV_ADDR=rmq-namesrv:9876
     command: sh mqproxy
 
-  # RocketMQ Dashboard
   rmq-dashboard:
     image: apacherocketmq/rocketmq-dashboard:latest
+    profiles: [ "infra" ]
     container_name: rmq-dashboard
+    logging: *default-logging
     ports:
       - "8082:8082"
     environment:
@@ -535,10 +533,11 @@ services:
       rmq-namesrv:
         condition: service_started
 
-  # MongoDB
   mongodb:
     image: mongodb/mongodb-community-server:8.0-ubi8
+    profiles: [ "infra" ]
     container_name: mongodb
+    logging: *default-logging
     user: root # r/w permissions to the mounted directory
     environment:
       MONGODB_INITDB_ROOT_USERNAME: root
@@ -554,10 +553,11 @@ services:
       retries: 5
       start_period: 30s
 
-  # MySQL
   mysql:
     image: mysql:8.4.7
+    profiles: [ "infra" ]
     container_name: mysql
+    logging: *default-logging
     environment:
       MYSQL_ROOT_PASSWORD: fudanse
       TZ: Asia/Shanghai
@@ -577,10 +577,11 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # MinIO
   minio:
     container_name: minio
     image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    profiles: [ "infra" ]
+    logging: *default-logging
     environment:
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
@@ -596,11 +597,12 @@ services:
       timeout: 20s
       retries: 3
 
-  # Qdrant
   qdrant:
     image: qdrant/qdrant:v1.16
+    profiles: [ "infra" ]
     restart: always
     container_name: qdrant
+    logging: *default-logging
     ports:
       - "6333:6333"
       - "6334:6334"
@@ -614,10 +616,11 @@ services:
     volumes:
       - ./volumes/qdrant:/qdrant/storage
 
-  # Neo4j
   neo4j:
     image: neo4j:5.26.19
+    profiles: [ "infra" ]
     container_name: neo4j
+    logging: *default-logging
     volumes:
       - ./volumes/neo4j/logs:/logs
       - ./volumes/neo4j/config:/config
@@ -631,10 +634,11 @@ services:
       - "7687:7687"
     restart: always
 
-  # Redis
   redis:
     image: redis:8.4
+    profiles: [ "infra" ]
     container_name: redis
+    logging: *default-logging
     volumes:
       - ./volumes/redis/data:/data
     ports:
@@ -646,15 +650,17 @@ services:
       timeout: 3s
       retries: 5
 
-  # Higress
   higress:
-    image: |
-      higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one:latest
+    image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one:2.1.11
+    profiles: [ "infra" ]
     container_name: higress
+    logging: *default-logging
+    environment:
+      - O11Y=on
     ports:
       - "8001:8001" # Console
       - "28080:8080" # HTTP
       - "8443:8443" # HTTPS
     volumes:
-      - ./infra/higress:/etc/higress/config:ro
+      - ./volumes/higress:/data
     restart: unless-stopped
