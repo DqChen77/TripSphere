@@ -72,7 +72,7 @@ export function HotelHeroSearch({ today: todayStr }: HotelHeroSearchProps) {
     params.set("rooms", String(rooms));
     params.set("adults", String(adults));
     params.set("children", String(children));
-    router.push(`/hotel?${params.toString()}`);
+    router.push(`/hotels?${params.toString()}`);
   };
 
   return (

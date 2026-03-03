@@ -34,7 +34,7 @@ function StarIcons({ count }: { count: number }) {
 export function HotelCard({ hotel }: { hotel: HotelCardData }) {
   return (
     <Link
-      href={`/hotel/${hotel.id}`}
+      href={`/hotels/${hotel.id}`}
       className="group flex w-full flex-col overflow-hidden rounded-xl border bg-white"
     >
       {/* Image */}

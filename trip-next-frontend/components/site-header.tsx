@@ -53,7 +53,7 @@ export async function SiteHeader({ ...props }: React.ComponentProps<"header">) {
 
           {/* My Orders */}
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/order" className="gap-1.5">
+            <Link href="/orders" className="gap-1.5">
               <ShoppingBag className="size-4" />
               <span className="hidden md:inline">我的订单</span>
             </Link>

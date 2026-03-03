@@ -26,15 +26,15 @@ import {
 } from "@/components/ui/sidebar";
 
 const group0 = [
-  { title: "酒店", url: "/hotel", icon: Hotel },
-  { title: "机票", url: "/flight", icon: Plane },
-  { title: "火车票", url: "/train", icon: Train },
-  { title: "景点门票", url: "/attraction", icon: Ticket },
+  { title: "酒店", url: "/hotels", icon: Hotel },
+  { title: "机票", url: "/flights", icon: Plane },
+  { title: "火车票", url: "/trains", icon: Train },
+  { title: "景点", url: "/attractions", icon: Ticket },
 ];
 
 const group1 = [
   { title: "AI行程助手", url: "/itinerary", icon: Sparkles },
-  { title: "笔记攻略", url: "/note", icon: Notebook },
+  { title: "笔记攻略", url: "/notes", icon: Notebook },
 ];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

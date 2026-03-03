@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/session";
 
 const GUEST_ONLY_ROUTES = ["/signin", "/signup"];
-const AUTHENTICATED_ROUTES = ["/order", "/profile", "/itinerary"];
+const AUTHENTICATED_ROUTES = ["/orders", "/profile", "/itinerary"];
 
 export default async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
