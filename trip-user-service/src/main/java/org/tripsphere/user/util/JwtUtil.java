@@ -115,21 +115,6 @@ public class JwtUtil {
         return TokenClaims.from(claims);
     }
 
-    /**
-     * Check whether a JWT token is valid (well-formed, not expired, correct signature).
-     *
-     * @param token the raw JWT token string
-     * @return true if valid, false otherwise
-     */
-    public boolean validateToken(String token) {
-        try {
-            jwtParser.parseSignedClaims(token);
-            return true;
-        } catch (JwtException | IllegalArgumentException e) {
-            return false;
-        }
-    }
-
     /** Immutable holder for parsed JWT token claims. */
     public record TokenClaims(String userId, String name, String email, List<String> roles) {
 

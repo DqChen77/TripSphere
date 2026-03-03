@@ -2,7 +2,6 @@ package org.tripsphere.user.security;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -66,7 +65,7 @@ public class JwtAuthenticationToken extends AbstractAuthenticationToken {
                 roles.stream()
                         .map(role -> role.startsWith("ROLE_") ? role : "ROLE_" + role)
                         .map(SimpleGrantedAuthority::new)
-                        .collect(Collectors.toList());
+                        .toList();
         return new JwtAuthenticationToken(token, userId, email, roles, authorities);
     }
 

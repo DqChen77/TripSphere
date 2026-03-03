@@ -4,6 +4,8 @@ import io.grpc.Status;
 import lombok.extern.slf4j.Slf4j;
 import net.devh.boot.grpc.server.advice.GrpcAdvice;
 import net.devh.boot.grpc.server.advice.GrpcExceptionHandler;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.tripsphere.user.exception.BusinessException;
 
 /**
@@ -38,13 +40,25 @@ public class GrpcExceptionAdvice {
         return Status.INTERNAL.withDescription("Internal error: null reference");
     }
 
+    @GrpcExceptionHandler(AccessDeniedException.class)
+    public Status handleAccessDeniedException(AccessDeniedException e) {
+        log.warn("Access denied: {}", e.getMessage());
+        return Status.PERMISSION_DENIED.withDescription("Access denied");
+    }
+
+    @GrpcExceptionHandler(AuthenticationException.class)
+    public Status handleAuthenticationException(AuthenticationException e) {
+        log.warn("Authentication failed: {}", e.getMessage());
+        return Status.UNAUTHENTICATED.withDescription("Authentication required");
+    }
+
     /**
      * Handle all other unexpected exceptions. These are logged as errors and returned as INTERNAL
      * status.
      */
     @GrpcExceptionHandler(Exception.class)
     public Status handleException(Exception e) {
-        log.error("Unexpected exception in gRPC service", e);
-        return Status.INTERNAL.withDescription("Internal server error: " + e.getMessage());
+        log.error("Unexpected exception", e);
+        return Status.INTERNAL.withDescription("An internal server error occurred");
     }
 }

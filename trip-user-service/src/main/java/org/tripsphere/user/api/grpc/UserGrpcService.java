@@ -1,9 +1,12 @@
 package org.tripsphere.user.api.grpc;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 import net.devh.boot.grpc.server.service.GrpcService;
 import org.springframework.security.access.annotation.Secured;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.tripsphere.user.exception.NotFoundException;
 import org.tripsphere.user.security.JwtAuthenticationToken;
@@ -57,7 +60,11 @@ public class UserGrpcService extends UserServiceGrpc.UserServiceImplBase {
     public void getCurrentUser(
             GetCurrentUserRequest request,
             StreamObserver<GetCurrentUserResponse> responseObserver) {
-        var auth = (JwtAuthenticationToken) SecurityContextHolder.getContext().getAuthentication();
+        Authentication rawAuth = SecurityContextHolder.getContext().getAuthentication();
+        if (!(rawAuth instanceof JwtAuthenticationToken auth)) {
+            throw new StatusRuntimeException(
+                    Status.UNAUTHENTICATED.withDescription("Invalid auth context"));
+        }
         String email = auth.getEmail();
 
         User user =

@@ -7,17 +7,19 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.tripsphere.user.exception.AlreadyExistsException;
 import org.tripsphere.user.exception.InvalidArgumentException;
-import org.tripsphere.user.exception.NotFoundException;
 import org.tripsphere.user.exception.UnauthenticatedException;
 import org.tripsphere.user.mapper.UserMapper;
 import org.tripsphere.user.model.Role;
 import org.tripsphere.user.model.UserEntity;
 import org.tripsphere.user.repository.UserEntityRepository;
+import org.tripsphere.user.security.CustomUserDetails;
 import org.tripsphere.user.service.UserService;
 import org.tripsphere.user.util.JwtUtil;
 import org.tripsphere.user.v1.User;
@@ -74,18 +76,20 @@ public class UserServiceImpl implements UserService {
         validateEmail(email);
         validatePasswordNotEmpty(password);
 
+        final Authentication authenticated;
         try {
-            authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(email, password));
-        } catch (Exception e) {
+            authenticated =
+                    authenticationManager.authenticate(
+                            new UsernamePasswordAuthenticationToken(email, password));
+        } catch (AuthenticationException e) {
             log.warn("Sign in failed: invalid credentials - email: {}", email);
             throw UnauthenticatedException.invalidCredentials();
         }
 
-        UserEntity userEntity =
-                userEntityRepository
-                        .findByEmail(email)
-                        .orElseThrow(() -> new NotFoundException("User", email));
+        // Extract the entity directly from the Authentication principal — no second DB query.
+        // DaoAuthenticationProvider sets the principal to the UserDetails returned by
+        // CustomUserDetailsService, which is always a CustomUserDetails wrapping UserEntity.
+        UserEntity userEntity = ((CustomUserDetails) authenticated.getPrincipal()).getUserEntity();
 
         List<String> rolesList = userEntity.getRoles().stream().map(Role::name).toList();
         String token =
