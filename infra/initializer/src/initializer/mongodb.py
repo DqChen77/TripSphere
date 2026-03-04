@@ -4,21 +4,21 @@ Import POI data into the trip-poi-service MongoDB collection.
 Two workflows are supported:
 
 1. Raw Amap data  (default)
-   The input file is a raw poi.json scraped from Amap.
+   The input file is a raw pois.json scraped from Amap.
    Conversion runs automatically before importing.
 
-       uv run python -m initializer.mongodb data/poi.json
+       uv run python -m initializer.mongodb data/pois.json
 
 2. Pre-converted data  (--no-convert)
    The input file was already produced by `initializer.convert`, so the
    conversion step is skipped.  This is the fast path for repeated imports.
 
        # Step 1 - convert once and save
-       uv run python -m initializer.convert data/poi.json
-       # → writes data/poi_converted.json
+       uv run python -m initializer.convert data/pois.json
+       # → writes data/pois_converted.json
 
        # Step 2 - import any number of times without re-converting
-       uv run python -m initializer.mongodb data/poi_converted.json --no-convert
+       uv run python -m initializer.mongodb data/pois_converted.json --no-convert
 
 Options:
     --uri         MongoDB connection URI  (default: mongodb://root:fudanse@localhost:27017)
@@ -129,7 +129,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Import Amap POI JSON data into trip-poi-service MongoDB."
     )
-    parser.add_argument("filepath", help="Path to the poi.json file")
+    parser.add_argument("filepath", help="Path to the pois.json file")
     parser.add_argument(
         "--uri",
         default=os.getenv("MONGO_URI", DEFAULT_MONGO_URI),
