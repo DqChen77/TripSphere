@@ -1,16 +1,27 @@
 """
-Hotel Data Importer Module
+Attraction Data Importer Module
 
-This module provides functionality to import Hotel data into MongoDB for the
-trip-hotel-service. It mirrors the design of ``initializer.pois`` and supports
-the same import modes and CLI interface.
+This module provides functionality to import Attraction data into MongoDB for the
+trip-attraction-service. It mirrors the design of ``initializer.pois`` /
+``initializer.hotels`` and supports the same import modes and CLI interface.
 
 Usage:
-    from initializer.hotels import HotelImporter
+    from initializer.attractions import AttractionImporter
 
-    importer = HotelImporter(mongo_uri="mongodb://localhost:27017", database="hotel_db")
-    importer.import_from_file("path/to/hotels.json", mode=ImportMode.REPLACE)
-"""
+    importer = AttractionImporter(mongo_uri="mongodb://localhost:27017", database="attraction_db")
+    importer.import_from_file("path/to/attractions.json", mode=ImportMode.REPLACE)
+
+Special type conversions performed before storage
+--------------------------------------------------
+* ``createdAt`` / ``updatedAt``  – ISO-8601 strings → BSON ``Date`` (``datetime``)
+  matching Spring Data's ``@CreatedDate`` / ``@LastModifiedDate`` (``Instant``) mapping.
+* ``ticketInfo.estimatedPrice.amount`` – float / str → BSON ``Decimal128``
+  so Spring Data maps it correctly to ``java.math.BigDecimal``.
+* ``LocalTime`` values inside ``openingHours.rules[*].timeRanges[*]`` are left
+  as plain strings (``"HH:MM:SS"``) because the attraction-service configures a
+  custom ``LocalTimeToStringConverter`` / ``StringToLocalTimeConverter`` pair in
+  ``MongoConfig`` that stores them as strings.
+"""  # noqa: E501
 
 import json
 import logging
@@ -37,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 class ImportMode(Enum):
     """
-    Import mode enumeration for hotel data import operations.
+    Import mode enumeration for attraction data import operations.
 
     - REPLACE:     Drop existing collection and insert all new data.
     - UPSERT:      Update existing documents or insert new ones (by _id).
@@ -57,11 +68,11 @@ class ImportStats:
     Statistics container for import operations.
 
     Attributes:
-        total:        Total number of hotels processed.
-        inserted:     Number of newly inserted documents.
-        updated:      Number of updated documents.
-        skipped:      Number of skipped documents.
-        errors:       Number of documents that failed validation / write.
+        total:         Total number of attractions processed.
+        inserted:      Number of newly inserted documents.
+        updated:       Number of updated documents.
+        skipped:       Number of skipped documents.
+        errors:        Number of documents that failed validation / write.
         error_details: List of human-readable error messages.
     """
 
@@ -80,9 +91,9 @@ class ImportStats:
 
 
 @dataclass
-class HotelImporterConfig:
+class AttractionImporterConfig:
     """
-    Configuration for the hotel importer.
+    Configuration for the attraction importer.
 
     Attributes:
         mongo_uri:      MongoDB connection URI.
@@ -93,8 +104,8 @@ class HotelImporterConfig:
     """
 
     mongo_uri: str = "mongodb://root:fudanse@localhost:27017"
-    database: str = "hotel_db"
-    collection: str = "hotels"
+    database: str = "attraction_db"
+    collection: str = "attractions"
     batch_size: int = 500
     create_indexes: bool = True
 
@@ -104,30 +115,30 @@ class HotelImporterConfig:
 # ---------------------------------------------------------------------------
 
 
-class HotelImporter:
+class AttractionImporter:
     """
-    Hotel data importer for MongoDB.
+    Attraction data importer for MongoDB.
 
-    Reads hotel documents (conforming to HotelDoc) from JSON files or Python
-    objects and writes them into the configured MongoDB collection.
+    Reads attraction documents (conforming to AttractionDoc) from JSON files or
+    Python objects and writes them into the configured MongoDB collection.
 
     Example:
-        >>> config = HotelImporterConfig(mongo_uri="mongodb://localhost:27017")
-        >>> importer = HotelImporter(config)
-        >>> stats = importer.import_from_file("hotels.json", mode=ImportMode.UPSERT)
+        >>> config = AttractionImporterConfig(mongo_uri="mongodb://localhost:27017")
+        >>> importer = AttractionImporter(config)
+        >>> stats = importer.import_from_file("attractions.json", mode=ImportMode.UPSERT)
         >>> print(stats)
-    """
+    """  # noqa: E501
 
-    def __init__(self, config: HotelImporterConfig | None = None, **kwargs: Any):
+    def __init__(self, config: AttractionImporterConfig | None = None, **kwargs: Any):
         """
-        Initialise the hotel importer.
+        Initialise the attraction importer.
 
         Args:
-            config:   HotelImporterConfig instance. If None, uses defaults.
+            config:   AttractionImporterConfig instance. If None, uses defaults.
             **kwargs: Override config values (mongo_uri, database, collection, …).
         """
         if config is None:
-            config = HotelImporterConfig()
+            config = AttractionImporterConfig()
 
         self._mongo_uri = kwargs.get("mongo_uri", config.mongo_uri)
         self._database_name = kwargs.get("database", config.database)
@@ -190,7 +201,7 @@ class HotelImporter:
         logger.info("文本索引创建完成")
 
     def _create_indexes(self) -> None:
-        """Create all indexes required by the hotel collection."""
+        """Create all indexes required by the attraction collection."""
         self._create_geospatial_index()
         self._create_text_index()
         self.collection.create_index("poiId", sparse=True)
@@ -202,27 +213,27 @@ class HotelImporter:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _validate_hotel(hotel: dict[str, Any]) -> list[str]:
+    def _validate_attraction(attraction: dict[str, Any]) -> list[str]:
         """
-        Validate a single hotel document.
+        Validate a single attraction document.
 
         Accepts documents with either ``_id`` (preferred) or the legacy ``id``
         field for backwards compatibility.
 
         Args:
-            hotel: Hotel document to validate.
+            attraction: Attraction document to validate.
 
         Returns:
             List of validation error messages (empty if valid).
         """
         errors: list[str] = []
 
-        if not hotel.get("_id") and not hotel.get("id"):
+        if not attraction.get("_id") and not attraction.get("id"):
             errors.append("缺少必需字段: _id")
-        if not hotel.get("name"):
+        if not attraction.get("name"):
             errors.append("缺少必需字段: name")
 
-        location = hotel.get("location")
+        location = attraction.get("location")
         if not location:
             errors.append("缺少必需字段: location")
         elif not isinstance(location, dict):
@@ -265,9 +276,8 @@ class HotelImporter:
     @staticmethod
     def _transform_estimated_price(price: Any) -> dict[str, Any] | None:
         """
-        Convert the ``estimatedPrice`` sub-document so that ``amount`` is
-        stored as BSON ``Decimal128``, which Spring Data maps to
-        ``java.math.BigDecimal``.
+        Convert an ``estimatedPrice`` sub-document so that ``amount`` is stored
+        as BSON ``Decimal128``, which Spring Data maps to ``java.math.BigDecimal``.
 
         Args:
             price: Raw value from the JSON document (dict or None).
@@ -287,24 +297,51 @@ class HotelImporter:
         }
 
     @staticmethod
-    def _transform_hotel(hotel: dict[str, Any]) -> dict[str, Any]:
+    def _transform_ticket_info(ticket_info: Any) -> dict[str, Any] | None:
         """
-        Prepare a hotel document for MongoDB storage.
+        Prepare the ``ticketInfo`` sub-document for MongoDB storage.
+
+        Converts ``ticketInfo.estimatedPrice.amount`` from a plain float / string
+        to BSON ``Decimal128`` so it maps correctly to ``java.math.BigDecimal``
+        in Spring Data.
+
+        Args:
+            ticket_info: Raw ticketInfo dict from the JSON document.
+
+        Returns:
+            Transformed ticketInfo dict, or None if the input is absent.
+        """
+        if not ticket_info or not isinstance(ticket_info, dict):
+            return None
+        result = dict(ticket_info)
+        result["estimatedPrice"] = AttractionImporter._transform_estimated_price(
+            ticket_info.get("estimatedPrice")
+        )
+        return result
+
+    @staticmethod
+    def _transform_attraction(attraction: dict[str, Any]) -> dict[str, Any]:
+        """
+        Prepare an attraction document for MongoDB storage.
 
         - Renames the legacy ``id`` field to ``_id`` when present.
         - Converts ``createdAt`` / ``updatedAt`` ISO-8601 strings to BSON
           ``Date`` (``datetime``) objects so they match Spring Data's
           ``@CreatedDate`` / ``@LastModifiedDate`` (``Instant``) mapping.
-        - Converts ``estimatedPrice.amount`` to BSON ``Decimal128`` so it maps
-          correctly to Spring Data's ``BigDecimal`` field.
+        - Converts ``ticketInfo.estimatedPrice.amount`` to BSON ``Decimal128``
+          so it maps correctly to Spring Data's ``BigDecimal`` field.
+        - ``openingHours`` ``LocalTime`` values are kept as plain strings
+          (``"HH:MM:SS"``) — the attraction-service reads/writes them via
+          custom ``StringToLocalTimeConverter`` / ``LocalTimeToStringConverter``
+          registered in ``MongoConfig``.
 
         Args:
-            hotel: Original hotel document.
+            attraction: Original attraction document.
 
         Returns:
             Document ready for MongoDB insertion.
         """
-        doc = dict(hotel)
+        doc = dict(attraction)
 
         # Backwards-compat: rename 'id' → '_id'
         if "_id" not in doc and "id" in doc:
@@ -313,19 +350,19 @@ class HotelImporter:
         # Audit timestamps → BSON Date
         now = datetime.now(timezone.utc)
         doc["createdAt"] = (
-            HotelImporter._parse_timestamp(doc.get("createdAt"))
+            AttractionImporter._parse_timestamp(doc.get("createdAt"))
             if doc.get("createdAt")
             else now
         )
         doc["updatedAt"] = (
-            HotelImporter._parse_timestamp(doc.get("updatedAt"))
+            AttractionImporter._parse_timestamp(doc.get("updatedAt"))
             if doc.get("updatedAt")
             else now
         )
 
-        # estimatedPrice.amount → Decimal128
-        doc["estimatedPrice"] = HotelImporter._transform_estimated_price(
-            doc.get("estimatedPrice")
+        # ticketInfo.estimatedPrice.amount → Decimal128
+        doc["ticketInfo"] = AttractionImporter._transform_ticket_info(
+            doc.get("ticketInfo")
         )
 
         return doc
@@ -335,11 +372,11 @@ class HotelImporter:
     # ------------------------------------------------------------------
 
     def _batch_iterator(
-        self, hotels: Sequence[dict[str, Any]]
+        self, attractions: Sequence[dict[str, Any]]
     ) -> Iterator[list[dict[str, Any]]]:
-        """Yield successive batches from *hotels*."""
-        for i in range(0, len(hotels), self._batch_size):
-            yield list(hotels[i : i + self._batch_size])
+        """Yield successive batches from *attractions*."""
+        for i in range(0, len(attractions), self._batch_size):
+            yield list(attractions[i : i + self._batch_size])
 
     # ------------------------------------------------------------------
     # Import modes
@@ -352,26 +389,27 @@ class HotelImporter:
         logger.info("集合已清空")
         return ImportStats()
 
-    def _import_replace(self, hotels: Sequence[dict[str, Any]]) -> ImportStats:
+    def _import_replace(self, attractions: Sequence[dict[str, Any]]) -> ImportStats:
         """Drop the existing collection and insert all documents (REPLACE mode)."""
-        stats = ImportStats(total=len(hotels))
+        stats = ImportStats(total=len(attractions))
 
         logger.info("REPLACE 模式: 正在清空现有数据…")
         self.collection.drop()
 
-        logger.info(f"正在插入 {len(hotels)} 条酒店数据…")
+        logger.info(f"正在插入 {len(attractions)} 条景点数据…")
 
-        for batch in self._batch_iterator(hotels):
+        for batch in self._batch_iterator(attractions):
             docs = []
-            for hotel in batch:
-                errs = self._validate_hotel(hotel)
+            for attraction in batch:
+                errs = self._validate_attraction(attraction)
                 if errs:
                     stats.errors += 1
                     stats.error_details.append(
-                        f"Hotel '{hotel.get('name', 'unknown')}': {', '.join(errs)}"
+                        f"Attraction '{attraction.get('name', 'unknown')}': "
+                        f"{', '.join(errs)}"
                     )
                     continue
-                docs.append(self._transform_hotel(hotel))
+                docs.append(self._transform_attraction(attraction))
 
             if docs:
                 try:
@@ -385,24 +423,25 @@ class HotelImporter:
 
         return stats
 
-    def _import_upsert(self, hotels: Sequence[dict[str, Any]]) -> ImportStats:
+    def _import_upsert(self, attractions: Sequence[dict[str, Any]]) -> ImportStats:
         """Update existing documents or insert new ones (UPSERT mode)."""
-        stats = ImportStats(total=len(hotels))
+        stats = ImportStats(total=len(attractions))
 
-        logger.info(f"UPSERT 模式: 正在处理 {len(hotels)} 条酒店数据…")
+        logger.info(f"UPSERT 模式: 正在处理 {len(attractions)} 条景点数据…")
 
-        for batch in self._batch_iterator(hotels):
+        for batch in self._batch_iterator(attractions):
             operations = []
-            for hotel in batch:
-                errs = self._validate_hotel(hotel)
+            for attraction in batch:
+                errs = self._validate_attraction(attraction)
                 if errs:
                     stats.errors += 1
                     stats.error_details.append(
-                        f"Hotel '{hotel.get('name', 'unknown')}': {', '.join(errs)}"
+                        f"Attraction '{attraction.get('name', 'unknown')}': "
+                        f"{', '.join(errs)}"
                     )
                     continue
 
-                doc = self._transform_hotel(hotel)
+                doc = self._transform_attraction(attraction)
                 doc_id = doc.pop("_id")
                 # Preserve createdAt on subsequent upserts (@CreatedDate semantics)
                 created_at = doc.pop("createdAt")
@@ -433,26 +472,27 @@ class HotelImporter:
 
         return stats
 
-    def _import_insert_only(self, hotels: Sequence[dict[str, Any]]) -> ImportStats:
+    def _import_insert_only(self, attractions: Sequence[dict[str, Any]]) -> ImportStats:
         """Insert only new documents,
         skipping those that already exist (INSERT_ONLY mode).
         """
-        stats = ImportStats(total=len(hotels))
+        stats = ImportStats(total=len(attractions))
 
-        logger.info(f"INSERT_ONLY 模式: 正在处理 {len(hotels)} 条酒店数据…")
+        logger.info(f"INSERT_ONLY 模式: 正在处理 {len(attractions)} 条景点数据…")
 
-        for batch in self._batch_iterator(hotels):
+        for batch in self._batch_iterator(attractions):
             docs = []
-            for hotel in batch:
-                errs = self._validate_hotel(hotel)
+            for attraction in batch:
+                errs = self._validate_attraction(attraction)
                 if errs:
                     stats.errors += 1
                     stats.error_details.append(
-                        f"Hotel '{hotel.get('name', 'unknown')}': {', '.join(errs)}"
+                        f"Attraction '{attraction.get('name', 'unknown')}': "
+                        f"{', '.join(errs)}"
                     )
                     continue
 
-                doc = self._transform_hotel(hotel)
+                doc = self._transform_attraction(attraction)
                 if self.collection.find_one({"_id": doc["_id"]}, {"_id": 1}):
                     stats.skipped += 1
                     continue
@@ -481,17 +521,17 @@ class HotelImporter:
 
     def import_data(
         self,
-        hotels: Sequence[dict[str, Any]] = (),
+        attractions: Sequence[dict[str, Any]] = (),
         mode: ImportMode = ImportMode.UPSERT,
     ) -> ImportStats:
         """
-        Import hotel data into MongoDB.
+        Import attraction data into MongoDB.
 
-        For CLEAR mode ``hotels`` is not required and will be ignored.
+        For CLEAR mode ``attractions`` is not required and will be ignored.
 
         Args:
-            hotels: Sequence of hotel documents to import.
-            mode:   Import mode (REPLACE, UPSERT, INSERT_ONLY, or CLEAR).
+            attractions: Sequence of attraction documents to import.
+            mode:        Import mode (REPLACE, UPSERT, INSERT_ONLY, or CLEAR).
 
         Returns:
             ImportStats with details about the operation.
@@ -502,13 +542,13 @@ class HotelImporter:
             if mode is ImportMode.CLEAR:
                 stats = self._import_clear()
             else:
-                logger.info(f"待处理记录数: {len(hotels)}")
+                logger.info(f"待处理记录数: {len(attractions)}")
                 mode_methods = {
                     ImportMode.REPLACE: self._import_replace,
                     ImportMode.UPSERT: self._import_upsert,
                     ImportMode.INSERT_ONLY: self._import_insert_only,
                 }
-                stats = mode_methods[mode](hotels)
+                stats = mode_methods[mode](attractions)
 
             if self._should_create_indexes:
                 self._create_indexes()
@@ -527,10 +567,10 @@ class HotelImporter:
         encoding: str = "utf-8",
     ) -> ImportStats:
         """
-        Import hotel data from a JSON file.
+        Import attraction data from a JSON file.
 
         Args:
-            file_path: Path to the JSON file containing hotel documents.
+            file_path: Path to the JSON file containing attraction documents.
             mode:      Import mode. For CLEAR mode the file is not read.
             encoding:  File encoding (default: utf-8).
 
@@ -551,13 +591,13 @@ class HotelImporter:
             raise FileNotFoundError(f"文件不存在: {file_path}")
 
         with open(file_path, "r", encoding=encoding) as f:
-            hotels = json.load(f)
+            attractions = json.load(f)
 
-        if not isinstance(hotels, list):
-            raise ValueError("JSON 文件必须包含酒店文档数组")
+        if not isinstance(attractions, list):
+            raise ValueError("JSON 文件必须包含景点文档数组")
 
-        logger.info(f"已加载 {len(hotels)} 条酒店记录")
-        return self.import_data(hotels, mode=mode)
+        logger.info(f"已加载 {len(attractions)} 条景点记录")
+        return self.import_data(attractions, mode=mode)
 
     def get_stats(self) -> dict[str, Any]:
         """
@@ -579,7 +619,7 @@ class HotelImporter:
         """Close the MongoDB connection."""
         self._disconnect()
 
-    def __enter__(self) -> "HotelImporter":
+    def __enter__(self) -> "AttractionImporter":
         """Context manager entry — connect on entry."""
         self._connect()
         return self
@@ -594,15 +634,15 @@ class HotelImporter:
 # ---------------------------------------------------------------------------
 
 
-def import_shanghai_hotels(
+def import_shanghai_attractions(
     mode: ImportMode = ImportMode.UPSERT,
-    config: HotelImporterConfig | None = None,
+    config: AttractionImporterConfig | None = None,
 ) -> ImportStats:
     """
-    Convenience function to import Shanghai hotel data.
+    Convenience function to import Shanghai attraction data.
 
-    Reads the pre-seeded Shanghai hotel JSON from the standard location in the
-    data directory and imports it into MongoDB.
+    Reads the pre-seeded Shanghai attraction JSON from the standard location in
+    the data directory and imports it into MongoDB.
 
     Args:
         mode:   Import mode (default: UPSERT).
@@ -612,9 +652,9 @@ def import_shanghai_hotels(
         ImportStats with details about the operation.
     """
     base_dir = Path(__file__).resolve().parent.parent.parent
-    data_file = base_dir / "data" / "seeded" / "shanghai" / "hotels.json"
+    data_file = base_dir / "data" / "seeded" / "shanghai" / "attractions.json"
 
-    with HotelImporter(config) as importer:
+    with AttractionImporter(config) as importer:
         return importer.import_from_file(data_file, mode=mode)
 
 
@@ -634,12 +674,12 @@ def main() -> None:
     )
 
     parser = argparse.ArgumentParser(
-        description="酒店数据导入工具 - 将酒店数据导入到 MongoDB"
+        description="景点数据导入工具 - 将景点数据导入到 MongoDB"
     )
     parser.add_argument(
         "file",
         nargs="?",
-        help="酒店 JSON 文件路径 (默认: data/seeded/shanghai/hotels.json)",
+        help="景点 JSON 文件路径 (默认: data/seeded/shanghai/attractions.json)",
     )
     parser.add_argument(
         "--mode",
@@ -655,8 +695,8 @@ def main() -> None:
         default="mongodb://root:fudanse@localhost:27017",
         help="MongoDB 连接 URI",
     )
-    parser.add_argument("--database", default="hotel_db", help="数据库名称")
-    parser.add_argument("--collection", default="hotels", help="集合名称")
+    parser.add_argument("--database", default="attraction_db", help="数据库名称")
+    parser.add_argument("--collection", default="attractions", help="集合名称")
     parser.add_argument(
         "--batch-size",
         type=int,
@@ -679,7 +719,7 @@ def main() -> None:
     }
     mode = mode_map[args.mode]
 
-    config = HotelImporterConfig(
+    config = AttractionImporterConfig(
         mongo_uri=args.uri,
         database=args.database,
         collection=args.collection,
@@ -688,7 +728,7 @@ def main() -> None:
     )
 
     print("=" * 60)
-    print("酒店数据导入工具")
+    print("景点数据导入工具")
     print("=" * 60)
     print(f"  数据库: {config.database}")
     print(f"  集合:   {config.collection}")
@@ -696,7 +736,7 @@ def main() -> None:
     print("=" * 60)
 
     try:
-        with HotelImporter(config) as importer:
+        with AttractionImporter(config) as importer:
             if mode is ImportMode.CLEAR:
                 stats = importer.import_data(mode=mode)
             elif args.file:
@@ -704,7 +744,9 @@ def main() -> None:
             else:
                 # Default: Shanghai seeded file
                 base_dir = Path(__file__).resolve().parent.parent.parent
-                data_file = base_dir / "data" / "seeded" / "shanghai" / "hotels.json"
+                data_file = (
+                    base_dir / "data" / "seeded" / "shanghai" / "attractions.json"
+                )
                 stats = importer.import_from_file(data_file, mode=mode)
 
             print("\n" + "=" * 60)
