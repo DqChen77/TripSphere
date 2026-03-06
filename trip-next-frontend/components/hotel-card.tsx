@@ -8,7 +8,7 @@ export interface HotelCardData {
   name: string;
   image: string | null;
   stars: number;
-  rating: number;
+  rating: number | null;
   reviews: number;
   location: string;
   price: number;
@@ -74,12 +74,20 @@ export function HotelCard({ hotel }: { hotel: HotelCardData }) {
         )}
         {/* Rating overlay */}
         <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
-          <Badge className="rounded-md bg-blue-600 px-1.5 py-0.5 text-xs font-bold text-white">
-            {hotel.rating}
-          </Badge>
-          <span className="text-xs font-medium text-white drop-shadow-md">
-            {hotel.reviews}条点评
-          </span>
+          {hotel.rating != null ? (
+            <>
+              <Badge className="rounded-md bg-blue-600 px-1.5 py-0.5 text-xs font-bold text-white">
+                {hotel.rating}
+              </Badge>
+              <span className="text-xs font-medium text-white drop-shadow-md">
+                {hotel.reviews}条点评
+              </span>
+            </>
+          ) : (
+            <span className="text-xs font-medium text-white drop-shadow-md">
+              暂无评分
+            </span>
+          )}
         </div>
       </div>
 
