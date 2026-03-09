@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run --script
 """
-POI Enrichment Script
+POI Data Creation Script
 
 Starting from original POI data (poi.json), uses pre-scraped Amap data (amap_pois.json)
 or Amap API to enrich POI information and generate complete POI data conforming to

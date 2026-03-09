@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run --script
 """
-Attraction Data Conversion Script
+Attraction Data Creation Script
 
 Reads raw attraction data from attractions.csv, matches each attraction to a POI in
 the seeded pois.json (by name), and produces attractions.json conforming to the
@@ -78,11 +78,6 @@ except ImportError:
 
     def generate_id() -> str:  # type: ignore[misc]
         return str(uuid.uuid4())
-
-
-# ---------------------------------------------------------------------------
-# Name normalisation (mirrors enrich_pois.py / convert_hotels.py logic)
-# ---------------------------------------------------------------------------
 
 
 def normalize_name(name: str) -> str:
@@ -207,10 +202,6 @@ def find_poi(
 
     return None
 
-
-# ---------------------------------------------------------------------------
-# Conversion helpers
-# ---------------------------------------------------------------------------
 
 # All days of week in Java DayOfWeek enum order (Monday first)
 ALL_DAYS = [

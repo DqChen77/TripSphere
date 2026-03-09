@@ -74,7 +74,8 @@ message RoomType {
   string hotel_id = 2;
   // For example, "高级大床房"
   string name = 3;
-  int32 area_square_meters = 4;
+  // For example, "20-30平方米" or "15平方米"
+  string area_description = 4;
   // For example, "1张2米特大床"
   string bed_description = 5;
   int32 max_occupancy = 6;

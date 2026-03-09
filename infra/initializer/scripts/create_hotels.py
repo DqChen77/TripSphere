@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run --script
 """
-Hotel Data Conversion Script
+Hotel Data Creation Script
 
 Reads raw hotel data from accommodations.csv, matches each hotel to a POI in
 the seeded pois.json (by name), and produces hotels.json conforming to the
@@ -189,11 +189,6 @@ def find_poi(
         return best
 
     return None
-
-
-# ---------------------------------------------------------------------------
-# Conversion
-# ---------------------------------------------------------------------------
 
 
 def now_iso() -> str:
