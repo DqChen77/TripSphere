@@ -86,8 +86,7 @@ public class ProductGrpcService extends ProductServiceGrpc.ProductServiceImplBas
         Map<String, Spu> spusById =
                 spus.stream().collect(Collectors.toMap(Spu::getId, Function.identity()));
 
-        List<String> missingIds =
-                ids.stream().filter(id -> !spusById.containsKey(id)).toList();
+        List<String> missingIds = ids.stream().filter(id -> !spusById.containsKey(id)).toList();
         if (!missingIds.isEmpty()) {
             throw new NotFoundException("SPUs with IDs " + missingIds + " not found");
         }
@@ -184,8 +183,7 @@ public class ProductGrpcService extends ProductServiceGrpc.ProductServiceImplBas
         Map<String, Sku> skusById =
                 skus.stream().collect(Collectors.toMap(Sku::getId, Function.identity()));
 
-        List<String> missingIds =
-                ids.stream().filter(id -> !skusById.containsKey(id)).toList();
+        List<String> missingIds = ids.stream().filter(id -> !skusById.containsKey(id)).toList();
         if (!missingIds.isEmpty()) {
             throw new NotFoundException("SKUs with IDs " + missingIds + " not found");
         }
