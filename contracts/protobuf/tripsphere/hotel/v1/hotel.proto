@@ -35,6 +35,7 @@ message Hotel {
   repeated string images = 8;
   HotelInformation information = 9;
   // Estimated price for a night. Must never be used for pricing.
+  // Usually set to the lowest price of all room types.
   tripsphere.common.v1.Money estimated_price = 10;
   HotelPolicy policy = 11;
   // For example, ["健身房", "游泳池", "免费停车场"]

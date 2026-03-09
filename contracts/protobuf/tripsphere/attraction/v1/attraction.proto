@@ -55,6 +55,7 @@ message TimeRange {
 }
 
 message TicketInfo {
+  // Usually set to the price of adult ticket.
   tripsphere.common.v1.Money estimated_price = 1;
   google.protobuf.Struct metadata = 2;
 }
