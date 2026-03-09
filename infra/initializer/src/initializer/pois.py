@@ -16,7 +16,6 @@ import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from enum import Enum
 from pathlib import Path
 from typing import Any, Iterator, Sequence
 
@@ -25,51 +24,10 @@ from pymongo.collection import Collection
 from pymongo.database import Database
 from pymongo.errors import BulkWriteError, PyMongoError
 
+from initializer.config.settings import get_settings
+from initializer.types import ImportMode, ImportStats
+
 logger = logging.getLogger(__name__)
-
-
-class ImportMode(Enum):
-    """
-    Import mode enumeration for POI data import operations.
-
-    - REPLACE: Drop existing collection and insert all new data
-    - UPSERT: Update existing documents or insert new ones (by _id)
-    - INSERT_ONLY: Only insert new documents, skip existing ones
-    - CLEAR: Drop the collection without inserting any data
-    """
-
-    REPLACE = "replace"
-    UPSERT = "upsert"
-    INSERT_ONLY = "insert_only"
-    CLEAR = "clear"
-
-
-@dataclass
-class ImportStats:
-    """
-    Statistics container for import operations.
-
-    Attributes:
-        total: Total number of POIs processed
-        inserted: Number of newly inserted documents
-        updated: Number of updated documents
-        skipped: Number of skipped documents
-        errors: Number of documents with errors
-        error_details: List of error messages
-    """
-
-    total: int = 0
-    inserted: int = 0
-    updated: int = 0
-    skipped: int = 0
-    errors: int = 0
-    error_details: list[str] = field(default_factory=list)
-
-    def __str__(self) -> str:
-        return (
-            f"总计: {self.total}, 插入: {self.inserted}, "
-            f"更新: {self.updated}, 跳过: {self.skipped}, 错误: {self.errors}"
-        )
 
 
 @dataclass
@@ -78,18 +36,22 @@ class PoiImporterConfig:
     Configuration for POI importer.
 
     Attributes:
-        mongo_uri: MongoDB connection URI
+        mongo_uri: MongoDB connection URI (defaults to Settings.mongo.uri)
         database: Database name
         collection: Collection name
         batch_size: Number of documents to process in each batch
+            (defaults to Settings.importer.batch_size)
         create_indexes: Whether to create indexes after import
+            (defaults to Settings.importer.create_indexes)
     """
 
-    mongo_uri: str = "mongodb://root:fudanse@localhost:27017"
+    mongo_uri: str = field(default_factory=lambda: get_settings().mongo.uri)
     database: str = "poi_db"
     collection: str = "pois"
-    batch_size: int = 500
-    create_indexes: bool = True
+    batch_size: int = field(default_factory=lambda: get_settings().importer.batch_size)
+    create_indexes: bool = field(
+        default_factory=lambda: get_settings().importer.create_indexes
+    )
 
 
 class PoiImporter:
@@ -197,13 +159,13 @@ class PoiImporter:
         """
         errors = []
 
-        # Accept '_id' (preferred) or legacy 'id' field
+        # Accept '_id' (preferred) or legacy 'id' field.
         if not poi.get("_id") and not poi.get("id"):
             errors.append("缺少必需字段: _id")
         if not poi.get("name"):
             errors.append("缺少必需字段: name")
 
-        # Location validation
+        # Validate the location field.
         location = poi.get("location")
         if not location:
             errors.append("缺少必需字段: location")
@@ -236,7 +198,7 @@ class PoiImporter:
         if isinstance(value, datetime):
             return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
         if isinstance(value, str):
-            # Strip trailing 'Z' and parse; then attach UTC tzinfo
+            # Strip trailing 'Z', parse the timestamp, and attach UTC tzinfo.
             cleaned = value.rstrip("Z")
             for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S"):
                 try:
@@ -265,11 +227,11 @@ class PoiImporter:
         """
         doc = dict(poi)
 
-        # Backwards-compat: rename 'id' → '_id'
+        # Backward compatibility: rename 'id' -> '_id'.
         if "_id" not in doc and "id" in doc:
             doc["_id"] = doc.pop("id")
 
-        # Ensure audit timestamps are BSON-compatible datetime objects
+        # Ensure audit timestamps are stored as BSON-compatible datetime objects.
         now = datetime.now(timezone.utc)
         doc["createdAt"] = (
             PoiImporter._parse_timestamp(doc.get("createdAt"))
@@ -502,8 +464,8 @@ class PoiImporter:
                 stats = data_methods[mode](pois)
 
             # Create indexes after the operation if configured.
-            # For CLEAR mode this recreates the indexes on an empty collection,
-            # which is intentional so the service starts with a consistent schema.
+            # For CLEAR mode this recreates indexes on an empty collection so
+            # the service still starts with a consistent schema.
             if self._should_create_indexes:
                 self._create_indexes()
 
@@ -536,7 +498,7 @@ class PoiImporter:
             FileNotFoundError: If the file does not exist (non-CLEAR modes)
             json.JSONDecodeError: If the file contains invalid JSON
         """
-        # CLEAR mode does not require reading any file
+        # CLEAR mode does not require reading any file.
         if mode is ImportMode.CLEAR:
             return self.import_data(mode=mode)
 
@@ -691,17 +653,17 @@ def main() -> None:
     try:
         with PoiImporter(config) as importer:
             if mode is ImportMode.CLEAR:
-                # CLEAR mode does not require a data file
+                # CLEAR mode does not require a data file.
                 stats = importer.import_data(mode=mode)
             elif args.file:
                 stats = importer.import_from_file(args.file, mode=mode)
             else:
-                # Use default Shanghai POI file
+                # Use the default Shanghai POI file.
                 base_dir = Path(__file__).resolve().parent.parent.parent
                 data_file = base_dir / "data" / "seeded" / "shanghai" / "pois.json"
                 stats = importer.import_from_file(data_file, mode=mode)
 
-            # Print results
+            # Print results.
             print("\n" + "=" * 60)
             print("导入完成!")
             print(f"  {stats}")
@@ -711,7 +673,7 @@ def main() -> None:
                 for error in stats.error_details[:10]:
                     print(f"  - {error}")
 
-            # Print collection stats
+            # Print collection statistics.
             collection_stats = importer.get_stats()
             print("\n集合统计:")
             print(f"  文档总数: {collection_stats['document_count']}")

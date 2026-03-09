@@ -1,9 +1,7 @@
 """
 Hotel Data Importer Module
 
-This module provides functionality to import Hotel data into MongoDB for the
-trip-hotel-service. It mirrors the design of ``initializer.pois`` and supports
-the same import modes and CLI interface.
+This module provides functionality to import Hotel data into MongoDB.
 
 Usage:
     from initializer.hotels import HotelImporter
@@ -17,7 +15,6 @@ import logging
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from enum import Enum
 from pathlib import Path
 from typing import Any, Iterator, Sequence
 
@@ -27,56 +24,15 @@ from pymongo.collection import Collection
 from pymongo.database import Database
 from pymongo.errors import BulkWriteError, PyMongoError
 
+from initializer.config.settings import get_settings
+from initializer.types import ImportMode, ImportStats
+
 logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Enums & data classes
+# Importer config
 # ---------------------------------------------------------------------------
-
-
-class ImportMode(Enum):
-    """
-    Import mode enumeration for hotel data import operations.
-
-    - REPLACE:     Drop existing collection and insert all new data.
-    - UPSERT:      Update existing documents or insert new ones (by _id).
-    - INSERT_ONLY: Only insert new documents, skip existing ones.
-    - CLEAR:       Drop the collection without inserting any data.
-    """
-
-    REPLACE = "replace"
-    UPSERT = "upsert"
-    INSERT_ONLY = "insert_only"
-    CLEAR = "clear"
-
-
-@dataclass
-class ImportStats:
-    """
-    Statistics container for import operations.
-
-    Attributes:
-        total:        Total number of hotels processed.
-        inserted:     Number of newly inserted documents.
-        updated:      Number of updated documents.
-        skipped:      Number of skipped documents.
-        errors:       Number of documents that failed validation / write.
-        error_details: List of human-readable error messages.
-    """
-
-    total: int = 0
-    inserted: int = 0
-    updated: int = 0
-    skipped: int = 0
-    errors: int = 0
-    error_details: list[str] = field(default_factory=list)
-
-    def __str__(self) -> str:
-        return (
-            f"总计: {self.total}, 插入: {self.inserted}, "
-            f"更新: {self.updated}, 跳过: {self.skipped}, 错误: {self.errors}"
-        )
 
 
 @dataclass
@@ -85,18 +41,22 @@ class HotelImporterConfig:
     Configuration for the hotel importer.
 
     Attributes:
-        mongo_uri:      MongoDB connection URI.
+        mongo_uri:      MongoDB connection URI (defaults to Settings.mongo.uri).
         database:       Database name.
         collection:     Collection name.
-        batch_size:     Number of documents to process per batch.
-        create_indexes: Whether to create indexes after import.
+        batch_size:     Number of documents to process per batch
+                        (defaults to Settings.importer.batch_size).
+        create_indexes: Whether to create indexes after import
+                        (defaults to Settings.importer.create_indexes).
     """
 
-    mongo_uri: str = "mongodb://root:fudanse@localhost:27017"
+    mongo_uri: str = field(default_factory=lambda: get_settings().mongo.uri)
     database: str = "hotel_db"
     collection: str = "hotels"
-    batch_size: int = 500
-    create_indexes: bool = True
+    batch_size: int = field(default_factory=lambda: get_settings().importer.batch_size)
+    create_indexes: bool = field(
+        default_factory=lambda: get_settings().importer.create_indexes
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -306,11 +266,11 @@ class HotelImporter:
         """
         doc = dict(hotel)
 
-        # Backwards-compat: rename 'id' → '_id'
+        # Backward compatibility: rename 'id' -> '_id'
         if "_id" not in doc and "id" in doc:
             doc["_id"] = doc.pop("id")
 
-        # Audit timestamps → BSON Date
+        # Convert audit timestamps to BSON Date values.
         now = datetime.now(timezone.utc)
         doc["createdAt"] = (
             HotelImporter._parse_timestamp(doc.get("createdAt"))
@@ -323,7 +283,7 @@ class HotelImporter:
             else now
         )
 
-        # estimatedPrice.amount → Decimal128
+        # Convert estimatedPrice.amount to Decimal128.
         doc["estimatedPrice"] = HotelImporter._transform_estimated_price(
             doc.get("estimatedPrice")
         )
