@@ -9,6 +9,7 @@ from starlette.applications import Starlette
 from order_assistant.agent import agent_card, root_agent
 from order_assistant.config.settings import get_settings
 from order_assistant.nacos.ai import NacosAI
+from order_assistant.nacos.utils import client_shutdown
 
 warnings.filterwarnings("ignore")  # Suppress ADK Experimental Warnings
 
@@ -56,7 +57,9 @@ def create_app() -> Starlette:
         logger.info("Deregistering agent endpoint...")
         if isinstance(a2a_app.state.nacos_ai, NacosAI):
             await a2a_app.state.nacos_ai.deregister(agent_card.version)
-            await a2a_app.state.nacos_ai.shutdown()
+        from order_assistant.nacos.naming import _nacos_naming  # pyright: ignore
+
+        await client_shutdown(a2a_app.state.nacos_ai, _nacos_naming)
 
         # Run original A2A shutdown events
         for handler in original_shutdown:
