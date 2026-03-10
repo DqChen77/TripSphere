@@ -16,5 +16,11 @@ public interface OrderRepository extends JpaRepository<OrderEntity, String> {
     Page<OrderEntity> findByUserIdAndStatusOrderByCreatedAtDesc(
             String userId, String status, Pageable pageable);
 
+    Page<OrderEntity> findByUserIdAndTypeOrderByCreatedAtDesc(
+            String userId, String type, Pageable pageable);
+
+    Page<OrderEntity> findByUserIdAndStatusAndTypeOrderByCreatedAtDesc(
+            String userId, String status, String type, Pageable pageable);
+
     List<OrderEntity> findByStatusAndExpireAtLessThan(String status, long expireAt);
 }
