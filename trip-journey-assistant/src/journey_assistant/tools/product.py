@@ -11,14 +11,14 @@ from google.rpc import status_pb2  # type: ignore
 from grpc_status import rpc_status
 from tripsphere.product.v1 import product_pb2, product_pb2_grpc
 
-from journey_assistant.nacos.naming import NacosNaming
+from journey_assistant.nacos.naming import get_nacos_naming
 
 logger = logging.getLogger(__name__)
 
 
 class ProductToolset(BaseToolset):
-    def __init__(self, nacos_naming: NacosNaming) -> None:
-        self.nacos_naming = nacos_naming
+    def __init__(self, tool_name_prefix: str = "product_") -> None:
+        super().__init__(tool_name_prefix=tool_name_prefix)
         self.service_name = "trip-product-service"
         self._get_spu_by_id = FunctionTool(self.get_spu_by_id)
 
@@ -33,7 +33,8 @@ class ProductToolset(BaseToolset):
                 e.g., {"status": "success", "message": "", "result": {...}}
         """
         try:
-            instance = await self.nacos_naming.get_service_instance(self.service_name)
+            nacos_naming = await get_nacos_naming()
+            instance = await nacos_naming.get_service_instance(self.service_name)
         except RuntimeError as e:
             logger.error(f"Failed to get service instance for {self.service_name}: {e}")
             return {"status": "error", "message": str(e), "result": None}
@@ -49,11 +50,12 @@ class ProductToolset(BaseToolset):
                 logger.error(f"Failed to get SPU by ID {spu_id}: {e}")
                 status: status_pb2.Status = rpc_status.from_call(e)  # pyright: ignore
                 return {"status": "error", "message": status.message, "result": None}  # pyright: ignore
-            return {
-                "status": "success",
-                "message": "",
-                "result": MessageToDict(response.spu),
-            }
+
+        return {
+            "status": "success",
+            "message": "",
+            "result": MessageToDict(response.spu),
+        }
 
     async def get_tools(
         self, readonly_context: ReadonlyContext | None = None

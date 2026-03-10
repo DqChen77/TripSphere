@@ -68,9 +68,6 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1, typed=True)
 def get_settings() -> Settings:
-    return Settings()
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-    logger.debug(f"{get_settings()}")
+    settings = Settings()
+    logger.debug(f"Get settings: {settings}")
+    return settings

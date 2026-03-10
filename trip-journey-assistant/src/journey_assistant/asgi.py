@@ -6,7 +6,7 @@ from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 from openinference.instrumentation.litellm import LiteLLMInstrumentor
 from starlette.applications import Starlette
 
-from journey_assistant.agent import agent_card, get_root_agent
+from journey_assistant.agent import agent_card, root_agent
 from journey_assistant.config.settings import get_settings
 from journey_assistant.nacos.ai import NacosAI
 
@@ -21,7 +21,7 @@ GoogleADKInstrumentor().instrument()
 
 def create_app() -> Starlette:
     # Get the A2A Starlette app
-    a2a_app = to_a2a(get_root_agent(), agent_card=agent_card)
+    a2a_app = to_a2a(root_agent, agent_card=agent_card)
 
     # Wrap the existing startup events with our lifespan logic
     original_startup = a2a_app.router.on_startup
