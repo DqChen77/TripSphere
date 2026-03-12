@@ -9,10 +9,7 @@ from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.tools.load_memory_tool import load_memory_tool
-from google.adk.tools.mcp_tool import McpToolset
-from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
 from httpx import AsyncClient
-from mcp import StdioServerParameters
 
 from chat.config.settings import get_settings
 from chat.nacos.ai import NacosAI
@@ -59,7 +56,7 @@ class AgentFacadeFactory:
         httpx_client: AsyncClient,
         nacos_ai: NacosAI,
         *,
-        model: str = "openai/gpt-4o-mini",
+        model: str = "openai/gpt-4o",
         remote_agent_names: list[str] | None = None,
     ) -> None:
         self._httpx_client = httpx_client
@@ -78,18 +75,20 @@ class AgentFacadeFactory:
         """
         _ensure_openai_env()
         sub_agents = await self._discover_remote_agents()
-        weather_toolset = McpToolset(
-            connection_params=StdioConnectionParams(
-                server_params=StdioServerParameters(
-                    command="python", args=["-m", "mcp_weather_server"]
-                )
-            )
-        )
+        # NOTE: McpToolset with StdioConnectionParams cannot be used with AG-UI ADK
+        # because it contains TextIOWrapper instances that cannot be deep copied.
+        # weather_toolset = McpToolset(
+        #     connection_params=StdioConnectionParams(
+        #         server_params=StdioServerParameters(
+        #             command="python", args=["-m", "mcp_weather_server"]
+        #         )
+        #     )
+        # )
         return LlmAgent(
             name="agent_facade",
             model=LiteLlm(model=self._model),
             instruction=DELEGATOR_INSTRUCTION,
-            tools=[load_memory_tool, weather_toolset],
+            tools=[load_memory_tool],
             sub_agents=sub_agents,
             after_agent_callback=_add_session_to_memory,
         )

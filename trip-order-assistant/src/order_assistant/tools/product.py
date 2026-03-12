@@ -21,6 +21,7 @@ class ProductToolset(BaseToolset):
         super().__init__(tool_name_prefix=tool_name_prefix)
         self.service_name = "trip-product-service"
         self._get_spu_by_id = FunctionTool(self.get_spu_by_id)
+        self._get_sku_by_id = FunctionTool(self.get_sku_by_id)
 
     async def _get_server_address(self) -> str:
         try:
@@ -65,10 +66,44 @@ class ProductToolset(BaseToolset):
             "result": MessageToDict(response.spu),
         }
 
+    async def get_sku_by_id(self, sku_id: str) -> dict[str, Any]:
+        """Get the stock keeping unit by ID.
+
+        Args:
+            sku_id (str): The ID of the stock keeping unit.
+
+        Returns:
+            dict[str, Any]: A dictionary with the sku, \
+                e.g., {"status": "success", "message": "", "result": {...}}
+        """
+        try:
+            server_address = await self._get_server_address()
+        except Exception as e:
+            return {"status": "error", "message": str(e), "result": None}
+
+        async with grpc.aio.insecure_channel(server_address) as channel:
+            stub = product_pb2_grpc.ProductServiceStub(channel)
+            try:
+                response = await stub.GetSkuById(
+                    product_pb2.GetSkuByIdRequest(id=sku_id)
+                )
+            except grpc.RpcError as e:
+                logger.error(f"Failed to get SKU by ID {sku_id}: {e}")
+                status: status_pb2.Status = rpc_status.from_call(e)  # type: ignore
+                message = status.message if status else ""  # pyright: ignore
+                return {"status": "error", "message": message, "result": None}
+
+        return {
+            "status": "success",
+            "message": "",
+            "result": MessageToDict(response.sku),
+        }
+
     async def get_tools(
         self, readonly_context: ReadonlyContext | None = None
     ) -> list[BaseTool]:
-        return [self._get_spu_by_id]
+        return [self._get_spu_by_id, self._get_sku_by_id]
 
     async def close(self) -> None:
+        # Nacos client shutdown is handled by the application.
         return

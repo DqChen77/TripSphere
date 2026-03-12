@@ -7,8 +7,6 @@ from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.base_toolset import BaseToolset
 from google.adk.tools.function_tool import FunctionTool
 from google.protobuf.json_format import MessageToDict
-from google.rpc import status_pb2  # type: ignore
-from grpc_status import rpc_status
 from tripsphere.order.v1 import order_pb2, order_pb2_grpc
 
 from order_assistant.nacos.naming import get_nacos_naming
@@ -21,7 +19,7 @@ class OrderToolset(BaseToolset):
         super().__init__(tool_name_prefix=tool_name_prefix)
         self.service_name = "trip-order-service"
         self._get_order = FunctionTool(self.get_order)
-        self._cancel_order = FunctionTool(self.cancel_order, require_confirmation=True)
+        self._cancel_order = FunctionTool(self.cancel_order)
 
     async def _get_server_address(self) -> str:
         try:
@@ -54,8 +52,7 @@ class OrderToolset(BaseToolset):
                 response = await stub.GetOrder(order_pb2.GetOrderRequest(id=order_id))
             except grpc.RpcError as e:
                 logger.error(f"Failed to get order by ID {order_id}: {e}")
-                status: status_pb2.Status = rpc_status.from_call(e)  # type: ignore
-                message = status.message if status else ""  # pyright: ignore
+                message = e.details() or ""
                 return {"status": "error", "message": message, "result": None}
 
         return {
@@ -88,13 +85,12 @@ class OrderToolset(BaseToolset):
                 )
             except grpc.RpcError as e:
                 logger.error(f"Failed to cancel order by ID {order_id}: {e}")
-                status: status_pb2.Status = rpc_status.from_call(e)  # type: ignore
-                message = status.message if status else ""  # pyright: ignore
+                message = e.details() or ""
                 return {"status": "error", "message": message, "result": None}
 
         return {
             "status": "success",
-            "message": "",
+            "message": f"Order {order_id} has been cancelled successfully.",
             "result": MessageToDict(response.order),
         }
 
@@ -104,4 +100,5 @@ class OrderToolset(BaseToolset):
         return [self._get_order, self._cancel_order]
 
     async def close(self) -> None:
+        # Nacos client shutdown is handled by the application.
         return
