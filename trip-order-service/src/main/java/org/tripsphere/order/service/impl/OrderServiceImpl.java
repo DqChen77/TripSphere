@@ -45,7 +45,6 @@ public class OrderServiceImpl implements OrderService {
     private final StringRedisTemplate redisTemplate;
     private final OrderMapper orderMapper = OrderMapper.INSTANCE;
 
-    private static final String ORDER_SEQ_KEY_PREFIX = "order:seq:";
     private static final String ORDER_EXPIRE_KEY = "order:expire";
     private static final String ORDER_DEDUP_KEY_PREFIX = "order:dedup:";
     private static final Duration DEDUP_WINDOW = Duration.ofSeconds(10);
@@ -289,22 +288,12 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * Generate order number: TS + yyyyMMdd + 6-digit sequence. Falls back to nanos if Redis
-     * unavailable.
+     * Generate order number: TS + yyyyMMdd + 6-digit sequence. Uses PostgreSQL SEQUENCE for atomic,
+     * concurrency-safe generation.
      */
     private String generateOrderNo() {
         String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        try {
-            String seqKey = ORDER_SEQ_KEY_PREFIX + today;
-            Long seq = redisTemplate.opsForValue().increment(seqKey);
-            if (seq != null && seq == 1) {
-                redisTemplate.expire(seqKey, Duration.ofDays(2));
-            }
-            return String.format("TS%s%06d", today, seq != null ? seq : 1);
-        } catch (Exception e) {
-            log.warn("Redis order sequence failed, using fallback: {}", e.getMessage());
-            int fallback = Math.abs((int) (System.nanoTime() % 1_000_000));
-            return String.format("TS%s%06d", today, fallback);
-        }
+        long seq = orderRepository.getNextOrderSequence();
+        return String.format("TS%s%06d", today, seq);
     }
 }
