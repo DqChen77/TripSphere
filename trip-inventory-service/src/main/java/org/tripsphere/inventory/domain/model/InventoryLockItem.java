@@ -8,7 +8,6 @@ import lombok.Getter;
 @Getter
 @Builder
 public class InventoryLockItem {
-
     private String id;
     private String lockId;
     private String skuId;

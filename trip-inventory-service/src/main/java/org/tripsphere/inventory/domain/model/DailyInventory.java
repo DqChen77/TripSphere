@@ -9,7 +9,6 @@ import lombok.Getter;
 @Getter
 @Builder
 public class DailyInventory {
-
     private String id;
     private String skuId;
     private LocalDate invDate;

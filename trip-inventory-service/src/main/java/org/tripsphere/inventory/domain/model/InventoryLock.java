@@ -11,7 +11,6 @@ import lombok.Getter;
 @Getter
 @Builder
 public class InventoryLock {
-
     private String lockId;
     private String orderId;
     private LockStatus status;

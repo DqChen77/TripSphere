@@ -24,7 +24,8 @@ public class GetDailyInventoryUseCase {
             boolean shouldRebuild = cachePort.tryAcquireCacheMutex(skuId, date);
             DailyInventory inventory = dailyInventoryRepository
                     .findBySkuIdAndDate(skuId, date)
-                    .orElseThrow(() -> new NotFoundException("DailyInventory", skuId + "/" + date));
+                    .orElseThrow(
+                            () -> new NotFoundException("DailyInventory not found: skuId=" + skuId + ", date=" + date));
             if (shouldRebuild) {
                 cachePort.cacheDailyInventory(inventory);
             }
