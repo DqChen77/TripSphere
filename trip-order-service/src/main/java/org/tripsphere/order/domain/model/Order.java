@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.Getter;
+import org.tripsphere.order.domain.exception.InvalidOrderStateException;
 
 @Getter
 @Builder
@@ -61,9 +62,7 @@ public class Order {
     }
 
     public void cancel(String reason) {
-        if (this.status != OrderStatus.PENDING_PAYMENT) {
-            throw new IllegalStateException("Order " + id + " is in status " + status + ", cannot cancel");
-        }
+        requireStatus(OrderStatus.PENDING_PAYMENT, "cancel");
         long now = Instant.now().getEpochSecond();
         this.status = OrderStatus.CANCELLED;
         this.cancelReason = reason;
@@ -72,11 +71,9 @@ public class Order {
     }
 
     public void confirmPayment() {
-        if (this.status != OrderStatus.PENDING_PAYMENT) {
-            throw new IllegalStateException("Order " + id + " is in status " + status + ", cannot confirm payment");
-        }
+        requireStatus(OrderStatus.PENDING_PAYMENT, "confirm payment");
         if (isExpired()) {
-            throw new IllegalStateException("Order " + id + " has expired");
+            throw new InvalidOrderStateException(id, "EXPIRED", "confirm payment");
         }
         long now = Instant.now().getEpochSecond();
         this.status = OrderStatus.PAID;
@@ -91,7 +88,13 @@ public class Order {
     public Set<String> getDistinctLockIds() {
         return items.stream()
                 .map(OrderItem::getInvLockId)
-                .filter(id -> id != null && !id.isEmpty())
+                .filter(lockId -> lockId != null && !lockId.isEmpty())
                 .collect(Collectors.toSet());
+    }
+
+    private void requireStatus(OrderStatus required, String action) {
+        if (this.status != required) {
+            throw new InvalidOrderStateException(id, status.name(), action);
+        }
     }
 }

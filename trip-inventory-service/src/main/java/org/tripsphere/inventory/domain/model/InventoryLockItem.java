@@ -1,6 +1,5 @@
 package org.tripsphere.inventory.domain.model;
 
-import com.github.f4b6a3.uuid.UuidCreator;
 import java.time.LocalDate;
 import lombok.Builder;
 import lombok.Getter;
@@ -14,9 +13,9 @@ public class InventoryLockItem {
     private LocalDate invDate;
     private int quantity;
 
-    public static InventoryLockItem create(String lockId, String skuId, LocalDate invDate, int quantity) {
+    public static InventoryLockItem create(String id, String lockId, String skuId, LocalDate invDate, int quantity) {
         return InventoryLockItem.builder()
-                .id(UuidCreator.getTimeOrderedEpoch().toString())
+                .id(id)
                 .lockId(lockId)
                 .skuId(skuId)
                 .invDate(invDate)

@@ -9,7 +9,6 @@ import org.tripsphere.order.application.exception.OrderStateException;
 import org.tripsphere.order.application.port.InventoryPort;
 import org.tripsphere.order.application.port.OrderCachePort;
 import org.tripsphere.order.domain.model.Order;
-import org.tripsphere.order.domain.model.OrderStatus;
 import org.tripsphere.order.domain.repository.OrderRepository;
 
 @Slf4j
@@ -27,21 +26,7 @@ public class ConfirmPaymentUseCase {
 
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new NotFoundException("Order", orderId));
 
-        if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
-            throw new OrderStateException(orderId, order.getStatus().name(), "PENDING_PAYMENT");
-        }
-        if (order.isExpired()) {
-            throw new OrderStateException("Order " + orderId + " has expired");
-        }
-
-        for (String lockId : order.getDistinctLockIds()) {
-            try {
-                inventoryPort.confirmLock(lockId);
-            } catch (Exception e) {
-                log.error("Failed to confirm inventory lock: {} for order: {}", lockId, orderId, e);
-                throw new RuntimeException("Failed to confirm inventory for order: " + orderId, e);
-            }
-        }
+        confirmInventoryLocks(order);
 
         order.confirmPayment();
         order = orderRepository.save(order);
@@ -49,5 +34,16 @@ public class ConfirmPaymentUseCase {
 
         log.info("Payment confirmed for order: {}", orderId);
         return order;
+    }
+
+    private void confirmInventoryLocks(Order order) {
+        for (String lockId : order.getDistinctLockIds()) {
+            try {
+                inventoryPort.confirmLock(lockId);
+            } catch (Exception e) {
+                log.error("Failed to confirm inventory lock: {} for order: {}", lockId, order.getId(), e);
+                throw new OrderStateException("Failed to confirm inventory for order: " + order.getId());
+            }
+        }
     }
 }

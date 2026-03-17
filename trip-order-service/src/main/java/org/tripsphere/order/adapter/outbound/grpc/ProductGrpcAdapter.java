@@ -1,5 +1,7 @@
 package org.tripsphere.order.adapter.outbound.grpc;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.Struct;
 import com.google.protobuf.util.JsonFormat;
 import java.util.List;
@@ -16,6 +18,9 @@ import org.tripsphere.product.v1.*;
 @Slf4j
 @Component
 public class ProductGrpcAdapter implements ProductPort {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final TypeReference<Map<String, Object>> MAP_TYPE_REF = new TypeReference<>() {};
 
     @GrpcClient("trip-product-service")
     private ProductServiceGrpc.ProductServiceBlockingStub productStub;
@@ -76,8 +81,7 @@ public class ProductGrpcAdapter implements ProductPort {
         if (struct == null || struct.getFieldsCount() == 0) return null;
         try {
             String json = JsonFormat.printer().print(struct);
-            return new com.fasterxml.jackson.databind.ObjectMapper()
-                    .readValue(json, new com.fasterxml.jackson.core.type.TypeReference<>() {});
+            return OBJECT_MAPPER.readValue(json, MAP_TYPE_REF);
         } catch (Exception e) {
             log.warn("Failed to convert struct to map: {}", e.getMessage());
             return null;

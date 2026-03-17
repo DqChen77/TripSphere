@@ -6,38 +6,38 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.tripsphere.inventory.application.port.InventoryCachePort;
+import org.tripsphere.inventory.application.port.LockExpiryPort;
 import org.tripsphere.inventory.application.service.command.ReleaseLockUseCase;
+import org.tripsphere.inventory.config.InventoryProperties;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class LockExpiryScheduler {
 
-    private final InventoryCachePort cachePort;
+    private final LockExpiryPort lockExpiryPort;
     private final ReleaseLockUseCase releaseLockUseCase;
-
-    private static final int BATCH_SIZE = 50;
+    private final InventoryProperties properties;
 
     @Scheduled(fixedDelay = 30000)
     public void releaseExpiredLocks() {
         long now = Instant.now().getEpochSecond();
-        Set<String> expiredLockIds = cachePort.getExpiredLockIds(now, BATCH_SIZE);
+        Set<String> expiredLockIds = lockExpiryPort.getExpiredLockIds(now, properties.lockExpiryBatchSize());
 
         if (expiredLockIds == null || expiredLockIds.isEmpty()) {
             return;
         }
 
-        log.info("Found {} expired locks to release (batch limit {})", expiredLockIds.size(), BATCH_SIZE);
+        log.info("Found {} expired locks to release", expiredLockIds.size());
 
         for (String lockId : expiredLockIds) {
             try {
-                releaseLockUseCase.execute(lockId, "Lock expired (auto-release)");
-                log.info("Released expired lock: {}", lockId);
+                releaseLockUseCase.execute(lockId, "Lock expired - auto released");
+                log.info("Auto-released expired lock: {}", lockId);
             } catch (Exception e) {
-                log.warn("Failed to release expired lock {}: {}", lockId, e.getMessage());
+                log.error("Failed to release expired lock: {}", lockId, e);
+                lockExpiryPort.removeLockExpiry(lockId);
             }
-            cachePort.removeLockExpiry(lockId);
         }
     }
 }

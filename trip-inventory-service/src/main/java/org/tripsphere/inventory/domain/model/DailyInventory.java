@@ -1,10 +1,11 @@
 package org.tripsphere.inventory.domain.model;
 
-import com.github.f4b6a3.uuid.UuidCreator;
 import java.time.Instant;
 import java.time.LocalDate;
 import lombok.Builder;
 import lombok.Getter;
+import org.tripsphere.inventory.domain.exception.InsufficientStockException;
+import org.tripsphere.inventory.domain.exception.InventoryDomainException;
 
 @Getter
 @Builder
@@ -19,9 +20,9 @@ public class DailyInventory {
     private Money price;
     private Instant updatedAt;
 
-    public static DailyInventory create(String skuId, LocalDate invDate, int totalQty, Money price) {
+    public static DailyInventory create(String id, String skuId, LocalDate invDate, int totalQty, Money price) {
         return DailyInventory.builder()
-                .id(UuidCreator.getTimeOrderedEpoch().toString())
+                .id(id)
                 .skuId(skuId)
                 .invDate(invDate)
                 .totalQty(totalQty)
@@ -36,7 +37,7 @@ public class DailyInventory {
     public void updateTotal(int newTotal) {
         int newAvailable = newTotal - this.lockedQty - this.soldQty;
         if (newAvailable < 0) {
-            throw new IllegalArgumentException(
+            throw new InventoryDomainException(
                     "Cannot set total_quantity to " + newTotal + ": would result in negative available quantity");
         }
         this.totalQty = newTotal;
@@ -51,7 +52,8 @@ public class DailyInventory {
 
     public void lock(int qty) {
         if (this.availableQty < qty) {
-            throw new IllegalStateException("Insufficient inventory: requested=" + qty + ", available=" + availableQty);
+            throw new InsufficientStockException(
+                    skuId, invDate != null ? invDate.toString() : "unknown", qty, availableQty);
         }
         this.availableQty -= qty;
         this.lockedQty += qty;

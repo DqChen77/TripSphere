@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.tripsphere.order.application.port.OrderCachePort;
+import org.tripsphere.order.config.OrderProperties;
 
 @Slf4j
 @Component
@@ -14,16 +15,17 @@ import org.tripsphere.order.application.port.OrderCachePort;
 public class RedisOrderCacheAdapter implements OrderCachePort {
 
     private final StringRedisTemplate redisTemplate;
+    private final OrderProperties properties;
 
     private static final String ORDER_EXPIRE_KEY = "order:expire";
     private static final String ORDER_DEDUP_KEY_PREFIX = "order:dedup:";
-    private static final Duration DEDUP_WINDOW = Duration.ofSeconds(10);
 
     @Override
     public boolean tryAcquireDedup(String userId, String fingerprint) {
         try {
             String dedupKey = ORDER_DEDUP_KEY_PREFIX + userId + ":" + Integer.toHexString(fingerprint.hashCode());
-            Boolean isNew = redisTemplate.opsForValue().setIfAbsent(dedupKey, "1", DEDUP_WINDOW);
+            Duration dedupWindow = Duration.ofSeconds(properties.dedupWindowSeconds());
+            Boolean isNew = redisTemplate.opsForValue().setIfAbsent(dedupKey, "1", dedupWindow);
             return Boolean.TRUE.equals(isNew);
         } catch (Exception e) {
             log.warn("Redis dedup check failed, proceeding without dedup: {}", e.getMessage());

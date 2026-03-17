@@ -5,14 +5,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.tripsphere.order.application.dto.ListOrdersQuery;
 import org.tripsphere.order.application.dto.OrderPage;
-import org.tripsphere.order.domain.repository.OrderRepository;
+import org.tripsphere.order.application.port.OrderQueryPort;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ListUserOrdersUseCase {
 
-    private final OrderRepository orderRepository;
+    private final OrderQueryPort orderQueryPort;
 
     public OrderPage execute(ListOrdersQuery query) {
         log.debug(
@@ -23,6 +23,6 @@ public class ListUserOrdersUseCase {
                 query.pageSize(),
                 query.page());
 
-        return orderRepository.findByUserIdWithFilters(query);
+        return orderQueryPort.findByUserIdWithFilters(query);
     }
 }

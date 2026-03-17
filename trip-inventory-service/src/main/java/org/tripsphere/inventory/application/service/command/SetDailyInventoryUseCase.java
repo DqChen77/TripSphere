@@ -1,5 +1,6 @@
 package org.tripsphere.inventory.application.service.command;
 
+import com.github.f4b6a3.uuid.UuidCreator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,8 +31,9 @@ public class SetDailyInventoryUseCase {
                 .orElse(null);
 
         if (inventory == null) {
-            inventory =
-                    DailyInventory.create(command.skuId(), command.date(), command.totalQuantity(), command.price());
+            String id = UuidCreator.getTimeOrderedEpoch().toString();
+            inventory = DailyInventory.create(
+                    id, command.skuId(), command.date(), command.totalQuantity(), command.price());
         } else {
             inventory.updateTotal(command.totalQuantity());
             inventory.updatePrice(command.price());

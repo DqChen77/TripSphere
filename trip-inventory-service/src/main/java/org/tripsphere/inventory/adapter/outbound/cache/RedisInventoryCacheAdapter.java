@@ -11,13 +11,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.tripsphere.inventory.application.port.InventoryCachePort;
+import org.tripsphere.inventory.application.port.LockExpiryPort;
 import org.tripsphere.inventory.domain.model.DailyInventory;
 import org.tripsphere.inventory.domain.model.Money;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class RedisInventoryCacheAdapter implements InventoryCachePort {
+public class RedisInventoryCacheAdapter implements InventoryCachePort, LockExpiryPort {
 
     private final StringRedisTemplate redisTemplate;
 
@@ -28,6 +29,8 @@ public class RedisInventoryCacheAdapter implements InventoryCachePort {
     private String buildKey(String skuId, LocalDate date) {
         return INV_KEY_PREFIX + skuId + ":" + date.toString();
     }
+
+    // ── InventoryCachePort ────────────────────────────────────
 
     @Override
     public void cacheDailyInventory(DailyInventory inventory) {
@@ -83,6 +86,8 @@ public class RedisInventoryCacheAdapter implements InventoryCachePort {
         Boolean acquired = redisTemplate.opsForValue().setIfAbsent(mutexKey, "1", 5, TimeUnit.SECONDS);
         return Boolean.TRUE.equals(acquired);
     }
+
+    // ── LockExpiryPort ────────────────────────────────────────
 
     @Override
     public void addLockExpiry(String lockId, long expireTimestamp) {

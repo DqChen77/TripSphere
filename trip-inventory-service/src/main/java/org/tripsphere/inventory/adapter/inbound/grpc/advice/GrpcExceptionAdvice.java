@@ -6,10 +6,31 @@ import net.devh.boot.grpc.server.advice.GrpcAdvice;
 import net.devh.boot.grpc.server.advice.GrpcExceptionHandler;
 import org.tripsphere.inventory.application.exception.BusinessException;
 import org.tripsphere.inventory.application.exception.ErrorCode;
+import org.tripsphere.inventory.domain.exception.InsufficientStockException;
+import org.tripsphere.inventory.domain.exception.InvalidLockStateException;
+import org.tripsphere.inventory.domain.exception.InventoryDomainException;
 
 @Slf4j
 @GrpcAdvice
 public class GrpcExceptionAdvice {
+
+    @GrpcExceptionHandler(InsufficientStockException.class)
+    public Status handleInsufficientStock(InsufficientStockException e) {
+        log.warn("Insufficient stock: {}", e.getMessage());
+        return Status.FAILED_PRECONDITION.withDescription(e.getMessage());
+    }
+
+    @GrpcExceptionHandler(InvalidLockStateException.class)
+    public Status handleInvalidLockState(InvalidLockStateException e) {
+        log.warn("Invalid lock state: {}", e.getMessage());
+        return Status.FAILED_PRECONDITION.withDescription(e.getMessage());
+    }
+
+    @GrpcExceptionHandler(InventoryDomainException.class)
+    public Status handleInventoryDomainException(InventoryDomainException e) {
+        log.warn("Domain exception: {}", e.getMessage());
+        return Status.FAILED_PRECONDITION.withDescription(e.getMessage());
+    }
 
     @GrpcExceptionHandler(BusinessException.class)
     public Status handleBusinessException(BusinessException e) {

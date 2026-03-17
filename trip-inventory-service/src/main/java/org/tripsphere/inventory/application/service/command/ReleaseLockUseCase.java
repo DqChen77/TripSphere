@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.tripsphere.inventory.application.exception.NotFoundException;
 import org.tripsphere.inventory.application.port.InventoryCachePort;
+import org.tripsphere.inventory.application.port.LockExpiryPort;
 import org.tripsphere.inventory.domain.model.DailyInventory;
 import org.tripsphere.inventory.domain.model.InventoryLock;
 import org.tripsphere.inventory.domain.model.InventoryLockItem;
@@ -22,6 +23,7 @@ public class ReleaseLockUseCase {
     private final DailyInventoryRepository dailyInventoryRepository;
     private final InventoryLockRepository inventoryLockRepository;
     private final InventoryCachePort cachePort;
+    private final LockExpiryPort lockExpiryPort;
 
     @Transactional
     public InventoryLock execute(String lockId, String reason) {
@@ -52,7 +54,7 @@ public class ReleaseLockUseCase {
         lock = inventoryLockRepository.save(lock);
 
         updatedInventories.forEach(cachePort::cacheDailyInventory);
-        cachePort.removeLockExpiry(lockId);
+        lockExpiryPort.removeLockExpiry(lockId);
 
         log.info("Lock released: {}, reason: {}", lockId, reason);
         return lock;

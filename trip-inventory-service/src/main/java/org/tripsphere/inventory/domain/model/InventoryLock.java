@@ -1,12 +1,12 @@
 package org.tripsphere.inventory.domain.model;
 
-import com.github.f4b6a3.uuid.UuidCreator;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Builder;
 import lombok.Getter;
+import org.tripsphere.inventory.domain.exception.InvalidLockStateException;
 
 @Getter
 @Builder
@@ -20,10 +20,10 @@ public class InventoryLock {
     @Builder.Default
     private List<InventoryLockItem> items = new ArrayList<>();
 
-    public static InventoryLock create(String orderId, int lockTimeoutSeconds) {
+    public static InventoryLock create(String lockId, String orderId, int lockTimeoutSeconds) {
         long now = Instant.now().getEpochSecond();
         return InventoryLock.builder()
-                .lockId(UuidCreator.getTimeOrderedEpoch().toString())
+                .lockId(lockId)
                 .orderId(orderId)
                 .status(LockStatus.LOCKED)
                 .createdAt(now)
@@ -31,8 +31,8 @@ public class InventoryLock {
                 .build();
     }
 
-    public void addItem(String skuId, LocalDate invDate, int quantity) {
-        InventoryLockItem item = InventoryLockItem.create(this.lockId, skuId, invDate, quantity);
+    public void addItem(String itemId, String skuId, LocalDate invDate, int quantity) {
+        InventoryLockItem item = InventoryLockItem.create(itemId, this.lockId, skuId, invDate, quantity);
         this.items.add(item);
     }
 
@@ -41,7 +41,7 @@ public class InventoryLock {
             return;
         }
         if (this.status != LockStatus.LOCKED) {
-            throw new IllegalStateException("Lock " + lockId + " is in status " + status + ", cannot confirm");
+            throw new InvalidLockStateException(lockId, status.name(), "confirm");
         }
         this.status = LockStatus.CONFIRMED;
     }
@@ -51,7 +51,7 @@ public class InventoryLock {
             return;
         }
         if (this.status != LockStatus.LOCKED) {
-            throw new IllegalStateException("Lock " + lockId + " is in status " + status + ", cannot release");
+            throw new InvalidLockStateException(lockId, status.name(), "release");
         }
         this.status = LockStatus.RELEASED;
     }

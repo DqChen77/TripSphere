@@ -1,5 +1,6 @@
 package org.tripsphere.inventory.application.service.command;
 
+import com.github.f4b6a3.uuid.UuidCreator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -12,6 +13,8 @@ import org.tripsphere.inventory.application.exception.InsufficientInventoryExcep
 import org.tripsphere.inventory.application.exception.InvalidArgumentException;
 import org.tripsphere.inventory.application.exception.NotFoundException;
 import org.tripsphere.inventory.application.port.InventoryCachePort;
+import org.tripsphere.inventory.application.port.LockExpiryPort;
+import org.tripsphere.inventory.config.InventoryProperties;
 import org.tripsphere.inventory.domain.model.DailyInventory;
 import org.tripsphere.inventory.domain.model.InventoryLock;
 import org.tripsphere.inventory.domain.model.LockStatus;
@@ -26,8 +29,8 @@ public class LockInventoryUseCase {
     private final DailyInventoryRepository dailyInventoryRepository;
     private final InventoryLockRepository inventoryLockRepository;
     private final InventoryCachePort cachePort;
-
-    private static final int DEFAULT_LOCK_TIMEOUT = 900;
+    private final LockExpiryPort lockExpiryPort;
+    private final InventoryProperties properties;
 
     @Transactional
     public InventoryLock execute(LockInventoryCommand command) {
@@ -36,7 +39,9 @@ public class LockInventoryUseCase {
                 command.orderId(),
                 command.items().size());
 
-        int lockTimeout = command.lockTimeoutSeconds() <= 0 ? DEFAULT_LOCK_TIMEOUT : command.lockTimeoutSeconds();
+        int lockTimeout = command.lockTimeoutSeconds() <= 0
+                ? properties.defaultLockTimeoutSeconds()
+                : command.lockTimeoutSeconds();
 
         Optional<InventoryLock> existingLock = inventoryLockRepository.findByOrderId(command.orderId());
         if (existingLock.isPresent()) {
@@ -49,7 +54,8 @@ public class LockInventoryUseCase {
                     "Order " + command.orderId() + " already has a lock in status " + existing.getStatus());
         }
 
-        InventoryLock lock = InventoryLock.create(command.orderId(), lockTimeout);
+        String lockId = UuidCreator.getTimeOrderedEpoch().toString();
+        InventoryLock lock = InventoryLock.create(lockId, command.orderId(), lockTimeout);
         List<DailyInventory> lockedInventories = new ArrayList<>();
 
         for (LockInventoryCommand.LockItemCommand item : command.items()) {
@@ -64,14 +70,16 @@ public class LockInventoryUseCase {
 
             inventory.lock(item.quantity());
             lockedInventories.add(inventory);
-            lock.addItem(item.skuId(), item.date(), item.quantity());
+
+            String itemId = UuidCreator.getTimeOrderedEpoch().toString();
+            lock.addItem(itemId, item.skuId(), item.date(), item.quantity());
         }
 
         dailyInventoryRepository.saveAll(lockedInventories);
         lock = inventoryLockRepository.save(lock);
 
         lockedInventories.forEach(cachePort::cacheDailyInventory);
-        cachePort.addLockExpiry(lock.getLockId(), lock.getExpireAt());
+        lockExpiryPort.addLockExpiry(lock.getLockId(), lock.getExpireAt());
 
         log.info(
                 "Inventory locked: lockId={}, orderId={}, expireAt={}",

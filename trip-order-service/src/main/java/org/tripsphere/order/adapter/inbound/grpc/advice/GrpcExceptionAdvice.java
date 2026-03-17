@@ -6,10 +6,24 @@ import net.devh.boot.grpc.server.advice.GrpcAdvice;
 import net.devh.boot.grpc.server.advice.GrpcExceptionHandler;
 import org.tripsphere.order.application.exception.BusinessException;
 import org.tripsphere.order.application.exception.ErrorCode;
+import org.tripsphere.order.domain.exception.InvalidOrderStateException;
+import org.tripsphere.order.domain.exception.OrderDomainException;
 
 @Slf4j
 @GrpcAdvice
 public class GrpcExceptionAdvice {
+
+    @GrpcExceptionHandler(InvalidOrderStateException.class)
+    public Status handleInvalidOrderState(InvalidOrderStateException e) {
+        log.warn("Invalid order state: {}", e.getMessage());
+        return Status.FAILED_PRECONDITION.withDescription(e.getMessage());
+    }
+
+    @GrpcExceptionHandler(OrderDomainException.class)
+    public Status handleOrderDomainException(OrderDomainException e) {
+        log.warn("Domain exception: {}", e.getMessage());
+        return Status.FAILED_PRECONDITION.withDescription(e.getMessage());
+    }
 
     @GrpcExceptionHandler(BusinessException.class)
     public Status handleBusinessException(BusinessException e) {
