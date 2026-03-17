@@ -1,32 +1,22 @@
 package org.tripsphere.inventory.adapter.inbound.grpc.mapper;
 
 import java.util.List;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
+import org.mapstruct.*;
 import org.tripsphere.inventory.domain.model.DailyInventory;
 
-@Component
-@RequiredArgsConstructor
-public class DailyInventoryProtoMapper {
+@Mapper(
+        componentModel = MappingConstants.ComponentModel.SPRING,
+        collectionMappingStrategy = CollectionMappingStrategy.ADDER_PREFERRED,
+        nullValueCheckStrategy = NullValueCheckStrategy.ALWAYS,
+        uses = {DateProtoMapper.class, MoneyProtoMapper.class})
+public interface DailyInventoryProtoMapper {
 
-    private final DateProtoMapper dateMapper;
-    private final MoneyProtoMapper moneyMapper;
+    @Mapping(source = "invDate", target = "date")
+    @Mapping(source = "totalQty", target = "totalQuantity")
+    @Mapping(source = "availableQty", target = "availableQuantity")
+    @Mapping(source = "lockedQty", target = "lockedQuantity")
+    @Mapping(source = "soldQty", target = "soldQuantity")
+    org.tripsphere.inventory.v1.DailyInventory toProto(DailyInventory domain);
 
-    public org.tripsphere.inventory.v1.DailyInventory toProto(DailyInventory domain) {
-        if (domain == null) return null;
-        return org.tripsphere.inventory.v1.DailyInventory.newBuilder()
-                .setSkuId(domain.getSkuId())
-                .setDate(dateMapper.toProto(domain.getInvDate()))
-                .setTotalQuantity(domain.getTotalQty())
-                .setAvailableQuantity(domain.getAvailableQty())
-                .setLockedQuantity(domain.getLockedQty())
-                .setSoldQuantity(domain.getSoldQty())
-                .setPrice(moneyMapper.toProto(domain.getPrice()))
-                .build();
-    }
-
-    public List<org.tripsphere.inventory.v1.DailyInventory> toProtos(List<DailyInventory> domains) {
-        if (domains == null) return List.of();
-        return domains.stream().map(this::toProto).toList();
-    }
+    List<org.tripsphere.inventory.v1.DailyInventory> toProtos(List<DailyInventory> domains);
 }

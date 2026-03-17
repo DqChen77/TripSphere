@@ -1,51 +1,33 @@
 package org.tripsphere.inventory.adapter.inbound.grpc.mapper;
 
 import com.google.protobuf.Timestamp;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
+import java.util.List;
+import org.mapstruct.*;
 import org.tripsphere.inventory.domain.model.InventoryLock;
 import org.tripsphere.inventory.domain.model.InventoryLockItem;
 import org.tripsphere.inventory.domain.model.LockStatus;
-import org.tripsphere.inventory.v1.LockItem;
 
-@Component
-@RequiredArgsConstructor
-public class InventoryLockProtoMapper {
+@Mapper(
+        componentModel = MappingConstants.ComponentModel.SPRING,
+        collectionMappingStrategy = CollectionMappingStrategy.ADDER_PREFERRED,
+        nullValueCheckStrategy = NullValueCheckStrategy.ALWAYS,
+        uses = {DateProtoMapper.class})
+public interface InventoryLockProtoMapper {
 
-    private final DateProtoMapper dateMapper;
+    org.tripsphere.inventory.v1.InventoryLock toProto(InventoryLock domain);
 
-    public org.tripsphere.inventory.v1.InventoryLock toProto(InventoryLock domain) {
-        if (domain == null) return null;
-        org.tripsphere.inventory.v1.InventoryLock.Builder builder =
-                org.tripsphere.inventory.v1.InventoryLock.newBuilder()
-                        .setLockId(domain.getLockId())
-                        .setOrderId(domain.getOrderId())
-                        .setStatus(mapStatus(domain.getStatus()))
-                        .setCreatedAt(epochToTimestamp(domain.getCreatedAt()))
-                        .setExpireAt(epochToTimestamp(domain.getExpireAt()));
+    @Mapping(source = "invDate", target = "date")
+    org.tripsphere.inventory.v1.LockItem toItemProto(InventoryLockItem item);
 
-        if (domain.getItems() != null) {
-            for (InventoryLockItem item : domain.getItems()) {
-                builder.addItems(LockItem.newBuilder()
-                        .setSkuId(item.getSkuId())
-                        .setDate(dateMapper.toProto(item.getInvDate()))
-                        .setQuantity(item.getQuantity())
-                        .build());
-            }
-        }
-        return builder.build();
-    }
+    List<org.tripsphere.inventory.v1.LockItem> toItemProtos(List<InventoryLockItem> items);
 
-    private org.tripsphere.inventory.v1.LockStatus mapStatus(LockStatus status) {
-        return switch (status) {
-            case LOCKED -> org.tripsphere.inventory.v1.LockStatus.LOCK_STATUS_LOCKED;
-            case CONFIRMED -> org.tripsphere.inventory.v1.LockStatus.LOCK_STATUS_CONFIRMED;
-            case RELEASED -> org.tripsphere.inventory.v1.LockStatus.LOCK_STATUS_RELEASED;
-            case EXPIRED -> org.tripsphere.inventory.v1.LockStatus.LOCK_STATUS_EXPIRED;
-        };
-    }
+    @ValueMapping(source = "LOCKED", target = "LOCK_STATUS_LOCKED")
+    @ValueMapping(source = "CONFIRMED", target = "LOCK_STATUS_CONFIRMED")
+    @ValueMapping(source = "RELEASED", target = "LOCK_STATUS_RELEASED")
+    @ValueMapping(source = "EXPIRED", target = "LOCK_STATUS_EXPIRED")
+    org.tripsphere.inventory.v1.LockStatus mapStatus(LockStatus status);
 
-    private Timestamp epochToTimestamp(long epochSecond) {
-        return Timestamp.newBuilder().setSeconds(epochSecond).build();
+    default Timestamp mapToTimestamp(long epoch) {
+        return Timestamp.newBuilder().setSeconds(epoch).build();
     }
 }

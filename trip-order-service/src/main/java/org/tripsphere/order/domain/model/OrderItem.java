@@ -8,7 +8,6 @@ import lombok.Getter;
 @Getter
 @Builder
 public class OrderItem {
-
     private String id;
     private String orderId;
     private String spuId;

@@ -150,7 +150,6 @@ public class CreateOrderUseCase {
         return new OrderContext(topLevelIds.iterator().next(), resourceTypeToOrderType(resourceType));
     }
 
-    @SuppressWarnings("unchecked")
     private String extractTopLevelResourceId(SpuInfo spu, String resourceType) {
         return switch (resourceType) {
             case "HOTEL_ROOM" -> {
