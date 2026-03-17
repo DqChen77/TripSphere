@@ -39,6 +39,10 @@ import type {
   Spu,
   Sku,
 } from "@/lib/grpc/generated/tripsphere/product/v1/product";
+import {
+  HotelAgentStateSync,
+  type HotelContext,
+} from "@/components/context/hotel-agent-context";
 
 function AmenityIcon({
   name,
@@ -119,6 +123,56 @@ function getLowestSkuPrice(spus: Spu[]): number {
 interface RoomTypeWithSpus {
   roomType: RoomType;
   spus: Spu[];
+}
+
+function buildHotelContext(
+  hotel: Hotel,
+  roomTypesWithSpus: RoomTypeWithSpus[],
+  starCount: number,
+): HotelContext {
+  return {
+    hotel: {
+      id: hotel.id,
+      name: hotel.name,
+      address: getFullAddress(hotel),
+      city: getCityFromAddress(hotel),
+      stars: starCount,
+      tags: hotel.tags,
+      amenities: hotel.amenities,
+      estimatedPrice: formatMoney(hotel.estimatedPrice),
+      introduction: hotel.information?.introduction,
+      roomCount: hotel.information?.roomCount,
+      checkInTime: hotel.policy?.checkInTime
+        ? formatTime(hotel.policy.checkInTime, 14)
+        : undefined,
+      checkOutTime: hotel.policy?.checkOutTime
+        ? formatTime(hotel.policy.checkOutTime, 12)
+        : undefined,
+      petsAllowed: hotel.policy?.petsAllowed,
+    },
+    roomTypes: roomTypesWithSpus.map(({ roomType, spus }) => ({
+      id: roomType.id,
+      name: roomType.name,
+      bedDescription: roomType.bedDescription || "标准床型",
+      areaDescription: roomType.areaDescription || "标准面积",
+      maxOccupancy: roomType.maxOccupancy,
+      hasWindow: roomType.hasWindow,
+      amenities: roomType.amenities,
+      spus: spus.map((spu) => ({
+        id: spu.id,
+        name: spu.name,
+        skus: spu.skus.map((sku) => ({
+          id: sku.id,
+          name: sku.name,
+          price: formatMoney(sku.basePrice),
+          breakfast:
+            (sku.attributes as Record<string, unknown>)?.breakfast === true,
+          cancellable:
+            (sku.attributes as Record<string, unknown>)?.cancellable === true,
+        })),
+      })),
+    })),
+  };
 }
 
 function RoomTypeCard({ roomType, spus }: RoomTypeWithSpus) {
@@ -383,8 +437,11 @@ export default async function HotelDetailPage({ params }: PageProps) {
         ? 3
         : 2;
 
+  const hotelContext = buildHotelContext(hotel, roomTypesWithSpus, starCount);
+
   return (
     <div className="flex flex-col gap-6">
+      <HotelAgentStateSync hotelContext={hotelContext} />
       {/* Breadcrumb */}
       <nav className="text-muted-foreground text-sm">
         <ol className="flex items-center gap-1">
