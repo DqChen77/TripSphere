@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -62,7 +63,7 @@ public class CreateOrderUseCase {
                 .distinct()
                 .toList();
         List<SkuInfo> skus = productPort.batchGetSkus(skuIds);
-        Map<String, SkuInfo> skuMap = skus.stream().collect(Collectors.toMap(SkuInfo::id, s -> s));
+        Map<String, SkuInfo> skuMap = skus.stream().collect(Collectors.toMap(SkuInfo::id, Function.identity()));
 
         for (String skuId : skuIds) {
             SkuInfo sku = skuMap.get(skuId);
@@ -77,7 +78,7 @@ public class CreateOrderUseCase {
                 .distinct()
                 .toList();
         List<SpuInfo> spus = productPort.batchGetSpus(spuIds);
-        Map<String, SpuInfo> spuMap = spus.stream().collect(Collectors.toMap(SpuInfo::id, s -> s));
+        Map<String, SpuInfo> spuMap = spus.stream().collect(Collectors.toMap(SpuInfo::id, Function.identity()));
 
         // Step 3: Validate homogeneity
         OrderContext ctx = validateAndGetContext(command.items(), skuMap, spuMap);

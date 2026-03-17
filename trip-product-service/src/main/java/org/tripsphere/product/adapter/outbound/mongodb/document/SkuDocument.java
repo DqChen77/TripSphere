@@ -2,10 +2,12 @@ package org.tripsphere.product.adapter.outbound.mongodb.document;
 
 import java.util.Map;
 import lombok.Data;
+import org.springframework.data.mongodb.core.mapping.Field;
 import org.tripsphere.product.domain.model.Money;
 
 @Data
 public class SkuDocument {
+    @Field("id")
     private String id;
     private String name;
     private String spuId;

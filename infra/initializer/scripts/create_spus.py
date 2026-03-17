@@ -40,6 +40,7 @@ Output document structure (SpuDocument)
         {
             "id":          str   UUID7
             "name":        str
+            "spuId":       str   (back-reference to parent SPU _id)
             "description": str
             "status":      "ACTIVE"
             "attributes":  null
@@ -136,11 +137,14 @@ def build_money(amount: float) -> dict[str, Any]:
     return {"currency": "CNY", "amount": round(amount, 2)}
 
 
-def build_sku_doc(name: str, description: str, amount: float) -> dict[str, Any]:
+def build_sku_doc(
+    name: str, description: str, amount: float, spu_id: str
+) -> dict[str, Any]:
     """Construct a single SkuDoc sub-document."""
     return {
         "id": generate_id(),
         "name": name,
+        "spuId": spu_id,
         "description": description,
         "status": SKU_STATUS_ACTIVE,
         "attributes": None,
@@ -149,6 +153,7 @@ def build_sku_doc(name: str, description: str, amount: float) -> dict[str, Any]:
 
 
 def build_spu_doc(
+    spu_id: str,
     name: str,
     description: str,
     resource_type: str,
@@ -158,7 +163,7 @@ def build_spu_doc(
 ) -> dict[str, Any]:
     """Construct a single SpuDocument document."""
     return {
-        "_id": generate_id(),
+        "_id": spu_id,
         "name": name,
         "description": description,
         "resourceType": resource_type,
@@ -233,12 +238,15 @@ def generate_hotel_spus(
         multiplier = ROOM_PRICE_MULTIPLIER.get(room_name, DEFAULT_ROOM_MULTIPLIER)
         sku_price = float(round(base_price * multiplier))
 
+        spu_id = generate_id()
         sku = build_sku_doc(
             name="标准入住",
             description="按入住日期计算，价格为单晚费用。",
             amount=sku_price,
+            spu_id=spu_id,
         )
         spu = build_spu_doc(
+            spu_id=spu_id,
             name=room_name,
             description=room_desc,
             resource_type=RESOURCE_TYPE_HOTEL_ROOM,
@@ -313,19 +321,23 @@ def generate_attraction_spus(
 
         child_price = float(max(round(adult_price * 0.5), 1))
 
+        spu_id = generate_id()
         skus = [
             build_sku_doc(
                 name="成人票",
                 description="适用于18岁及以上成人，含景区一日入场资格。",
                 amount=adult_price,
+                spu_id=spu_id,
             ),
             build_sku_doc(
                 name="儿童票",
                 description="适用于18岁以下儿童，含景区一日入场资格。",
                 amount=child_price,
+                spu_id=spu_id,
             ),
         ]
         spu = build_spu_doc(
+            spu_id=spu_id,
             name=f"{attr_name} 一日票",
             description=f"{attr_name}一日游门票，含景区基本入场权益。",
             resource_type=RESOURCE_TYPE_ATTRACTION,

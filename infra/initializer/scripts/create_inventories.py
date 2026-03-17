@@ -415,9 +415,7 @@ def build_summary_document(
 ) -> dict[str, Any]:
     """Build a compact summary document for validation and debugging."""
     hotel_skus = [c for c in contexts if c.resource_type == "HOTEL_ROOM"]
-    attraction_skus = [
-        c for c in contexts if c.resource_type == "ATTRACTION"
-    ]
+    attraction_skus = [c for c in contexts if c.resource_type == "ATTRACTION"]
     return {
         "seed": SEED,
         "inventoryDays": days,
