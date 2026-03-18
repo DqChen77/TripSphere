@@ -1,7 +1,7 @@
 import { Calendar, User, Building2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RoomTypeCard } from "./room-type-card";
-import { HotelAgentStateSync } from "@/components/context/hotel-agent-context";
+import { HotelAgentStateSync } from "@/components/context/hotel-context";
 import { getRoomTypesByHotelId } from "@/lib/data/hotel";
 import { listSpusByRoomType } from "@/lib/data/product";
 import {

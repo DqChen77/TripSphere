@@ -46,7 +46,7 @@ interface Props {
 
 export function HotelAgentStateSync({ hotelContext }: Props) {
   useAgentContext({
-    description: "当前用户正在浏览的酒店详情页面上的酒店和房型信息",
+    description: "hotel context",
     value: JSON.stringify(hotelContext),
   });
 

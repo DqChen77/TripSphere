@@ -1,7 +1,7 @@
 import type { Hotel } from "@/lib/grpc/generated/tripsphere/hotel/v1/hotel";
 import type { RoomType } from "@/lib/grpc/generated/tripsphere/hotel/v1/hotel";
 import type { Spu } from "@/lib/grpc/generated/tripsphere/product/v1/product";
-import type { HotelContext } from "@/components/context/hotel-agent-context";
+import type { HotelContext } from "@/components/context/hotel-context";
 import { formatMoney } from "@/lib/format";
 
 export interface RoomTypeWithSpus {
