@@ -62,16 +62,13 @@ public class ItineraryServiceImpl implements ItineraryService {
         log.debug("Getting itinerary by id: {}", id);
 
         ItineraryDoc doc =
-                itineraryDocRepository
-                        .findById(id)
-                        .orElseThrow(() -> new NotFoundException("Itinerary", id));
+                itineraryDocRepository.findById(id).orElseThrow(() -> new NotFoundException("Itinerary", id));
 
         return itineraryMapper.toProto(doc);
     }
 
     @Override
-    public PageResult<Itinerary> listUserItineraries(
-            String userId, int pageSize, String pageToken) {
+    public PageResult<Itinerary> listUserItineraries(String userId, int pageSize, String pageToken) {
         log.debug("Listing itineraries for user: {}, pageSize: {}", userId, pageSize);
 
         // Normalize page size
@@ -81,12 +78,11 @@ public class ItineraryServiceImpl implements ItineraryService {
         CursorToken cursor = decodeCursorToken(pageToken);
 
         // Fetch one extra to determine if there are more results
-        List<ItineraryDoc> docs =
-                itineraryDocRepository.findByUserIdWithPagination(
-                        userId,
-                        normalizedPageSize + 1,
-                        cursor != null ? cursor.createdAt() : null,
-                        cursor != null ? cursor.id() : null);
+        List<ItineraryDoc> docs = itineraryDocRepository.findByUserIdWithPagination(
+                userId,
+                normalizedPageSize + 1,
+                cursor != null ? cursor.createdAt() : null,
+                cursor != null ? cursor.id() : null);
 
         boolean hasMore = docs.size() > normalizedPageSize;
         if (hasMore) {
@@ -103,6 +99,68 @@ public class ItineraryServiceImpl implements ItineraryService {
         }
 
         return new PageResult<>(itineraries, nextPageToken);
+    }
+
+    @Override
+    public void deleteItinerary(String id) {
+        log.debug("Deleting itinerary: {}", id);
+        if (!itineraryDocRepository.existsById(id)) {
+            throw new NotFoundException("Itinerary", id);
+        }
+        itineraryDocRepository.deleteById(id);
+        log.info("Deleted itinerary with id: {}", id);
+    }
+
+    @Override
+    public Itinerary updateItinerary(Itinerary itinerary) {
+        log.debug("Updating itinerary meta: {}", itinerary.getId());
+
+        if (itinerary.getId().isEmpty()) {
+            throw InvalidArgumentException.required("itinerary.id");
+        }
+
+        ItineraryDoc existing = getItineraryDoc(itinerary.getId());
+        // Map incoming proto to a temporary doc to reuse converter logic for dates and summary
+        ItineraryDoc incoming = itineraryMapper.toDoc(itinerary);
+
+        // Update only meta-level fields; preserve day plans and ownership
+        if (!itinerary.getTitle().isEmpty()) existing.setTitle(itinerary.getTitle());
+        if (itinerary.hasStartDate()) existing.setStartDate(incoming.getStartDate());
+        if (itinerary.hasEndDate()) existing.setEndDate(incoming.getEndDate());
+        if (!itinerary.getDestinationName().isEmpty()) existing.setDestinationName(itinerary.getDestinationName());
+        if (!itinerary.getMarkdownContent().isEmpty()) existing.setMarkdownContent(itinerary.getMarkdownContent());
+        if (itinerary.hasSummary()) existing.setSummary(incoming.getSummary());
+
+        ItineraryDoc saved = itineraryDocRepository.save(existing);
+        log.info("Updated itinerary meta for id: {}", saved.getId());
+        return itineraryMapper.toProto(saved);
+    }
+
+    @Override
+    public Itinerary replaceItinerary(String id, Itinerary itinerary) {
+        log.debug("Replacing itinerary: {}", id);
+
+        ItineraryDoc existing =
+                itineraryDocRepository.findById(id).orElseThrow(() -> new NotFoundException("Itinerary", id));
+
+        ItineraryDoc replacement = itineraryMapper.toDoc(itinerary);
+        // Preserve identity and ownership from the existing document
+        replacement.setId(existing.getId());
+        replacement.setUserId(existing.getUserId());
+        // createdAt is preserved by @CreatedDate + Spring Data (it won't overwrite an existing value)
+        replacement.setCreatedAt(existing.getCreatedAt());
+
+        // Ensure all day plans and activities have IDs
+        if (replacement.getDayPlans() != null) {
+            for (DayPlanDoc dayPlan : replacement.getDayPlans()) {
+                ensureDayPlanId(dayPlan);
+            }
+        }
+
+        ItineraryDoc saved = itineraryDocRepository.save(replacement);
+        log.info("Replaced itinerary with id: {}", saved.getId());
+
+        return itineraryMapper.toProto(saved);
     }
 
     @Override
@@ -131,9 +189,8 @@ public class ItineraryServiceImpl implements ItineraryService {
 
         ItineraryDoc doc = getItineraryDoc(itineraryId);
 
-        boolean removed =
-                doc.getDayPlans() != null
-                        && doc.getDayPlans().removeIf(dp -> dp.getId().equals(dayPlanId));
+        boolean removed = doc.getDayPlans() != null
+                && doc.getDayPlans().removeIf(dp -> dp.getId().equals(dayPlanId));
 
         if (!removed) {
             throw new NotFoundException("DayPlan", dayPlanId);
@@ -144,13 +201,8 @@ public class ItineraryServiceImpl implements ItineraryService {
     }
 
     @Override
-    public Activity addActivity(
-            String itineraryId, String dayPlanId, Activity activity, int insertIndex) {
-        log.debug(
-                "Adding activity to day plan {} in itinerary {} at index {}",
-                dayPlanId,
-                itineraryId,
-                insertIndex);
+    public Activity addActivity(String itineraryId, String dayPlanId, Activity activity, int insertIndex) {
+        log.debug("Adding activity to day plan {} in itinerary {} at index {}", dayPlanId, itineraryId, insertIndex);
 
         ItineraryDoc doc = getItineraryDoc(itineraryId);
         DayPlanDoc dayPlanDoc = findDayPlan(doc, dayPlanId);
@@ -170,11 +222,7 @@ public class ItineraryServiceImpl implements ItineraryService {
         }
 
         itineraryDocRepository.save(doc);
-        log.info(
-                "Added activity {} to day plan {} in itinerary {}",
-                activityDoc.getId(),
-                dayPlanId,
-                itineraryId);
+        log.info("Added activity {} to day plan {} in itinerary {}", activityDoc.getId(), dayPlanId, itineraryId);
 
         return activityMapper.toProto(activityDoc);
     }
@@ -187,10 +235,9 @@ public class ItineraryServiceImpl implements ItineraryService {
             throw InvalidArgumentException.required("activity.id");
         }
 
-        ItineraryDoc doc =
-                itineraryDocRepository
-                        .findByActivityId(activity.getId())
-                        .orElseThrow(() -> new NotFoundException("Activity", activity.getId()));
+        ItineraryDoc doc = itineraryDocRepository
+                .findByActivityId(activity.getId())
+                .orElseThrow(() -> new NotFoundException("Activity", activity.getId()));
 
         // Find the day plan and activity index
         ActivityDoc updatedDoc = activityMapper.toDoc(activity);
@@ -222,29 +269,20 @@ public class ItineraryServiceImpl implements ItineraryService {
 
     @Override
     public void deleteActivity(String itineraryId, String dayPlanId, String activityId) {
-        log.debug(
-                "Deleting activity {} from day plan {} in itinerary {}",
-                activityId,
-                dayPlanId,
-                itineraryId);
+        log.debug("Deleting activity {} from day plan {} in itinerary {}", activityId, dayPlanId, itineraryId);
 
         ItineraryDoc doc = getItineraryDoc(itineraryId);
         DayPlanDoc dayPlanDoc = findDayPlan(doc, dayPlanId);
 
-        boolean removed =
-                dayPlanDoc.getActivities() != null
-                        && dayPlanDoc.getActivities().removeIf(a -> a.getId().equals(activityId));
+        boolean removed = dayPlanDoc.getActivities() != null
+                && dayPlanDoc.getActivities().removeIf(a -> a.getId().equals(activityId));
 
         if (!removed) {
             throw new NotFoundException("Activity", activityId);
         }
 
         itineraryDocRepository.save(doc);
-        log.info(
-                "Deleted activity {} from day plan {} in itinerary {}",
-                activityId,
-                dayPlanId,
-                itineraryId);
+        log.info("Deleted activity {} from day plan {} in itinerary {}", activityId, dayPlanId, itineraryId);
     }
 
     // ==================== Helper Methods ====================
@@ -301,9 +339,7 @@ public class ItineraryServiceImpl implements ItineraryService {
      */
     private String encodeCursorToken(Instant createdAt, String id) {
         String raw = createdAt.toEpochMilli() + CURSOR_SEPARATOR + id;
-        return Base64.getUrlEncoder()
-                .withoutPadding()
-                .encodeToString(raw.getBytes(StandardCharsets.UTF_8));
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
@@ -316,8 +352,7 @@ public class ItineraryServiceImpl implements ItineraryService {
             return null;
         }
         try {
-            String decoded =
-                    new String(Base64.getUrlDecoder().decode(pageToken), StandardCharsets.UTF_8);
+            String decoded = new String(Base64.getUrlDecoder().decode(pageToken), StandardCharsets.UTF_8);
             int separatorIndex = decoded.indexOf(CURSOR_SEPARATOR);
             if (separatorIndex == -1) {
                 log.warn("Invalid cursor token format: {}", pageToken);

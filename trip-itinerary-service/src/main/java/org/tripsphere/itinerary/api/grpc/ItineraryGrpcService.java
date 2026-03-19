@@ -20,14 +20,20 @@ import org.tripsphere.itinerary.v1.DeleteActivityRequest;
 import org.tripsphere.itinerary.v1.DeleteActivityResponse;
 import org.tripsphere.itinerary.v1.DeleteDayPlanRequest;
 import org.tripsphere.itinerary.v1.DeleteDayPlanResponse;
+import org.tripsphere.itinerary.v1.DeleteItineraryRequest;
+import org.tripsphere.itinerary.v1.DeleteItineraryResponse;
 import org.tripsphere.itinerary.v1.GetItineraryRequest;
 import org.tripsphere.itinerary.v1.GetItineraryResponse;
 import org.tripsphere.itinerary.v1.Itinerary;
 import org.tripsphere.itinerary.v1.ItineraryServiceGrpc.ItineraryServiceImplBase;
 import org.tripsphere.itinerary.v1.ListUserItinerariesRequest;
 import org.tripsphere.itinerary.v1.ListUserItinerariesResponse;
+import org.tripsphere.itinerary.v1.ReplaceItineraryRequest;
+import org.tripsphere.itinerary.v1.ReplaceItineraryResponse;
 import org.tripsphere.itinerary.v1.UpdateActivityRequest;
 import org.tripsphere.itinerary.v1.UpdateActivityResponse;
+import org.tripsphere.itinerary.v1.UpdateItineraryRequest;
+import org.tripsphere.itinerary.v1.UpdateItineraryResponse;
 
 @GrpcService
 @RequiredArgsConstructor
@@ -38,8 +44,7 @@ public class ItineraryGrpcService extends ItineraryServiceImplBase {
 
     @Override
     public void createItinerary(
-            CreateItineraryRequest request,
-            StreamObserver<CreateItineraryResponse> responseObserver) {
+            CreateItineraryRequest request, StreamObserver<CreateItineraryResponse> responseObserver) {
         GrpcAuthContext authContext = GrpcAuthContext.current();
         authorizationService.requireAuthenticated(authContext);
 
@@ -54,13 +59,13 @@ public class ItineraryGrpcService extends ItineraryServiceImplBase {
 
         Itinerary created = itineraryService.createItinerary(itineraryWithUser);
 
-        responseObserver.onNext(CreateItineraryResponse.newBuilder().setItinerary(created).build());
+        responseObserver.onNext(
+                CreateItineraryResponse.newBuilder().setItinerary(created).build());
         responseObserver.onCompleted();
     }
 
     @Override
-    public void getItinerary(
-            GetItineraryRequest request, StreamObserver<GetItineraryResponse> responseObserver) {
+    public void getItinerary(GetItineraryRequest request, StreamObserver<GetItineraryResponse> responseObserver) {
         GrpcAuthContext authContext = GrpcAuthContext.current();
 
         if (request.getId().isEmpty()) {
@@ -72,14 +77,14 @@ public class ItineraryGrpcService extends ItineraryServiceImplBase {
 
         Itinerary itinerary = itineraryService.getItinerary(request.getId());
 
-        responseObserver.onNext(GetItineraryResponse.newBuilder().setItinerary(itinerary).build());
+        responseObserver.onNext(
+                GetItineraryResponse.newBuilder().setItinerary(itinerary).build());
         responseObserver.onCompleted();
     }
 
     @Override
     public void listUserItineraries(
-            ListUserItinerariesRequest request,
-            StreamObserver<ListUserItinerariesResponse> responseObserver) {
+            ListUserItinerariesRequest request, StreamObserver<ListUserItinerariesResponse> responseObserver) {
         GrpcAuthContext authContext = GrpcAuthContext.current();
 
         if (request.getUserId().isEmpty()) {
@@ -89,9 +94,8 @@ public class ItineraryGrpcService extends ItineraryServiceImplBase {
         // Check if user can list itineraries for the target user
         authorizationService.checkListAccess(authContext, request.getUserId());
 
-        PageResult<Itinerary> result =
-                itineraryService.listUserItineraries(
-                        request.getUserId(), request.getPageSize(), request.getPageToken());
+        PageResult<Itinerary> result = itineraryService.listUserItineraries(
+                request.getUserId(), request.getPageSize(), request.getPageToken());
 
         ListUserItinerariesResponse.Builder responseBuilder =
                 ListUserItinerariesResponse.newBuilder().addAllItineraries(result.items());
@@ -105,8 +109,67 @@ public class ItineraryGrpcService extends ItineraryServiceImplBase {
     }
 
     @Override
-    public void addDayPlan(
-            AddDayPlanRequest request, StreamObserver<AddDayPlanResponse> responseObserver) {
+    public void deleteItinerary(
+            DeleteItineraryRequest request, StreamObserver<DeleteItineraryResponse> responseObserver) {
+        GrpcAuthContext authContext = GrpcAuthContext.current();
+
+        if (request.getId().isEmpty()) {
+            throw InvalidArgumentException.required("id");
+        }
+
+        authorizationService.checkItineraryAccess(authContext, request.getId());
+
+        itineraryService.deleteItinerary(request.getId());
+
+        responseObserver.onNext(DeleteItineraryResponse.newBuilder().build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void updateItinerary(
+            UpdateItineraryRequest request, StreamObserver<UpdateItineraryResponse> responseObserver) {
+        GrpcAuthContext authContext = GrpcAuthContext.current();
+
+        if (!request.hasItinerary()) {
+            throw InvalidArgumentException.required("itinerary");
+        }
+        if (request.getItinerary().getId().isEmpty()) {
+            throw InvalidArgumentException.required("itinerary.id");
+        }
+
+        authorizationService.checkItineraryAccess(
+                authContext, request.getItinerary().getId());
+
+        Itinerary updated = itineraryService.updateItinerary(request.getItinerary());
+
+        responseObserver.onNext(
+                UpdateItineraryResponse.newBuilder().setItinerary(updated).build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void replaceItinerary(
+            ReplaceItineraryRequest request, StreamObserver<ReplaceItineraryResponse> responseObserver) {
+        GrpcAuthContext authContext = GrpcAuthContext.current();
+
+        if (request.getId().isEmpty()) {
+            throw InvalidArgumentException.required("id");
+        }
+        if (!request.hasItinerary()) {
+            throw InvalidArgumentException.required("itinerary");
+        }
+
+        authorizationService.checkItineraryAccess(authContext, request.getId());
+
+        Itinerary replaced = itineraryService.replaceItinerary(request.getId(), request.getItinerary());
+
+        responseObserver.onNext(
+                ReplaceItineraryResponse.newBuilder().setItinerary(replaced).build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void addDayPlan(AddDayPlanRequest request, StreamObserver<AddDayPlanResponse> responseObserver) {
         GrpcAuthContext authContext = GrpcAuthContext.current();
 
         if (request.getItineraryId().isEmpty()) {
@@ -121,13 +184,13 @@ public class ItineraryGrpcService extends ItineraryServiceImplBase {
 
         DayPlan added = itineraryService.addDayPlan(request.getItineraryId(), request.getDayPlan());
 
-        responseObserver.onNext(AddDayPlanResponse.newBuilder().setDayPlan(added).build());
+        responseObserver.onNext(
+                AddDayPlanResponse.newBuilder().setDayPlan(added).build());
         responseObserver.onCompleted();
     }
 
     @Override
-    public void deleteDayPlan(
-            DeleteDayPlanRequest request, StreamObserver<DeleteDayPlanResponse> responseObserver) {
+    public void deleteDayPlan(DeleteDayPlanRequest request, StreamObserver<DeleteDayPlanResponse> responseObserver) {
         GrpcAuthContext authContext = GrpcAuthContext.current();
 
         if (request.getItineraryId().isEmpty()) {
@@ -147,8 +210,7 @@ public class ItineraryGrpcService extends ItineraryServiceImplBase {
     }
 
     @Override
-    public void addActivity(
-            AddActivityRequest request, StreamObserver<AddActivityResponse> responseObserver) {
+    public void addActivity(AddActivityRequest request, StreamObserver<AddActivityResponse> responseObserver) {
         GrpcAuthContext authContext = GrpcAuthContext.current();
 
         if (request.getItineraryId().isEmpty()) {
@@ -164,21 +226,16 @@ public class ItineraryGrpcService extends ItineraryServiceImplBase {
         // Check access permission
         authorizationService.checkItineraryAccess(authContext, request.getItineraryId());
 
-        Activity added =
-                itineraryService.addActivity(
-                        request.getItineraryId(),
-                        request.getDayPlanId(),
-                        request.getActivity(),
-                        request.getInsertIndex());
+        Activity added = itineraryService.addActivity(
+                request.getItineraryId(), request.getDayPlanId(), request.getActivity(), request.getInsertIndex());
 
-        responseObserver.onNext(AddActivityResponse.newBuilder().setActivity(added).build());
+        responseObserver.onNext(
+                AddActivityResponse.newBuilder().setActivity(added).build());
         responseObserver.onCompleted();
     }
 
     @Override
-    public void updateActivity(
-            UpdateActivityRequest request,
-            StreamObserver<UpdateActivityResponse> responseObserver) {
+    public void updateActivity(UpdateActivityRequest request, StreamObserver<UpdateActivityResponse> responseObserver) {
         GrpcAuthContext authContext = GrpcAuthContext.current();
 
         if (!request.hasActivity()) {
@@ -189,18 +246,18 @@ public class ItineraryGrpcService extends ItineraryServiceImplBase {
         }
 
         // Look up itinerary by activity ID, then check access permission
-        authorizationService.checkActivityAccess(authContext, request.getActivity().getId());
+        authorizationService.checkActivityAccess(
+                authContext, request.getActivity().getId());
 
         Activity updated = itineraryService.updateActivity(request.getActivity());
 
-        responseObserver.onNext(UpdateActivityResponse.newBuilder().setActivity(updated).build());
+        responseObserver.onNext(
+                UpdateActivityResponse.newBuilder().setActivity(updated).build());
         responseObserver.onCompleted();
     }
 
     @Override
-    public void deleteActivity(
-            DeleteActivityRequest request,
-            StreamObserver<DeleteActivityResponse> responseObserver) {
+    public void deleteActivity(DeleteActivityRequest request, StreamObserver<DeleteActivityResponse> responseObserver) {
         GrpcAuthContext authContext = GrpcAuthContext.current();
 
         if (request.getItineraryId().isEmpty()) {
@@ -216,8 +273,7 @@ public class ItineraryGrpcService extends ItineraryServiceImplBase {
         // Check access permission
         authorizationService.checkItineraryAccess(authContext, request.getItineraryId());
 
-        itineraryService.deleteActivity(
-                request.getItineraryId(), request.getDayPlanId(), request.getActivityId());
+        itineraryService.deleteActivity(request.getItineraryId(), request.getDayPlanId(), request.getActivityId());
 
         responseObserver.onNext(DeleteActivityResponse.newBuilder().build());
         responseObserver.onCompleted();

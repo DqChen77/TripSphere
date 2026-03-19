@@ -16,6 +16,9 @@ const runtime = new CopilotRuntime({
     order_assistant: new HttpAgent({
       url: config.copilot.orderAssistantUrl,
     }) as any,
+    itinerary_planner: new HttpAgent({
+      url: config.copilot.itineraryPlannerUrl,
+    }) as any,
   },
 });
 /* eslint-enable @typescript-eslint/no-explicit-any */
