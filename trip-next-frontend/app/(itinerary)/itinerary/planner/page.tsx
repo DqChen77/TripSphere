@@ -59,78 +59,12 @@ function PlannerContent() {
   const [itineraryId, setItineraryId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("saved");
 
-  // ── Local React state drives all rendering ────────────────────────────
-  // These are updated immediately on load and whenever the backend agent
-  // sends a StateSnapshotEvent (via the useCoAgent setState callback below).
   const [itinerary, setItinerary] = useState<Itinerary | null>(null);
   const [markdownContent, setMarkdownContent] = useState<string>("");
 
-  // ── CoAgent — external-state-management mode ──────────────────────────
-  // We pass our React state *in*, so CopilotKit sends it to the backend
-  // on every agent run (the agent always starts with the latest itinerary).
-  // When the backend tools mutate itinerary/markdown and emit a
-  // StateSnapshotEvent, CopilotKit calls our setState callback, which
-  // updates the React state and triggers a re-render immediately.
-  useCoAgent<AgentState>({
-    name: "itinerary_planner",
-    state: { itinerary, markdown_content: markdownContent },
-    setState: (newState) => {
-      const next =
-        typeof newState === "function"
-          ? newState({ itinerary, markdown_content: markdownContent })
-          : newState;
-      if (next.itinerary != null) setItinerary(next.itinerary);
-      if (next.markdown_content !== undefined)
-        setMarkdownContent(next.markdown_content);
-    },
-  });
-
-  // ── Skip sync on initial state population ────────────────────────────
-  const isFirstLoad = useRef(true);
-
-  // ── Load itinerary ───────────────────────────────────────────────────────
-
-  useEffect(() => {
-    async function load() {
-      const params = new URLSearchParams(window.location.search);
-      const idParam = params.get("id");
-
-      if (idParam) {
-        // Load from persisted backend storage
-        try {
-          const data = await getItinerary(idParam);
-          isFirstLoad.current = true;
-          setItinerary(data.itinerary);
-          setMarkdownContent(data.markdown_content);
-          setItineraryId(idParam);
-        } catch (err) {
-          console.error("Failed to load itinerary:", err);
-        }
-      } else {
-        // Load fresh plan from sessionStorage (just-planned itinerary)
-        const raw = sessionStorage.getItem("itinerary_plan_result");
-        if (raw) {
-          try {
-            const data = JSON.parse(raw) as PlanItineraryResult;
-            // Update URL so future reloads/refreshes load from MongoDB
-            const url = new URL(window.location.href);
-            url.searchParams.set("id", data.itinerary.id);
-            window.history.replaceState({}, "", url.toString());
-            isFirstLoad.current = true;
-            setItinerary(data.itinerary);
-            setMarkdownContent(data.markdown_content);
-            setItineraryId(data.itinerary.id);
-          } catch {
-            /* ignore parse errors */
-          }
-        }
-      }
-      setLoaded(true);
-    }
-    load();
-  }, []);
-
   // ── Debounced persistence sync ───────────────────────────────────────────
+
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const syncToBackend = useCallback(
     async (current: Itinerary, markdown: string, id: string) => {
@@ -146,26 +80,89 @@ function PlannerContent() {
     [],
   );
 
-  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleSyncToBackend = useCallback(
+    (current: Itinerary, markdown: string, id: string) => {
+      setSyncStatus("unsaved");
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+      debounceTimer.current = setTimeout(() => {
+        syncToBackend(current, markdown, id);
+      }, 1500);
+    },
+    [syncToBackend],
+  );
 
   useEffect(() => {
-    // Skip the very first population from REST API
-    if (isFirstLoad.current) {
-      isFirstLoad.current = false;
-      return;
-    }
-    if (!itinerary || !itineraryId) return;
-
-    setSyncStatus("unsaved");
-    if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    debounceTimer.current = setTimeout(() => {
-      syncToBackend(itinerary, markdownContent, itineraryId);
-    }, 1500);
-
     return () => {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
     };
-  }, [itinerary, markdownContent, itineraryId, syncToBackend]);
+  }, []);
+
+  // ── CoAgent — external-state-management mode ──────────────────────────
+  // We pass our React state *in*, so CopilotKit sends it to the backend
+  // on every agent run (the agent always starts with the latest itinerary).
+  // When the backend tools mutate itinerary/markdown and emit a
+  // StateSnapshotEvent, CopilotKit calls our setState callback, which
+  // updates the React state and triggers a re-render immediately.
+  useCoAgent<AgentState>({
+    name: "itinerary_planner",
+    state: { itinerary, markdown_content: markdownContent },
+    setState: (newState) => {
+      const next =
+        typeof newState === "function"
+          ? newState({ itinerary, markdown_content: markdownContent })
+          : newState;
+      const nextItinerary = next.itinerary ?? itinerary;
+      const nextMarkdown =
+        next.markdown_content !== undefined
+          ? next.markdown_content
+          : markdownContent;
+      const changed =
+        next.itinerary != null || next.markdown_content !== undefined;
+      if (next.itinerary != null) setItinerary(next.itinerary);
+      if (next.markdown_content !== undefined)
+        setMarkdownContent(next.markdown_content);
+      if (changed && nextItinerary && itineraryId) {
+        scheduleSyncToBackend(nextItinerary, nextMarkdown, itineraryId);
+      }
+    },
+  });
+
+  // ── Load itinerary ───────────────────────────────────────────────────────
+
+  useEffect(() => {
+    async function load() {
+      const params = new URLSearchParams(window.location.search);
+      const idParam = params.get("id");
+
+      if (idParam) {
+        try {
+          const data = await getItinerary(idParam);
+          setItinerary(data.itinerary);
+          setMarkdownContent(data.markdown_content);
+          setItineraryId(idParam);
+        } catch (err) {
+          console.error("Failed to load itinerary:", err);
+        }
+      } else {
+        const raw = sessionStorage.getItem("itinerary_plan_result");
+        if (raw) {
+          try {
+            const data = JSON.parse(raw) as PlanItineraryResult;
+            const url = new URL(window.location.href);
+            url.searchParams.set("id", data.itinerary.id);
+            window.history.replaceState({}, "", url.toString());
+            setItinerary(data.itinerary);
+            setMarkdownContent(data.markdown_content);
+            setItineraryId(data.itinerary.id);
+          } catch {
+            /* ignore parse errors */
+          }
+        }
+      }
+      setLoaded(true);
+    }
+    load();
+  }, []);
 
   // ── Render ───────────────────────────────────────────────────────────────
 

@@ -289,7 +289,9 @@ function DayCard({ day, onClick }: { day: DayPlan; onClick: () => void }) {
                   >
                     <span>{meta.icon}</span>
                     <span className="max-w-[5rem] truncate">
-                      {a.kind === "hotel_stay" ? `住在${a.name || "目的地"}` : a.name}
+                      {a.kind === "hotel_stay"
+                        ? `住在${a.name || "目的地"}`
+                        : a.name}
                     </span>
                   </span>
                 );
@@ -399,7 +401,7 @@ function ActivityCard({
                 <p className="text-[10px] font-medium text-emerald-500">免费</p>
               )}
               {activity.kind !== "hotel_stay" && (
-                <p className="mt-0.5 text-[10px] text-gray-400 whitespace-nowrap">
+                <p className="mt-0.5 text-[10px] whitespace-nowrap text-gray-400">
                   止 {activity.end_time}
                 </p>
               )}

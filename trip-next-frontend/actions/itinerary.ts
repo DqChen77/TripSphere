@@ -9,8 +9,11 @@ import {
   type DayPlan as ProtoDayPlan,
   type Activity as ProtoActivity,
   type ItinerarySummary as ProtoItinerarySummary,
-  type CreateItineraryRequest,
   type ReplaceItineraryRequest,
+  type ListUserItinerariesRequest,
+  type ListUserItinerariesResponse,
+  type GetItineraryRequest,
+  type GetItineraryResponse,
 } from "@/lib/grpc/generated/tripsphere/itinerary/v1/itinerary";
 import type { Metadata } from "@grpc/grpc-js";
 
@@ -103,10 +106,14 @@ export interface SavedItinerarySummary {
 
 function formatAddressLine(addr: Address | undefined): string {
   if (!addr) return "";
-  return [addr.province, addr.city, addr.district, addr.detailed].filter(Boolean).join("");
+  return [addr.province, addr.city, addr.district, addr.detailed]
+    .filter(Boolean)
+    .join("");
 }
 
-function formatDate(d: { year: number; month: number; day: number } | undefined): string {
+function formatDate(
+  d: { year: number; month: number; day: number } | undefined,
+): string {
   if (!d) return "";
   return `${d.year.toString().padStart(4, "0")}-${d.month.toString().padStart(2, "0")}-${d.day.toString().padStart(2, "0")}`;
 }
@@ -391,8 +398,8 @@ export async function listMyItineraries(): Promise<SavedItinerarySummary[]> {
   if (!userId) throw new Error("Missing x-user-id header");
 
   const { itineraries } = await callGrpc<
-    Parameters<typeof client.listUserItineraries>[0],
-    Awaited<ReturnType<typeof client.listUserItineraries>>
+    ListUserItinerariesRequest,
+    ListUserItinerariesResponse
   >(
     client,
     "listUserItineraries",
@@ -416,8 +423,8 @@ export async function getItinerary(id: string): Promise<PlanItineraryResult> {
   const metadata = await getAuthMetadata();
 
   const { itinerary } = await callGrpc<
-    Parameters<typeof client.getItinerary>[0],
-    Awaited<ReturnType<typeof client.getItinerary>>
+    GetItineraryRequest,
+    GetItineraryResponse
   >(client, "getItinerary", { id }, metadata);
 
   if (!itinerary) throw new Error("Itinerary not found");
