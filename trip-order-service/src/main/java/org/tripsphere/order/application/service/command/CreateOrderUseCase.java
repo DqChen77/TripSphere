@@ -15,9 +15,13 @@ import org.tripsphere.order.application.dto.LockItemData;
 import org.tripsphere.order.application.exception.InvalidArgumentException;
 import org.tripsphere.order.application.port.InventoryPort;
 import org.tripsphere.order.application.port.OrderCachePort;
-import org.tripsphere.order.config.OrderProperties;
+import org.tripsphere.order.application.port.OrderRepository;
+import org.tripsphere.order.application.service.OrderItemAssembler;
+import org.tripsphere.order.application.service.OrderItemAssembler.AssembledOrder;
+import org.tripsphere.order.application.service.OrderValidationService;
+import org.tripsphere.order.application.service.OrderValidationService.ValidatedOrderContext;
 import org.tripsphere.order.domain.model.Order;
-import org.tripsphere.order.domain.repository.OrderRepository;
+import org.tripsphere.order.infrastructure.config.OrderProperties;
 
 @Slf4j
 @Service
@@ -27,8 +31,8 @@ public class CreateOrderUseCase {
     private final OrderRepository orderRepository;
     private final InventoryPort inventoryPort;
     private final OrderCachePort cachePort;
-    private final OrderValidator validator;
-    private final OrderItemFactory itemFactory;
+    private final OrderValidationService validationService;
+    private final OrderItemAssembler itemAssembler;
     private final OrderProperties properties;
 
     public Order execute(CreateOrderCommand command) {
@@ -39,7 +43,7 @@ public class CreateOrderUseCase {
 
         checkDuplicateSubmission(command);
 
-        OrderValidator.ValidatedOrderContext ctx = validator.validate(command);
+        ValidatedOrderContext ctx = validationService.validate(command);
 
         String orderId = UUID.randomUUID().toString();
         String orderNo = generateOrderNo();
@@ -67,14 +71,10 @@ public class CreateOrderUseCase {
 
     @Transactional
     protected Order persistOrderAndCacheExpiry(
-            String orderId,
-            String orderNo,
-            CreateOrderCommand command,
-            OrderValidator.ValidatedOrderContext ctx,
-            String lockId) {
+            String orderId, String orderNo, CreateOrderCommand command, ValidatedOrderContext ctx, String lockId) {
 
-        OrderItemFactory.AssembledOrder assembled =
-                itemFactory.assemble(command.items(), ctx.skuMap(), ctx.spuMap(), orderId, lockId, ctx.resourceId());
+        AssembledOrder assembled =
+                itemAssembler.assemble(command.items(), ctx.skuMap(), ctx.spuMap(), orderId, lockId, ctx.resourceId());
 
         long now = java.time.Instant.now().getEpochSecond();
         Order order = Order.create(
