@@ -14,14 +14,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { type DateRange } from "react-day-picker";
 import { zhCN } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { formatDate } from "@/lib/format";
 import {
   createItineraryPlan,
   type TravelInterest,
@@ -41,13 +45,6 @@ const PACE_OPTIONS: { value: TripPace; label: string; desc: string }[] = [
   { value: "moderate", label: "适中", desc: "每天 3 个活动" },
   { value: "intense", label: "紧凑", desc: "每天 4 个活动" },
 ];
-
-function formatDateLabel(date: Date): string {
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const weekdays = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
-  return `${month}月${day}日(${weekdays[date.getDay()]})`;
-}
 
 interface ItineraryPlanFormProps {
   today: string;
@@ -78,14 +75,6 @@ export function ItineraryPlanForm({ today: todayStr }: ItineraryPlanFormProps) {
       (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
     ) + 1;
 
-  function toggleInterest(interest: TravelInterest) {
-    setInterests((prev) =>
-      prev.includes(interest)
-        ? prev.filter((i) => i !== interest)
-        : [...prev, interest],
-    );
-  }
-
   function handleSubmit() {
     if (!destination.trim()) {
       setError("请输入目的地");
@@ -113,13 +102,11 @@ export function ItineraryPlanForm({ today: todayStr }: ItineraryPlanFormProps) {
   }
 
   return (
-    <div className="flex flex-col gap-6 rounded-xl bg-white p-6 shadow-lg">
-      {/* Row 1: Destination + Dates */}
+    <div className="bg-card flex flex-col gap-6 rounded-xl border p-6 shadow-lg">
       <div className="flex items-end gap-4">
-        {/* Destination */}
         <div className="flex flex-1 flex-col gap-2">
-          <Label className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
-            <MapPin className="size-4 text-blue-500" />
+          <Label className="flex items-center gap-1.5">
+            <MapPin className="text-primary size-4" />
             目的地
           </Label>
           <Input
@@ -130,10 +117,9 @@ export function ItineraryPlanForm({ today: todayStr }: ItineraryPlanFormProps) {
           />
         </div>
 
-        {/* Date Range */}
         <div className="flex flex-col gap-2">
-          <Label className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
-            <CalendarDays className="size-4 text-blue-500" />
+          <Label className="flex items-center gap-1.5">
+            <CalendarDays className="text-primary size-4" />
             出行日期
           </Label>
           <Popover>
@@ -143,11 +129,11 @@ export function ItineraryPlanForm({ today: todayStr }: ItineraryPlanFormProps) {
                 className="h-11 min-w-[260px] justify-start gap-2"
               >
                 <span className="text-sm">
-                  {formatDateLabel(startDate)} - {formatDateLabel(endDate)}
+                  {formatDate(startDate)} - {formatDate(endDate)}
                 </span>
                 <Badge
                   variant="secondary"
-                  className="ml-auto rounded-md bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-600"
+                  className="bg-primary/10 text-primary ml-auto rounded-md px-1.5 py-0.5 text-xs font-medium"
                 >
                   {days}天
                 </Badge>
@@ -168,84 +154,78 @@ export function ItineraryPlanForm({ today: todayStr }: ItineraryPlanFormProps) {
         </div>
       </div>
 
-      {/* Row 2: Interests */}
       <div className="flex flex-col gap-2">
-        <Label className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
-          <Sparkles className="size-4 text-blue-500" />
+        <Label className="flex items-center gap-1.5">
+          <Sparkles className="text-primary size-4" />
           旅行偏好
         </Label>
-        <div className="flex flex-wrap gap-2">
-          {INTEREST_OPTIONS.map((opt) => {
-            const selected = interests.includes(opt.value);
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => toggleInterest(opt.value)}
-                className={`rounded-full border px-4 py-1.5 text-sm font-medium transition-colors ${
-                  selected
-                    ? "border-blue-500 bg-blue-50 text-blue-700"
-                    : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-                }`}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
-        </div>
+        <ToggleGroup
+          type="multiple"
+          value={interests}
+          onValueChange={(v) => setInterests(v as TravelInterest[])}
+          className="flex flex-wrap justify-start gap-2"
+        >
+          {INTEREST_OPTIONS.map((opt) => (
+            <ToggleGroupItem
+              key={opt.value}
+              value={opt.value}
+              className={cn(
+                "rounded-full border px-4 py-1.5 text-sm font-medium",
+                "data-[state=on]:bg-primary/10 data-[state=on]:text-primary data-[state=on]:border-primary/40",
+              )}
+            >
+              {opt.label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
       </div>
 
-      {/* Row 3: Pace */}
       <div className="flex flex-col gap-2">
-        <Label className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
-          <Gauge className="size-4 text-blue-500" />
+        <Label className="flex items-center gap-1.5">
+          <Gauge className="text-primary size-4" />
           行程节奏
         </Label>
-        <div className="flex gap-3">
-          {PACE_OPTIONS.map((opt) => {
-            const selected = pace === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setPace(opt.value)}
-                className={`flex flex-col items-center rounded-lg border px-6 py-3 text-sm transition-colors ${
-                  selected
-                    ? "border-blue-500 bg-blue-50 text-blue-700"
-                    : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-                }`}
-              >
-                <span className="font-medium">{opt.label}</span>
-                <span className="mt-0.5 text-xs opacity-70">{opt.desc}</span>
-              </button>
-            );
-          })}
-        </div>
+        <ToggleGroup
+          type="single"
+          value={pace}
+          onValueChange={(v) => v && setPace(v as TripPace)}
+          className="flex justify-start gap-3"
+        >
+          {PACE_OPTIONS.map((opt) => (
+            <ToggleGroupItem
+              key={opt.value}
+              value={opt.value}
+              className={cn(
+                "flex h-auto min-h-0 flex-col items-center justify-center gap-0.5 rounded-lg border px-6 py-3 text-sm",
+                "data-[state=on]:bg-primary/10 data-[state=on]:text-primary data-[state=on]:border-primary/40",
+              )}
+            >
+              <span className="font-medium">{opt.label}</span>
+              <span className="text-xs opacity-70">{opt.desc}</span>
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
       </div>
 
-      {/* Row 4: Additional Preferences */}
       <div className="flex flex-col gap-2">
-        <Label className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
-          <MessageSquare className="size-4 text-blue-500" />
+        <Label className="flex items-center gap-1.5">
+          <MessageSquare className="text-primary size-4" />
           其他偏好（选填）
         </Label>
-        <textarea
+        <Textarea
           value={additionalPreferences}
           onChange={(e) => setAdditionalPreferences(e.target.value)}
           placeholder="例如：带小孩出行、偏好美食、预算有限……"
           rows={2}
-          className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs focus-visible:ring-[3px] focus-visible:outline-none"
         />
       </div>
 
-      {/* Error */}
-      {error && <p className="text-sm font-medium text-red-500">{error}</p>}
+      {error && <p className="text-destructive text-sm font-medium">{error}</p>}
 
-      {/* Submit */}
       <Button
         onClick={handleSubmit}
         disabled={isPending}
-        className="h-12 cursor-pointer gap-2 bg-blue-600 text-base font-semibold text-white hover:bg-blue-700"
+        className="h-12 cursor-pointer gap-2 text-base font-semibold"
       >
         {isPending ? (
           <>

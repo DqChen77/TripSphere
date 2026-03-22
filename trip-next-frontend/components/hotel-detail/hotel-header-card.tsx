@@ -39,7 +39,7 @@ export function HotelHeaderCard({ hotel }: HotelHeaderCardProps) {
           <div className="text-muted-foreground mt-1 flex items-center gap-2 text-sm">
             <MapPin className="size-4" />
             <span>{address}</span>
-            <button className="text-blue-500 hover:underline">显示地图</button>
+            <button className="text-primary hover:underline">显示地图</button>
           </div>
           {hotel.tags.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-2">
@@ -62,9 +62,7 @@ export function HotelHeaderCard({ hotel }: HotelHeaderCardProps) {
             </span>
             <span className="text-muted-foreground text-sm">起</span>
           </div>
-          <Button className="bg-blue-500 px-6 hover:bg-blue-600">
-            选择房间
-          </Button>
+          <Button className="px-6">选择房间</Button>
         </div>
       </div>
 
@@ -142,7 +140,7 @@ export function HotelHeaderCard({ hotel }: HotelHeaderCardProps) {
                 ))}
               </div>
               {hotel.amenities.length > 8 && (
-                <button className="mt-3 text-sm text-blue-500 hover:underline">
+                <button className="text-primary mt-3 text-sm hover:underline">
                   查看全部{hotel.amenities.length}项设施
                 </button>
               )}
@@ -157,7 +155,7 @@ export function HotelHeaderCard({ hotel }: HotelHeaderCardProps) {
               <p className="text-muted-foreground line-clamp-3 text-sm leading-relaxed">
                 {hotel.information.introduction}
               </p>
-              <button className="mt-2 text-sm text-blue-500 hover:underline">
+              <button className="text-primary mt-2 text-sm hover:underline">
                 查看更多
               </button>
             </div>

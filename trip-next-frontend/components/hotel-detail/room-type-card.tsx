@@ -62,11 +62,11 @@ export function RoomTypeCard({ roomType, spus }: RoomTypeWithSpus) {
             {roomType.amenities.slice(0, 3).map((amenity) => (
               <div key={amenity} className="flex items-center gap-2">
                 <AmenityIcon name={amenity} className="size-4" />
-                <span className="text-blue-500">{amenity}</span>
+                <span className="text-primary">{amenity}</span>
               </div>
             ))}
           </div>
-          <button className="mt-3 text-sm text-blue-500 hover:underline">
+          <button className="text-primary mt-3 text-sm hover:underline">
             房间详情
           </button>
         </div>
@@ -111,7 +111,7 @@ export function RoomTypeCard({ roomType, spus }: RoomTypeWithSpus) {
 
           {spus.length > 0 && lowestPrice > 0 && (
             <div className="border-t p-3 text-center">
-              <button className="text-sm text-blue-500 hover:underline">
+              <button className="text-primary text-sm hover:underline">
                 展示更多价格选项
               </button>
             </div>

@@ -16,15 +16,15 @@ export default function ItineraryPage() {
   return (
     <div className="flex h-[calc(100vh-4rem)] w-full items-start">
       <aside className="flex w-14/30 min-w-0 flex-col gap-2 px-6">
-        <h2 className="text-2xl font-bold text-gray-700 drop-shadow-md pt-4">
-          <Sparkles className="inline-block size-7 text-amber-300" />
+        <h2 className="text-foreground inline-flex items-center gap-1 pt-4 text-2xl font-bold drop-shadow-md">
+          <Sparkles className="inline-block text-amber-300" />
           AI行程助手
         </h2>
 
         <ItineraryPlanForm today={today} />
 
-        <section className="flex flex-col gap-3">
-          <h2 className="text-xl font-semibold text-gray-700">我的线路</h2>
+        <section className="mt-2 flex flex-col gap-3">
+          <h2 className="text-foreground text-xl font-semibold">我的线路</h2>
           <Suspense fallback={<ItineraryListSkeleton />}>
             <ItineraryList dataPromise={itinerariesPromise} />
           </Suspense>

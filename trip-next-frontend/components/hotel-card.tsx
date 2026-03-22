@@ -40,7 +40,7 @@ export function HotelCard({ hotel }: { hotel: HotelCardData }) {
         <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
           {hotel.rating != null ? (
             <>
-              <Badge className="rounded-md bg-blue-600 px-1.5 py-0.5 text-xs font-bold text-white">
+              <Badge className="rounded-md px-1.5 py-0.5 text-xs font-bold">
                 {hotel.rating}
               </Badge>
               <span className="text-xs font-medium text-white drop-shadow-md">

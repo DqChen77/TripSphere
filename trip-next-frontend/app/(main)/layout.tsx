@@ -33,7 +33,6 @@ export default function MainLayout({
             defaultOpen={true}
             width="30rem"
             labels={COPILOT_LABELS}
-            autoFocus={true}
           />
         </main>
       </SidebarInset>

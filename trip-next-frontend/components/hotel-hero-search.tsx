@@ -80,7 +80,7 @@ export function HotelHeroSearch({ today: todayStr }: HotelHeroSearchProps) {
         }}
       />
       {/* Overlay gradient for better text readability */}
-      <div className="absolute inset-0 bg-gradient-to-b from-blue-600/40 via-blue-500/20 to-blue-400/30" />
+      <div className="from-primary/40 via-primary/20 to-primary/30 absolute inset-0 bg-gradient-to-b" />
 
       {/* Content */}
       <div className="relative z-10 flex flex-col gap-8 px-10 pt-10 pb-14">
@@ -94,7 +94,7 @@ export function HotelHeroSearch({ today: todayStr }: HotelHeroSearchProps) {
         <div className="bg-card flex h-14 items-center rounded-xl p-2 shadow-lg">
           {/* Location */}
           <SearchField className="w-1/6">
-            <MapPin className="size-4 shrink-0 text-blue-500" />
+            <MapPin className="text-primary size-4 shrink-0" />
             <span className="text-foreground text-sm font-medium">
               {location || "目的地"}
             </span>
@@ -114,7 +114,7 @@ export function HotelHeroSearch({ today: todayStr }: HotelHeroSearchProps) {
           <Popover>
             <PopoverTrigger asChild>
               <button className="hover:bg-accent flex min-w-[220px] cursor-pointer items-center gap-2 rounded-lg px-3 py-2 transition-colors">
-                <CalendarDays className="size-4 shrink-0 text-blue-500" />
+                <CalendarDays className="text-primary size-4 shrink-0" />
                 <span className="text-foreground text-sm font-medium">
                   {formatDate(checkIn)}
                 </span>
@@ -124,7 +124,7 @@ export function HotelHeroSearch({ today: todayStr }: HotelHeroSearchProps) {
                 </span>
                 <Badge
                   variant="secondary"
-                  className="ml-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-600"
+                  className="bg-primary/10 text-primary ml-1 rounded-md px-1.5 py-0.5 text-xs font-medium"
                 >
                   {nights}晚
                 </Badge>
@@ -152,7 +152,7 @@ export function HotelHeroSearch({ today: todayStr }: HotelHeroSearchProps) {
           <Popover>
             <PopoverTrigger asChild>
               <button className="hover:bg-accent flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 transition-colors">
-                <Users className="size-4 shrink-0 text-blue-500" />
+                <Users className="text-primary size-4 shrink-0" />
                 <span className="text-foreground text-sm font-medium">
                   {rooms}间, {adults}成人, {children}儿童
                 </span>
@@ -207,7 +207,7 @@ export function HotelHeroSearch({ today: todayStr }: HotelHeroSearchProps) {
           {/* Search Button */}
           <Button
             onClick={handleSearch}
-            className="ml-2 h-10 cursor-pointer gap-1.5 rounded-lg bg-blue-600 px-6 text-white hover:bg-blue-700"
+            className="ml-2 h-10 cursor-pointer gap-1.5 rounded-lg px-6"
           >
             <Search className="size-4" />
             搜索

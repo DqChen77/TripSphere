@@ -80,7 +80,7 @@ export function SkuRow({ sku, maxOccupancy, isLast }: SkuRowProps) {
           <span className="text-xl font-bold text-orange-500">
             ¥{Math.round(price)}
           </span>
-          <Button size="sm" className="bg-blue-500 px-6 hover:bg-blue-600">
+          <Button size="sm" className="px-6">
             预订
           </Button>
         </div>

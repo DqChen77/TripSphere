@@ -1,12 +1,10 @@
 import { revalidatePath } from "next/cache";
-
 import {
   deleteItinerary,
   type SavedItinerarySummary,
 } from "@/actions/itinerary";
 import { ItineraryListClient } from "@/components/itinerary/itinerary-list-client";
-
-// ── Server Action ──────────────────────────────────────────────────────────
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 async function deleteItineraryAction(formData: FormData) {
   "use server";
@@ -14,8 +12,6 @@ async function deleteItineraryAction(formData: FormData) {
   await deleteItinerary(id);
   revalidatePath("/itinerary");
 }
-
-// ── Component ──────────────────────────────────────────────────────────────
 
 interface Props {
   dataPromise: Promise<SavedItinerarySummary[]>;
@@ -33,21 +29,21 @@ export async function ItineraryList({ dataPromise }: Props) {
 
   if (error) {
     return (
-      <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-500">
-        {error}
-      </div>
+      <Alert variant="destructive">
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
     );
   }
 
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center rounded-xl border border-dashed border-gray-200 py-10 text-center">
+      <div className="border-border flex flex-col items-center rounded-xl border border-dashed py-10 text-center">
         <span className="text-4xl">🗺️</span>
-        <p className="mt-3 text-sm font-medium text-gray-500">
+        <p className="text-muted-foreground mt-3 text-sm font-medium">
           还没有保存的行程
         </p>
-        <p className="mt-1 text-xs text-gray-400">
-          用 AI 规划你的第一次旅行吧！
+        <p className="text-muted-foreground/70 mt-1 text-xs">
+          用AI规划你的第一次旅行吧！
         </p>
       </div>
     );
