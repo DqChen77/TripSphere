@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useCoAgent } from "@copilotkit/react-core";
 import { CopilotSidebar } from "@copilotkit/react-core/v2";
-import { MapPanel } from "@/components/map-panel";
-import { ItineraryViewer } from "@/components/itinerary-viewer";
+import { MapPlaceholder } from "@/components/itinerary/map-placeholder";
+import { ItineraryViewer } from "@/components/itinerary/itinerary-viewer";
 import {
   getItinerary,
   updateSavedItinerary,
@@ -206,7 +206,7 @@ function PlannerContent() {
         <div className="flex items-center gap-3">
           <SyncBadge status={syncStatus} />
           <a
-            href="/itinerary/my"
+            href="/itinerary"
             className="text-xs text-blue-500 hover:underline"
           >
             我的行程
@@ -216,13 +216,13 @@ function PlannerContent() {
 
       {/* Main layout */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left: Map Panel */}
-        <div className="hidden w-[300px] shrink-0 border-r p-3 lg:block">
-          <MapPanel />
+        {/* Left: Map (takes remaining space) */}
+        <div className="hidden min-w-0 flex-1 overflow-hidden border-r lg:block">
+          <MapPlaceholder />
         </div>
 
-        {/* Center: Itinerary Viewer */}
-        <div className="min-w-0 flex-1 overflow-hidden">
+        {/* Center: Itinerary Viewer (fixed 40rem) */}
+        <div className="w-[40rem] shrink-0 overflow-hidden">
           <ItineraryViewer
             itinerary={itinerary}
             markdownContent={markdownContent}
@@ -233,9 +233,9 @@ function PlannerContent() {
         <CopilotSidebar
           agentId="itinerary_planner"
           defaultOpen={true}
-          width="24rem"
+          width="30rem"
           labels={{
-            modalHeaderTitle: `AI 行程助手 · ${itinerary.destination}`,
+            modalHeaderTitle: `AI行程助手 · ${itinerary.destination}`,
             chatInputPlaceholder: "告诉我你想如何修改行程……",
           }}
           autoFocus={true}
