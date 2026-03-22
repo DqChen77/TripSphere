@@ -4,6 +4,7 @@ import { useState } from "react";
 import Markdown from "react-markdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Itinerary, DayPlan, Activity } from "@/actions/itinerary";
+import { formatDateMonthDaySlash, formatDateWithWeekday } from "@/lib/format";
 
 const CATEGORY_META: Record<
   string,
@@ -106,24 +107,6 @@ function getCategoryMeta(activity: Activity) {
   return CATEGORY_META[activity.category] ?? DEFAULT_META;
 }
 
-const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
-
-function shortDate(dateStr: string): string {
-  const [, m, d] = dateStr.split("-");
-  return `${parseInt(m, 10)}/${parseInt(d, 10)}`;
-}
-
-function fullDateLabel(dateStr: string): { date: string; weekday: string } {
-  if (!dateStr) return { date: "", weekday: "" };
-  const [, m, d] = dateStr.split("-");
-  const month = parseInt(m, 10);
-  const day = parseInt(d, 10);
-  if (isNaN(month) || isNaN(day)) return { date: dateStr, weekday: "" };
-  const dt = new Date(`${dateStr}T12:00:00`);
-  const weekday = Number.isFinite(dt.getDay()) ? WEEKDAYS[dt.getDay()] : "";
-  return { date: `${month}月${day}日`, weekday };
-}
-
 function safeNotes(value: string | null | undefined): string {
   if (!value || value === "undefined" || value === "null") return "";
   return value;
@@ -197,7 +180,7 @@ function TripHeader({ itinerary }: { itinerary: Itinerary }) {
 }
 
 function DayCard({ day, onClick }: { day: DayPlan; onClick: () => void }) {
-  const { date, weekday } = fullDateLabel(day.date);
+  const { date, weekday } = formatDateWithWeekday(day.date);
   const notes = safeNotes(day.notes);
   const dayCost = day.activities.reduce(
     (s, a) => s + (a.estimated_cost?.amount ?? 0),
@@ -398,7 +381,7 @@ function ActivityCard({
 }
 
 function DayDetail({ day }: { day: DayPlan }) {
-  const { date, weekday } = fullDateLabel(day.date);
+  const { date, weekday } = formatDateWithWeekday(day.date);
   const notes = safeNotes(day.notes);
   const totalCost = day.activities.reduce(
     (s, a) => s + (a.estimated_cost?.amount ?? 0),
@@ -575,7 +558,7 @@ export function ItineraryViewer({ itinerary, markdownContent }: Props) {
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <span className="text-4xl">✨</span>
               <p className="text-muted-foreground mt-3 text-sm">
-                旅行灵感正在生成中……
+                旅行灵感正在生成中…
               </p>
             </div>
           )}
@@ -608,7 +591,9 @@ export function ItineraryViewer({ itinerary, markdownContent }: Props) {
                 }`}
               >
                 第{day.day_number}天
-                <span className="ml-1 opacity-60">{shortDate(day.date)}</span>
+                <span className="ml-1 opacity-60">
+                  {formatDateMonthDaySlash(day.date)}
+                </span>
               </button>
             ))}
           </div>

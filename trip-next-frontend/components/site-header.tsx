@@ -31,7 +31,7 @@ export async function SiteHeader({ ...props }: React.ComponentProps<"header">) {
           <Input
             id="site-search"
             type="search"
-            placeholder="搜索任何旅游相关……"
+            placeholder="搜索任何旅游相关…"
             className="h-9 pr-4 pl-9"
           />
         </div>

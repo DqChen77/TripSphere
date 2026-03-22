@@ -173,7 +173,7 @@ function PlannerContent() {
   if (!loaded) {
     return (
       <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
-        <p className="text-muted-foreground">加载中……</p>
+        <p className="text-muted-foreground">加载中…</p>
       </div>
     );
   }
@@ -235,7 +235,7 @@ function PlannerContent() {
           width="30rem"
           labels={{
             modalHeaderTitle: `AI行程助手 · ${itinerary.destination}`,
-            chatInputPlaceholder: "告诉我你想如何修改行程……",
+            chatInputPlaceholder: "告诉我你想如何修改行程…",
           }}
         />
       </div>

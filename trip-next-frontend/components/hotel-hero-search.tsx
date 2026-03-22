@@ -221,7 +221,7 @@ export function HotelHeroSearch({ today: todayStr }: HotelHeroSearchProps) {
               id="hotel-keyword-search"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="位置/品牌/酒店（选填）"
+              placeholder="位置/品牌/酒店（选填）…"
               className="placeholder:text-muted-foreground/70 h-9 border-none bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
             />
           </div>

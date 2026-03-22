@@ -112,7 +112,7 @@ export function ItineraryPlanForm({ today: todayStr }: ItineraryPlanFormProps) {
           <Input
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
-            placeholder="请输入目的地，例如：上海、杭州、北京"
+            placeholder="请输入目的地，例如：上海、杭州、北京…"
             className="h-11"
           />
         </div>
@@ -215,7 +215,7 @@ export function ItineraryPlanForm({ today: todayStr }: ItineraryPlanFormProps) {
         <Textarea
           value={additionalPreferences}
           onChange={(e) => setAdditionalPreferences(e.target.value)}
-          placeholder="例如：带小孩出行、偏好美食、预算有限……"
+          placeholder="例如：带小孩出行、偏好美食、预算有限…"
           rows={2}
         />
       </div>
@@ -230,7 +230,7 @@ export function ItineraryPlanForm({ today: todayStr }: ItineraryPlanFormProps) {
         {isPending ? (
           <>
             <Loader2 className="size-5 animate-spin" />
-            AI 正在规划中……
+            AI正在规划中…
           </>
         ) : (
           <>
