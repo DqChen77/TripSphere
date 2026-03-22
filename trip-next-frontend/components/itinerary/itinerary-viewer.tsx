@@ -19,66 +19,66 @@ const CATEGORY_META: Record<
   transportation: {
     icon: "✈️",
     label: "交通",
-    bg: "bg-slate-50",
-    text: "text-slate-600",
-    dot: "bg-slate-400",
-    bar: "bg-slate-300",
+    bg: "bg-category-1/10",
+    text: "text-category-1",
+    dot: "bg-category-1/60",
+    bar: "bg-category-1/40",
   },
   sightseeing: {
     icon: "🏛️",
     label: "观光",
-    bg: "bg-blue-50",
-    text: "text-blue-600",
-    dot: "bg-blue-400",
-    bar: "bg-blue-400",
+    bg: "bg-category-2/10",
+    text: "text-category-2",
+    dot: "bg-category-2/60",
+    bar: "bg-category-2/40",
   },
   cultural: {
     icon: "🎭",
     label: "文化",
-    bg: "bg-violet-50",
-    text: "text-violet-600",
-    dot: "bg-violet-400",
-    bar: "bg-violet-400",
+    bg: "bg-category-3/10",
+    text: "text-category-3",
+    dot: "bg-category-3/60",
+    bar: "bg-category-3/40",
   },
   shopping: {
     icon: "🛍️",
     label: "购物",
-    bg: "bg-pink-50",
-    text: "text-pink-600",
-    dot: "bg-pink-400",
-    bar: "bg-pink-400",
+    bg: "bg-category-4/10",
+    text: "text-category-4",
+    dot: "bg-category-4/60",
+    bar: "bg-category-4/40",
   },
   dining: {
     icon: "🍜",
     label: "美食",
-    bg: "bg-orange-50",
-    text: "text-orange-600",
-    dot: "bg-orange-400",
-    bar: "bg-orange-400",
+    bg: "bg-category-5/10",
+    text: "text-category-5",
+    dot: "bg-category-5/60",
+    bar: "bg-category-5/40",
   },
   entertainment: {
     icon: "🎪",
     label: "娱乐",
-    bg: "bg-amber-50",
-    text: "text-amber-600",
-    dot: "bg-amber-400",
-    bar: "bg-amber-400",
+    bg: "bg-category-6/10",
+    text: "text-category-6",
+    dot: "bg-category-6/60",
+    bar: "bg-category-6/40",
   },
   nature: {
     icon: "🌿",
     label: "自然",
-    bg: "bg-emerald-50",
-    text: "text-emerald-600",
-    dot: "bg-emerald-400",
-    bar: "bg-emerald-400",
+    bg: "bg-category-7/10",
+    text: "text-category-7",
+    dot: "bg-category-7/60",
+    bar: "bg-category-7/40",
   },
   custom: {
     icon: "📍",
     label: "自定义",
-    bg: "bg-teal-50",
-    text: "text-teal-600",
-    dot: "bg-teal-400",
-    bar: "bg-teal-400",
+    bg: "bg-category-8/10",
+    text: "text-category-8",
+    dot: "bg-category-8/60",
+    bar: "bg-category-8/40",
   },
 };
 
@@ -98,10 +98,10 @@ function getCategoryMeta(activity: Activity) {
     return {
       icon: "🛏️",
       label: "住宿",
-      bg: "bg-indigo-50",
-      text: "text-indigo-600",
-      dot: "bg-indigo-400",
-      bar: "bg-indigo-400",
+      bg: "bg-category-9/10",
+      text: "text-category-9",
+      dot: "bg-category-9/60",
+      bar: "bg-category-9/40",
     };
   return CATEGORY_META[activity.category] ?? DEFAULT_META;
 }
@@ -278,7 +278,7 @@ function DayCard({ day, onClick }: { day: DayPlan; onClick: () => void }) {
                     <span>{meta.icon}</span>
                     <span className="max-w-[5rem] truncate">
                       {a.kind === "hotel_stay"
-                        ? `住在${a.name || "目的地"}`
+                        ? `${a.name || "目的地"}`
                         : a.name}
                     </span>
                   </span>
@@ -349,7 +349,7 @@ function ActivityCard({
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-foreground truncate text-sm font-semibold">
                   {activity.kind === "hotel_stay"
-                    ? `住在 ${activity.name || "目的地"}`
+                    ? `${activity.name || "目的地"}`
                     : activity.name}
                 </span>
                 <span
@@ -568,7 +568,7 @@ export function ItineraryViewer({ itinerary, markdownContent }: Props) {
           className="bg-background mt-0 flex-1 overflow-y-auto px-5 py-5"
         >
           {markdownContent ? (
-            <article className="prose prose-sm prose-blue max-w-none">
+            <article className="prose prose-sm prose-neutral max-w-none">
               <Markdown>{markdownContent}</Markdown>
             </article>
           ) : (
