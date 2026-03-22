@@ -6,6 +6,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useAgent } from "@copilotkit/react-core/v2";
 import { CopilotSidebar } from "@copilotkit/react-core/v2";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { MapPlaceholder } from "@/components/itinerary/map-placeholder";
 import { ItineraryViewer } from "@/components/itinerary/itinerary-viewer";
 import {
@@ -17,25 +19,28 @@ import {
 
 type SyncStatus = "saved" | "saving" | "unsaved" | "error";
 
+const SYNC_STATUS_LABEL: Record<SyncStatus, string> = {
+  saved: "✓ 已保存",
+  saving: "⟳ 保存中…",
+  unsaved: "● 未保存",
+  error: "✕ 保存失败",
+};
+
 function SyncStatusBadge({ status }: { status: SyncStatus }) {
-  const variants: Record<SyncStatus, string> = {
-    saved: "bg-emerald-50 text-emerald-600 border-emerald-200",
-    saving: "bg-primary/10 text-primary border-primary/20 animate-pulse",
-    unsaved: "bg-amber-50 text-amber-600 border-amber-200",
-    error: "bg-destructive/10 text-destructive border-destructive/20",
-  };
-  const labels: Record<SyncStatus, string> = {
-    saved: "✓ 已保存",
-    saving: "⟳ 保存中…",
-    unsaved: "● 未保存",
-    error: "✕ 保存失败",
-  };
+  const variantMap = {
+    saved: "success",
+    unsaved: "warning",
+    error: "destructive",
+    saving: "outline",
+  } as const;
+
   return (
-    <span
-      className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${variants[status]}`}
+    <Badge
+      variant={variantMap[status]}
+      className={cn("rounded-full", status === "saving" && "animate-pulse")}
     >
-      {labels[status]}
-    </span>
+      {SYNC_STATUS_LABEL[status]}
+    </Badge>
   );
 }
 
@@ -52,8 +57,6 @@ function PlannerContent() {
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const snapshotRef = useRef<string | null>(null);
   const selfWriteRef = useRef(false);
-
-  // ── Debounced save to backend ──────────────────────────────────────────
 
   const syncToBackend = useCallback(
     async (it: Itinerary, md: string, id: string) => {
@@ -73,8 +76,6 @@ function PlannerContent() {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
     };
   }, []);
-
-  // ── Initial data load ──────────────────────────────────────────────────
 
   useEffect(() => {
     let cancelled = false;
@@ -134,8 +135,6 @@ function PlannerContent() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // ── Sync AI-driven agent state changes → local state ───────────────────
 
   useEffect(() => {
     if (!loaded) return;

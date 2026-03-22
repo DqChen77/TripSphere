@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Markdown from "react-markdown";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Itinerary, DayPlan, Activity } from "@/actions/itinerary";
 
 const CATEGORY_META: Record<
@@ -155,9 +156,9 @@ const PERIOD_LABEL: Record<
   TimePeriod,
   { label: string; icon: string; color: string }
 > = {
-  morning: { label: "上午", icon: "🌅", color: "text-amber-600" },
-  afternoon: { label: "下午", icon: "☀️", color: "text-orange-500" },
-  evening: { label: "傍晚 / 夜间", icon: "🌙", color: "text-indigo-600" },
+  morning: { label: "上午", icon: "🌅", color: "text-price" },
+  afternoon: { label: "下午", icon: "☀️", color: "text-price" },
+  evening: { label: "傍晚 / 夜间", icon: "🌙", color: "text-primary" },
 };
 
 function TripHeader({ itinerary }: { itinerary: Itinerary }) {
@@ -257,9 +258,7 @@ function DayCard({ day, onClick }: { day: DayPlan; onClick: () => void }) {
             </div>
             <div className="shrink-0 text-right">
               {dayCost > 0 && (
-                <p className="text-xs font-semibold text-orange-500">
-                  ¥{dayCost}
-                </p>
+                <p className="text-price text-xs font-semibold">¥{dayCost}</p>
               )}
               <p className="text-muted-foreground text-[10px]">
                 {day.activities.length} 项活动
@@ -315,7 +314,6 @@ function ActivityCard({
 
   return (
     <div className="flex gap-3">
-      {/* Time column */}
       <div className="flex w-14 shrink-0 flex-col items-end pt-3">
         <span className="text-foreground text-xs font-semibold tabular-nums">
           {activity.start_time}
@@ -327,7 +325,6 @@ function ActivityCard({
         )}
       </div>
 
-      {/* Timeline spine + dot */}
       <div className="relative flex flex-col items-center">
         <div
           className={`relative z-10 mt-3 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-white text-[9px] shadow-sm ${meta.dot}`}
@@ -342,11 +339,9 @@ function ActivityCard({
         )}
       </div>
 
-      {/* Card */}
       <div
         className={`border-border mb-3 min-w-0 flex-1 rounded-xl border ${meta.bg} overflow-hidden shadow-sm`}
       >
-        {/* Colored top bar */}
         <div className={`h-0.5 w-full ${meta.bar}`} />
         <div className="p-3">
           <div className="flex items-start justify-between gap-2">
@@ -382,12 +377,12 @@ function ActivityCard({
 
             <div className="shrink-0 text-right">
               {(activity.estimated_cost?.amount ?? 0) > 0 && (
-                <p className="text-sm font-bold text-orange-500">
+                <p className="text-price text-sm font-bold">
                   ¥{activity.estimated_cost.amount}
                 </p>
               )}
               {(activity.estimated_cost?.amount ?? 0) === 0 && (
-                <p className="text-[10px] font-medium text-emerald-500">免费</p>
+                <p className="text-success text-[10px] font-medium">免费</p>
               )}
               {activity.kind !== "hotel_stay" && (
                 <p className="text-muted-foreground mt-0.5 text-[10px] whitespace-nowrap">
@@ -439,9 +434,9 @@ function DayDetail({ day }: { day: DayPlan }) {
           )}
         </div>
         {totalCost > 0 && (
-          <div className="shrink-0 rounded-xl bg-orange-50 px-3 py-1.5 text-right">
+          <div className="bg-price/10 shrink-0 rounded-xl px-3 py-1.5 text-right">
             <p className="text-muted-foreground text-[10px]">今日预算</p>
-            <p className="text-sm font-bold text-orange-500">¥{totalCost}</p>
+            <p className="text-price text-sm font-bold">¥{totalCost}</p>
           </div>
         )}
       </div>
@@ -456,13 +451,11 @@ function DayDetail({ day }: { day: DayPlan }) {
         </div>
       )}
 
-      {/* Timeline by period */}
       {periods.map((period) => {
         const periodInfo = PERIOD_LABEL[period];
         const acts = grouped[period] ?? [];
         return (
           <div key={period} className="mb-3">
-            {/* Period label */}
             <div className="mb-2 flex items-center gap-1.5">
               <span className="text-base">{periodInfo.icon}</span>
               <span className={`text-xs font-semibold ${periodInfo.color}`}>
@@ -547,36 +540,33 @@ export function ItineraryViewer({ itinerary, markdownContent }: Props) {
       ? (itinerary.day_plans.find((d) => d.day_number === selectedDay) ?? null)
       : null;
 
-  // If the selected day was deleted, fall back to overview
-  if (selectedDay !== null && currentDay === null) {
-    setSelectedDay(null);
-  }
+  const displayDay = currentDay !== null ? selectedDay : null;
 
   return (
     <div className="bg-background flex h-full flex-col overflow-hidden">
       <TripHeader itinerary={itinerary} />
 
-      <div className="border-border bg-background flex shrink-0 border-b px-4">
-        {(["itinerary", "inspiration"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setTopTab(tab)}
-            className={`relative mr-6 py-3 text-sm font-medium transition-colors ${
-              topTab === tab
-                ? "text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {tab === "itinerary" ? "行程详情" : "旅行灵感"}
-            {topTab === tab && (
-              <span className="bg-primary absolute right-0 bottom-0 left-0 h-0.5 rounded-t" />
-            )}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        value={topTab}
+        onValueChange={(v) => setTopTab(v as TopTab)}
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <TabsList
+          variant="line"
+          className="border-border bg-background shrink-0 justify-start rounded-none border-b px-4"
+        >
+          <TabsTrigger value="itinerary" className="px-2">
+            行程详情
+          </TabsTrigger>
+          <TabsTrigger value="inspiration" className="px-2">
+            旅行灵感
+          </TabsTrigger>
+        </TabsList>
 
-      {topTab === "inspiration" && (
-        <div className="bg-background flex-1 overflow-y-auto px-5 py-5">
+        <TabsContent
+          value="inspiration"
+          className="bg-background mt-0 flex-1 overflow-y-auto px-5 py-5"
+        >
           {markdownContent ? (
             <article className="prose prose-sm prose-blue max-w-none">
               <Markdown>{markdownContent}</Markdown>
@@ -589,17 +579,17 @@ export function ItineraryViewer({ itinerary, markdownContent }: Props) {
               </p>
             </div>
           )}
-        </div>
-      )}
+        </TabsContent>
 
-      {topTab === "itinerary" && (
-        <>
-          {/* Day pill selector */}
+        <TabsContent
+          value="itinerary"
+          className="mt-0 flex min-h-0 flex-1 flex-col"
+        >
           <div className="border-border bg-background flex shrink-0 items-center gap-2 overflow-x-auto border-b px-4 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <button
               onClick={() => setSelectedDay(null)}
               className={`shrink-0 rounded-full px-3.5 py-1 text-xs font-medium transition-colors ${
-                selectedDay === null
+                displayDay === null
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "bg-muted text-muted-foreground hover:bg-muted/70"
               }`}
@@ -612,7 +602,7 @@ export function ItineraryViewer({ itinerary, markdownContent }: Props) {
                 key={day.day_number}
                 onClick={() => setSelectedDay(day.day_number)}
                 className={`shrink-0 rounded-full px-3.5 py-1 text-xs font-medium transition-colors ${
-                  selectedDay === day.day_number
+                  displayDay === day.day_number
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "bg-muted text-muted-foreground hover:bg-muted/70"
                 }`}
@@ -623,10 +613,8 @@ export function ItineraryViewer({ itinerary, markdownContent }: Props) {
             ))}
           </div>
 
-          {/* Scrollable content */}
           <div className="flex-1 overflow-y-auto px-4 py-4">
-            {selectedDay === null ? (
-              /* Overview */
+            {displayDay === null ? (
               <div className="flex flex-col gap-3">
                 {itinerary.day_plans.map((day) => (
                   <DayCard
@@ -638,12 +626,11 @@ export function ItineraryViewer({ itinerary, markdownContent }: Props) {
                 <SummaryCard itinerary={itinerary} />
               </div>
             ) : currentDay ? (
-              /* Day detail */
               <DayDetail day={currentDay} />
             ) : null}
           </div>
-        </>
-      )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -10,14 +10,13 @@ import { Sparkles } from "lucide-react";
 export default function ItineraryPage() {
   const today = new Date().toISOString().split("T")[0];
 
-  // Kick off fetch early so it runs in parallel with static shell (streaming).
   const itinerariesPromise = listMyItineraries();
 
   return (
     <div className="flex h-[calc(100vh-4rem)] w-full items-start">
       <aside className="flex w-14/30 min-w-0 flex-col gap-2 px-6">
         <h2 className="text-foreground inline-flex items-center gap-1 pt-4 text-2xl font-bold drop-shadow-md">
-          <Sparkles className="inline-block text-amber-300" />
+          <Sparkles className="text-price inline-block" aria-hidden="true" />
           AI行程助手
         </h2>
 

@@ -52,10 +52,10 @@ export function tripDayCount(startStr: string, endStr: string): number {
 }
 
 /**
- * Convert a Money object (units + nanos) to a numeric amount
+ * Convert a Money object (currency + units + nanos) to a numeric amount
  */
 export function formatMoney(
-  money: { units: number; nanos: number } | undefined,
+  money: { currency: string; units: number; nanos: number } | undefined,
 ): number {
   if (!money) return 0;
   return money.units + money.nanos / 1_000_000_000;

@@ -22,7 +22,6 @@ export function HotelCard({ hotel }: { hotel: HotelCardData }) {
       href={`/hotels/${hotel.id}`}
       className="group bg-card flex w-full flex-col overflow-hidden rounded-xl border"
     >
-      {/* Image */}
       <div className="bg-muted relative aspect-[4/3] w-full overflow-hidden">
         {hotel.image ? (
           <Image
@@ -36,7 +35,6 @@ export function HotelCard({ hotel }: { hotel: HotelCardData }) {
         ) : (
           <ImagePlaceholder className="h-full w-full" />
         )}
-        {/* Rating overlay */}
         <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
           {hotel.rating != null ? (
             <>
@@ -55,7 +53,6 @@ export function HotelCard({ hotel }: { hotel: HotelCardData }) {
         </div>
       </div>
 
-      {/* Info */}
       <div className="flex flex-1 flex-col gap-1 p-3">
         <div className="flex items-center gap-1.5">
           <span className="text-foreground line-clamp-1 text-sm font-semibold">
@@ -68,7 +65,7 @@ export function HotelCard({ hotel }: { hotel: HotelCardData }) {
         </span>
         <div className="mt-auto flex items-baseline justify-end gap-1 pt-2">
           <span className="text-muted-foreground text-xs">最低价</span>
-          <span className="text-lg font-bold text-orange-500">
+          <span className="text-price text-lg font-bold">
             ¥{hotel.price.toLocaleString()}
           </span>
         </div>
