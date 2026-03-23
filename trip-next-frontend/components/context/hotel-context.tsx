@@ -45,6 +45,8 @@ interface Props {
 }
 
 export function HotelAgentStateSync({ hotelContext }: Props) {
+  console.log("hotelContext", hotelContext);
+
   useAgentContext({
     description: "hotel context",
     value: JSON.stringify(hotelContext),

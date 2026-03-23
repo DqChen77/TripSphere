@@ -21,7 +21,7 @@ tasks:
   format:
     desc: Format code with Prettier
     cmds:
-      - bunx prettier . --write
+      - bunx --bun prettier . --write
 
   build:
     desc: Build Docker image
