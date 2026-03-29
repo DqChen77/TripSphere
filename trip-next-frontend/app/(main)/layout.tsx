@@ -15,7 +15,7 @@ export default function MainLayout({
 }) {
   return (
     <SidebarProvider
-      defaultOpen={true}
+      defaultOpen
       style={
         {
           "--sidebar-width": "10rem",
@@ -30,7 +30,7 @@ export default function MainLayout({
           {children}
           <CopilotSidebar
             agentId="default"
-            defaultOpen={true}
+            defaultOpen
             width="30rem"
             labels={COPILOT_LABELS}
           />
