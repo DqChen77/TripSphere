@@ -47,4 +47,3 @@ When refactoring this frontend, **leverage available Skills and MCP tools** for 
 1. Before making changes, read the relevant skill(s) listed above.
 2. For CopilotKit, always consult MCP tools to get the latest V2 API patterns.
 3. Apply skill guidance to ensure consistency with modern best practices.
-

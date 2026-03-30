@@ -87,10 +87,10 @@ export default function HomePage() {
     <div className="flex flex-col gap-10">
       <div className="grid gap-4 lg:grid-cols-2">
         <Card
-          className="relative overflow-hidden bg-[length:46%] bg-right-top bg-no-repeat"
+          className="relative overflow-hidden bg-[length:41.5%] bg-right-top bg-no-repeat"
           style={{
             backgroundImage:
-              "url('/images/round-icons-hEWd0sz0gc4-unsplash.svg')",
+              "linear-gradient(color-mix(in oklch, var(--card) 25%, transparent), color-mix(in oklch, var(--card) 25%, transparent)), url('/images/round-icons-hEWd0sz0gc4-unsplash.svg')",
           }}
         >
           <div className="from-primary/20 to-secondary/20 pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br via-transparent" />
