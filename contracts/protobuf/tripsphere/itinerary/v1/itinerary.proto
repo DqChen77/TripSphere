@@ -11,7 +11,7 @@ import "tripsphere/common/v1/map.proto";
 import "tripsphere/common/v1/money.proto";
 import "tripsphere/common/v1/timeofday.proto";
 import "tripsphere/hotel/v1/hotel.proto";
-import "tripsphere/poi/v1/poi.proto";
+import "tripsphere/poi/v1/types.proto";
 
 option go_package = "tripsphere/itinerary/v1";
 option java_multiple_files = true;

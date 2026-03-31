@@ -12,14 +12,14 @@ import org.tripsphere.inventory.application.dto.LockInventoryCommand;
 import org.tripsphere.inventory.application.exception.InsufficientInventoryException;
 import org.tripsphere.inventory.application.exception.InvalidArgumentException;
 import org.tripsphere.inventory.application.exception.NotFoundException;
+import org.tripsphere.inventory.application.port.DailyInventoryRepository;
 import org.tripsphere.inventory.application.port.InventoryCachePort;
+import org.tripsphere.inventory.application.port.InventoryConfigPort;
+import org.tripsphere.inventory.application.port.InventoryLockRepository;
 import org.tripsphere.inventory.application.port.LockExpiryPort;
-import org.tripsphere.inventory.config.InventoryProperties;
 import org.tripsphere.inventory.domain.model.DailyInventory;
 import org.tripsphere.inventory.domain.model.InventoryLock;
 import org.tripsphere.inventory.domain.model.LockStatus;
-import org.tripsphere.inventory.domain.repository.DailyInventoryRepository;
-import org.tripsphere.inventory.domain.repository.InventoryLockRepository;
 
 @Slf4j
 @Service
@@ -30,7 +30,7 @@ public class LockInventoryUseCase {
     private final InventoryLockRepository inventoryLockRepository;
     private final InventoryCachePort cachePort;
     private final LockExpiryPort lockExpiryPort;
-    private final InventoryProperties properties;
+    private final InventoryConfigPort configPort;
 
     @Transactional
     public InventoryLock execute(LockInventoryCommand command) {
@@ -40,7 +40,7 @@ public class LockInventoryUseCase {
                 command.items().size());
 
         int lockTimeout = command.lockTimeoutSeconds() <= 0
-                ? properties.defaultLockTimeoutSeconds()
+                ? configPort.defaultLockTimeoutSeconds()
                 : command.lockTimeoutSeconds();
 
         Optional<InventoryLock> existingLock = inventoryLockRepository.findByOrderId(command.orderId());

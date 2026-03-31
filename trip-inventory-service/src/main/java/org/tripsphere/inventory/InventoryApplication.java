@@ -5,7 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.scheduling.annotation.EnableScheduling;
-import org.tripsphere.inventory.config.InventoryProperties;
+import org.tripsphere.inventory.infrastructure.config.InventoryProperties;
 
 @SpringBootApplication
 @EnableDiscoveryClient

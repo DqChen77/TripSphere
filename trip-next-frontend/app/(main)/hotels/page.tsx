@@ -12,9 +12,9 @@ export const metadata: Metadata = {
 export default async function HotelPage() {
   const today = new Date().toISOString().split("T")[0];
 
-  const [shanghaiResult, nanjingResult, beijingResult] = await Promise.all([
+  const [shanghaiResult, guangzhouResult, beijingResult] = await Promise.all([
     listHotelsByCity("上海市"),
-    listHotelsByCity("南京市"),
+    listHotelsByCity("广州市"),
     listHotelsByCity("北京市"),
   ]);
 
@@ -30,8 +30,8 @@ export default async function HotelPage() {
             <TabsTrigger value="shanghai" className="px-2 text-base">
               上海
             </TabsTrigger>
-            <TabsTrigger value="nanjing" className="px-2 text-base">
-              南京
+            <TabsTrigger value="guangzhou" className="px-2 text-base">
+              广州
             </TabsTrigger>
             <TabsTrigger value="beijing" className="px-2 text-base">
               北京
@@ -45,11 +45,11 @@ export default async function HotelPage() {
               city="上海市"
             />
           </TabsContent>
-          <TabsContent value="nanjing">
+          <TabsContent value="guangzhou">
             <HotelCardList
-              initialHotels={nanjingResult.hotels}
-              initialNextPageToken={nanjingResult.nextPageToken}
-              city="南京市"
+              initialHotels={guangzhouResult.hotels}
+              initialNextPageToken={guangzhouResult.nextPageToken}
+              city="广州市"
             />
           </TabsContent>
           <TabsContent value="beijing">

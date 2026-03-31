@@ -5,19 +5,19 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.tripsphere.product.application.dto.SpuPage;
+import org.tripsphere.product.application.port.ProductConfigPort;
+import org.tripsphere.product.application.port.SpuRepository;
 import org.tripsphere.product.application.util.CursorTokenUtil;
 import org.tripsphere.product.application.util.CursorTokenUtil.CursorToken;
-import org.tripsphere.product.config.ProductProperties;
 import org.tripsphere.product.domain.model.ResourceType;
 import org.tripsphere.product.domain.model.Spu;
-import org.tripsphere.product.domain.repository.SpuRepository;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ListSpusByResourceUseCase {
     private final SpuRepository spuRepository;
-    private final ProductProperties properties;
+    private final ProductConfigPort configPort;
 
     public SpuPage execute(ResourceType resourceType, String resourceId, int pageSize, String pageToken) {
         log.debug(
@@ -47,8 +47,8 @@ public class ListSpusByResourceUseCase {
     }
 
     private int normalizePageSize(int pageSize) {
-        if (pageSize <= 0) return properties.defaultPageSize();
-        return Math.min(pageSize, properties.maxPageSize());
+        if (pageSize <= 0) return configPort.defaultPageSize();
+        return Math.min(pageSize, configPort.maxPageSize());
     }
 
     private String decodeAfterIdOrNull(String pageToken) {

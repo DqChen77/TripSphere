@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 const HOME_QUICK_PROMPTS = [
   {
     label: "热门城市天气",
-    prompt: "请问今天上海、南京、杭州的天气情况如何？",
+    prompt: "请问今天上海、广州、北京的天气情况如何？",
   },
 ] as const;
 

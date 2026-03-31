@@ -7,13 +7,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.tripsphere.inventory.application.exception.NotFoundException;
+import org.tripsphere.inventory.application.port.DailyInventoryRepository;
 import org.tripsphere.inventory.application.port.InventoryCachePort;
+import org.tripsphere.inventory.application.port.InventoryLockRepository;
 import org.tripsphere.inventory.application.port.LockExpiryPort;
 import org.tripsphere.inventory.domain.model.DailyInventory;
 import org.tripsphere.inventory.domain.model.InventoryLock;
 import org.tripsphere.inventory.domain.model.InventoryLockItem;
-import org.tripsphere.inventory.domain.repository.DailyInventoryRepository;
-import org.tripsphere.inventory.domain.repository.InventoryLockRepository;
 
 @Slf4j
 @Service

@@ -6,9 +6,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.tripsphere.product.application.dto.CreateSpuCommand;
+import org.tripsphere.product.application.port.SpuRepository;
 import org.tripsphere.product.domain.model.Sku;
 import org.tripsphere.product.domain.model.Spu;
-import org.tripsphere.product.domain.repository.SpuRepository;
 
 @Slf4j
 @Service

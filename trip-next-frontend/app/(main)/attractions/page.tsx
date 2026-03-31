@@ -10,9 +10,9 @@ export const metadata: Metadata = {
 };
 
 export default async function AttractionPage() {
-  const [shanghaiResult, nanjingResult, beijingResult] = await Promise.all([
+  const [shanghaiResult, guangzhouResult, beijingResult] = await Promise.all([
     listAttractionsByCity("上海市"),
-    listAttractionsByCity("南京市"),
+    listAttractionsByCity("广州市"),
     listAttractionsByCity("北京市"),
   ]);
 
@@ -28,8 +28,8 @@ export default async function AttractionPage() {
             <TabsTrigger value="shanghai" className="px-2 text-base">
               上海
             </TabsTrigger>
-            <TabsTrigger value="nanjing" className="px-2 text-base">
-              南京
+            <TabsTrigger value="guangzhou" className="px-2 text-base">
+              广州
             </TabsTrigger>
             <TabsTrigger value="beijing" className="px-2 text-base">
               北京
@@ -43,11 +43,11 @@ export default async function AttractionPage() {
               city="上海市"
             />
           </TabsContent>
-          <TabsContent value="nanjing">
+          <TabsContent value="guangzhou">
             <AttractionCardList
-              initialAttractions={nanjingResult.attractions}
-              initialNextPageToken={nanjingResult.nextPageToken}
-              city="南京市"
+              initialAttractions={guangzhouResult.attractions}
+              initialNextPageToken={guangzhouResult.nextPageToken}
+              city="广州市"
             />
           </TabsContent>
           <TabsContent value="beijing">

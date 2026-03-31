@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-const CITIES = ["上海", "南京", "北京", "成都", "杭州", "广州", "西安"];
+const CITIES = ["上海", "广州", "北京", "南京", "成都", "杭州", "西安"];
 
 interface AttractionSearchBarProps {
   defaultCity?: string;

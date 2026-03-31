@@ -16,13 +16,13 @@ import org.tripsphere.order.application.dto.LockItemData;
 import org.tripsphere.order.application.exception.InvalidArgumentException;
 import org.tripsphere.order.application.port.InventoryPort;
 import org.tripsphere.order.application.port.OrderCachePort;
+import org.tripsphere.order.application.port.OrderConfigPort;
 import org.tripsphere.order.application.port.OrderRepository;
 import org.tripsphere.order.application.service.OrderItemAssembler;
 import org.tripsphere.order.application.service.OrderItemAssembler.AssembledOrder;
 import org.tripsphere.order.application.service.OrderValidationService;
 import org.tripsphere.order.application.service.OrderValidationService.ValidatedOrderContext;
 import org.tripsphere.order.domain.model.Order;
-import org.tripsphere.order.infrastructure.config.OrderProperties;
 
 @Slf4j
 @Service
@@ -34,7 +34,7 @@ public class CreateOrderUseCase {
     private final OrderCachePort cachePort;
     private final OrderValidationService validationService;
     private final OrderItemAssembler itemAssembler;
-    private final OrderProperties properties;
+    private final OrderConfigPort configPort;
 
     public Order execute(CreateOrderCommand command) {
         log.info(
@@ -65,7 +65,7 @@ public class CreateOrderUseCase {
         try {
             Order order = persistOrderAndCacheExpiry(orderId, orderNo, command, ctx, lockId);
             if (hasRequestId(command)) {
-                cachePort.saveIdempotentOrderId(command.requestId(), order.getId(), properties.expireSeconds());
+                cachePort.saveIdempotentOrderId(command.requestId(), order.getId(), configPort.expireSeconds());
             }
             return order;
         } catch (Exception e) {
@@ -91,7 +91,7 @@ public class CreateOrderUseCase {
 
     private String lockInventory(List<LockItemData> lockItems, String orderId) {
         try {
-            return inventoryPort.lockInventory(lockItems, orderId, properties.expireSeconds());
+            return inventoryPort.lockInventory(lockItems, orderId, configPort.expireSeconds());
         } catch (Exception e) {
             log.error("Failed to lock inventory for order: {}", orderId, e);
             throw e;
@@ -115,7 +115,7 @@ public class CreateOrderUseCase {
                 assembled.totalAmount(),
                 command.contact(),
                 command.source(),
-                now + properties.expireSeconds(),
+                now + configPort.expireSeconds(),
                 assembled.items());
 
         order = orderRepository.save(order);

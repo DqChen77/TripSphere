@@ -6,10 +6,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.tripsphere.inventory.application.dto.CheckAvailabilityResult;
+import org.tripsphere.inventory.application.port.DailyInventoryRepository;
 import org.tripsphere.inventory.application.port.InventoryCachePort;
 import org.tripsphere.inventory.domain.model.DailyInventory;
 import org.tripsphere.inventory.domain.model.Money;
-import org.tripsphere.inventory.domain.repository.DailyInventoryRepository;
 
 @Slf4j
 @Service
