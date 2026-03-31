@@ -5,4 +5,4 @@ import org.tripsphere.order.domain.model.ContactInfo;
 import org.tripsphere.order.domain.model.OrderSource;
 
 public record CreateOrderCommand(
-        String userId, List<CreateOrderItemCommand> items, ContactInfo contact, OrderSource source) {}
+        String requestId, String userId, List<CreateOrderItemCommand> items, ContactInfo contact, OrderSource source) {}

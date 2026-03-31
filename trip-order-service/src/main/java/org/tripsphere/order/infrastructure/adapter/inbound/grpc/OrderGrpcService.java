@@ -68,7 +68,12 @@ public class OrderGrpcService extends OrderServiceGrpc.OrderServiceImplBase {
                     request.getSource().getSessionId());
         }
 
-        CreateOrderCommand command = new CreateOrderCommand(request.getUserId(), items, contact, source);
+        CreateOrderCommand command = new CreateOrderCommand(
+                request.getRequestId().isBlank() ? null : request.getRequestId(),
+                request.getUserId(),
+                items,
+                contact,
+                source);
 
         Order order = createOrderUseCase.execute(command);
 

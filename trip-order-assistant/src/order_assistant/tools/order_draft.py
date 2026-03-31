@@ -270,6 +270,7 @@ class OrderDraftToolset(BaseToolset):
                 response = await stub.CreateOrder(
                     order_pb2.CreateOrderRequest(
                         user_id=ORDER_DRAFTS[order_draft_id]["user_id"],
+                        request_id=str(uuid4()),
                         items=[
                             order_pb2.CreateOrderItem(
                                 sku_id=item["sku_id"],

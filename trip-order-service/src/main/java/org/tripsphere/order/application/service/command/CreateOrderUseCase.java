@@ -3,6 +3,7 @@ package org.tripsphere.order.application.service.command;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -41,7 +42,17 @@ public class CreateOrderUseCase {
                 command.userId(),
                 command.items().size());
 
-        checkDuplicateSubmission(command);
+        if (hasRequestId(command)) {
+            Optional<Order> existing = checkIdempotency(command.requestId());
+            if (existing.isPresent()) {
+                log.info(
+                        "Idempotent request detected, returning existing order for request_id: {}",
+                        command.requestId());
+                return existing.get();
+            }
+        } else {
+            checkDuplicateSubmission(command);
+        }
 
         ValidatedOrderContext ctx = validationService.validate(command);
 
@@ -52,12 +63,30 @@ public class CreateOrderUseCase {
         String lockId = lockInventory(lockItems, orderId);
 
         try {
-            return persistOrderAndCacheExpiry(orderId, orderNo, command, ctx, lockId);
+            Order order = persistOrderAndCacheExpiry(orderId, orderNo, command, ctx, lockId);
+            if (hasRequestId(command)) {
+                cachePort.saveIdempotentOrderId(command.requestId(), order.getId(), properties.expireSeconds());
+            }
+            return order;
         } catch (Exception e) {
             log.error("Failed to persist order, releasing inventory lock: {}", lockId, e);
             releaseInventoryQuietly(lockId, "Order creation failed: " + e.getMessage());
             throw e;
         }
+    }
+
+    private boolean hasRequestId(CreateOrderCommand command) {
+        return command.requestId() != null && !command.requestId().isBlank();
+    }
+
+    private Optional<Order> checkIdempotency(String requestId) {
+        return cachePort.getIdempotentOrderId(requestId).flatMap(orderId -> {
+            Optional<Order> order = orderRepository.findById(orderId);
+            if (order.isEmpty()) {
+                log.warn("Idempotency key found but order not in repository, orderId={}", orderId);
+            }
+            return order;
+        });
     }
 
     private String lockInventory(List<LockItemData> lockItems, String orderId) {
