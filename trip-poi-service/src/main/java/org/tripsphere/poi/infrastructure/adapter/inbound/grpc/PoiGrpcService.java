@@ -1,4 +1,4 @@
-package org.tripsphere.poi.adapter.inbound.grpc;
+package org.tripsphere.poi.infrastructure.adapter.inbound.grpc;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -6,7 +6,6 @@ import io.grpc.stub.StreamObserver;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import net.devh.boot.grpc.server.service.GrpcService;
-import org.tripsphere.poi.adapter.inbound.grpc.mapper.PoiProtoMapper;
 import org.tripsphere.poi.application.dto.CreatePoiCommand;
 import org.tripsphere.poi.application.dto.SearchPoisInBoundsQuery;
 import org.tripsphere.poi.application.dto.SearchPoisNearbyQuery;
@@ -19,6 +18,7 @@ import org.tripsphere.poi.application.service.query.SearchPoisNearbyUseCase;
 import org.tripsphere.poi.domain.model.GeoCoordinate;
 import org.tripsphere.poi.domain.model.Poi;
 import org.tripsphere.poi.domain.model.PoiAddress;
+import org.tripsphere.poi.infrastructure.adapter.inbound.grpc.mapper.PoiProtoMapper;
 import org.tripsphere.poi.v1.BatchCreatePoisRequest;
 import org.tripsphere.poi.v1.BatchCreatePoisResponse;
 import org.tripsphere.poi.v1.BatchGetPoisRequest;

@@ -1,15 +1,15 @@
-package org.tripsphere.poi.adapter.outbound.persistence;
+package org.tripsphere.poi.infrastructure.adapter.outbound.persistence;
 
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.geo.Point;
 import org.springframework.stereotype.Repository;
-import org.tripsphere.poi.adapter.outbound.persistence.document.PoiDoc;
-import org.tripsphere.poi.adapter.outbound.persistence.mapper.PoiDocMapper;
+import org.tripsphere.poi.application.port.PoiRepository;
 import org.tripsphere.poi.domain.model.GeoCoordinate;
 import org.tripsphere.poi.domain.model.Poi;
-import org.tripsphere.poi.domain.repository.PoiRepository;
+import org.tripsphere.poi.infrastructure.adapter.outbound.persistence.document.PoiDoc;
+import org.tripsphere.poi.infrastructure.adapter.outbound.persistence.mapper.PoiDocMapper;
 
 @Repository
 @RequiredArgsConstructor

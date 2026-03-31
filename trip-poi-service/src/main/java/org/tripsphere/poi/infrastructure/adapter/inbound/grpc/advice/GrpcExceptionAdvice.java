@@ -1,4 +1,4 @@
-package org.tripsphere.poi.adapter.inbound.grpc.advice;
+package org.tripsphere.poi.infrastructure.adapter.inbound.grpc.advice;
 
 import io.grpc.Status;
 import lombok.extern.slf4j.Slf4j;

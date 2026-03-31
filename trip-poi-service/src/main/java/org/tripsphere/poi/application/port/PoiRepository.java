@@ -1,11 +1,10 @@
-package org.tripsphere.poi.domain.repository;
+package org.tripsphere.poi.application.port;
 
 import java.util.List;
 import java.util.Optional;
 import org.tripsphere.poi.domain.model.GeoCoordinate;
 import org.tripsphere.poi.domain.model.Poi;
 
-/** Domain port for POI persistence. */
 public interface PoiRepository {
 
     Optional<Poi> findById(String id);

@@ -1,4 +1,4 @@
-package org.tripsphere.poi.adapter.outbound.persistence.document;
+package org.tripsphere.poi.infrastructure.adapter.outbound.persistence.document;
 
 import java.time.Instant;
 import java.util.List;

@@ -1,8 +1,8 @@
-package org.tripsphere.poi.adapter.outbound.persistence;
+package org.tripsphere.poi.infrastructure.adapter.outbound.persistence;
 
 import java.util.List;
 import org.springframework.data.geo.Point;
-import org.tripsphere.poi.adapter.outbound.persistence.document.PoiDoc;
+import org.tripsphere.poi.infrastructure.adapter.outbound.persistence.document.PoiDoc;
 
 public interface CustomPoiDocRepository {
 

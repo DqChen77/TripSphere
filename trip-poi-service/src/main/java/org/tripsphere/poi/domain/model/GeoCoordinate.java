@@ -1,6 +1,6 @@
 package org.tripsphere.poi.domain.model;
 
-import org.tripsphere.poi.util.CoordinateTransformUtil;
+import org.tripsphere.poi.domain.util.CoordinateTransformUtil;
 
 /** Represents a geographic coordinate in WGS84 coordinate system. */
 public record GeoCoordinate(double longitude, double latitude) {

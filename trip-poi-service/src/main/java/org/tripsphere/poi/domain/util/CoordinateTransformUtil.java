@@ -1,4 +1,4 @@
-package org.tripsphere.poi.util;
+package org.tripsphere.poi.domain.util;
 
 public class CoordinateTransformUtil {
     private static final double PI = 3.1415926535897932384626;

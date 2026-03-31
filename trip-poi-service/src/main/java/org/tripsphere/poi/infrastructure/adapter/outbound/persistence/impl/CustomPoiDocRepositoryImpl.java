@@ -1,4 +1,4 @@
-package org.tripsphere.poi.adapter.outbound.persistence.impl;
+package org.tripsphere.poi.infrastructure.adapter.outbound.persistence.impl;
 
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -9,8 +9,8 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Repository;
-import org.tripsphere.poi.adapter.outbound.persistence.CustomPoiDocRepository;
-import org.tripsphere.poi.adapter.outbound.persistence.document.PoiDoc;
+import org.tripsphere.poi.infrastructure.adapter.outbound.persistence.CustomPoiDocRepository;
+import org.tripsphere.poi.infrastructure.adapter.outbound.persistence.document.PoiDoc;
 
 @Repository
 @RequiredArgsConstructor

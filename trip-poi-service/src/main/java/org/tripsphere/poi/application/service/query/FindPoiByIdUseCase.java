@@ -5,8 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.tripsphere.poi.application.exception.InvalidArgumentException;
 import org.tripsphere.poi.application.exception.NotFoundException;
+import org.tripsphere.poi.application.port.PoiRepository;
 import org.tripsphere.poi.domain.model.Poi;
-import org.tripsphere.poi.domain.repository.PoiRepository;
 
 @Slf4j
 @Service

@@ -1,4 +1,4 @@
-package org.tripsphere.poi.adapter.inbound.grpc.mapper;
+package org.tripsphere.poi.infrastructure.adapter.inbound.grpc.mapper;
 
 import java.util.List;
 import org.mapstruct.CollectionMappingStrategy;

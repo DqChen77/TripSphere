@@ -1,4 +1,4 @@
-package org.tripsphere.poi.adapter.inbound.grpc;
+package org.tripsphere.poi.infrastructure.adapter.inbound.grpc;
 
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;

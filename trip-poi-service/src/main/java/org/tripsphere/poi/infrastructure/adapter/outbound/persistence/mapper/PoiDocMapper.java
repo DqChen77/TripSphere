@@ -1,4 +1,4 @@
-package org.tripsphere.poi.adapter.outbound.persistence.mapper;
+package org.tripsphere.poi.infrastructure.adapter.outbound.persistence.mapper;
 
 import java.util.List;
 import org.mapstruct.Mapper;
@@ -6,9 +6,9 @@ import org.mapstruct.MappingConstants;
 import org.mapstruct.NullValueCheckStrategy;
 import org.mapstruct.ReportingPolicy;
 import org.springframework.data.mongodb.core.geo.GeoJsonPoint;
-import org.tripsphere.poi.adapter.outbound.persistence.document.PoiDoc;
 import org.tripsphere.poi.domain.model.GeoCoordinate;
 import org.tripsphere.poi.domain.model.Poi;
+import org.tripsphere.poi.infrastructure.adapter.outbound.persistence.document.PoiDoc;
 
 @Mapper(
         componentModel = MappingConstants.ComponentModel.SPRING,
