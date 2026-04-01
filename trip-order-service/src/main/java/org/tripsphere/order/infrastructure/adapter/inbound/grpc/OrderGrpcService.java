@@ -26,6 +26,7 @@ public class OrderGrpcService extends OrderServiceGrpc.OrderServiceImplBase {
     private final CancelOrderUseCase cancelOrderUseCase;
     private final ConfirmPaymentUseCase confirmPaymentUseCase;
     private final GetOrderUseCase getOrderUseCase;
+    private final GetOrderByNoUseCase getOrderByNoUseCase;
     private final ListUserOrdersUseCase listUserOrdersUseCase;
     private final OrderProtoMapper orderProtoMapper;
     private final DateProtoMapper dateProtoMapper;
@@ -92,6 +93,20 @@ public class OrderGrpcService extends OrderServiceGrpc.OrderServiceImplBase {
         Order order = getOrderUseCase.execute(request.getId());
 
         responseObserver.onNext(GetOrderResponse.newBuilder()
+                .setOrder(orderProtoMapper.toProto(order))
+                .build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getOrderByNo(GetOrderByNoRequest request, StreamObserver<GetOrderByNoResponse> responseObserver) {
+        if (request.getOrderNo().isEmpty()) {
+            throw invalidArgument("order_no is required");
+        }
+
+        Order order = getOrderByNoUseCase.execute(request.getOrderNo());
+
+        responseObserver.onNext(GetOrderByNoResponse.newBuilder()
                 .setOrder(orderProtoMapper.toProto(order))
                 .build());
         responseObserver.onCompleted();

@@ -61,6 +61,38 @@ class OrderToolset(BaseToolset):
             "result": MessageToDict(response.order),
         }
 
+    async def get_order_by_no(self, order_no: str) -> dict[str, Any]:
+        """Get the order by order number.
+
+        Args:
+            order_no (str): The number of the order.
+
+        Returns:
+            dict[str, Any]: A dictionary with the order, \
+                e.g., {"status": "success", "message": "", "result": {...}}
+        """
+        try:
+            server_address = await self._get_server_address()
+        except Exception as e:
+            return {"status": "error", "message": str(e), "result": None}
+
+        async with grpc.aio.insecure_channel(server_address) as channel:
+            stub = order_pb2_grpc.OrderServiceStub(channel)
+            try:
+                response = await stub.GetOrderByNo(
+                    order_pb2.GetOrderByNoRequest(order_no=order_no)
+                )
+            except grpc.RpcError as e:
+                logger.error(f"Failed to get order by number {order_no}: {e}")
+                message = e.details() or ""
+                return {"status": "error", "message": message, "result": None}
+
+        return {
+            "status": "success",
+            "message": "",
+            "result": MessageToDict(response.order),
+        }
+
     async def cancel_order(self, order_id: str, reason: str) -> dict[str, Any]:
         """Cancel a order by order ID.
 

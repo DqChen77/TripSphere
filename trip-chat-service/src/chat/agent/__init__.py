@@ -9,6 +9,7 @@ from google.adk.agents.llm_agent import ToolUnion  # pyright: ignore
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 from google.adk.apps import App, ResumabilityConfig
 from google.adk.models.lite_llm import LiteLlm
+from google.adk.plugins import ReflectAndRetryToolPlugin
 from google.adk.tools.load_memory_tool import load_memory_tool
 from google.adk.tools.mcp_tool import McpToolset, StdioConnectionParams
 from mcp import StdioServerParameters
@@ -37,15 +38,15 @@ def create_agent(
     agui_toolset: bool = False, sub_agents: list[BaseAgent] | None = None
 ) -> LlmAgent:
     sub_agents = sub_agents or []
-    # NOTE: https://github.com/ag-ui-protocol/ag-ui/issues/1264
+    # weather_toolset is not stable due to network issues.
     weather_toolset = McpToolset(
         connection_params=StdioConnectionParams(
             server_params=StdioServerParameters(
-                command="python", args=["-m", "mcp_weather_server"]
+                command="python3", args=["-m", "mcp_weather_server"]
             ),
-            timeout=10,  # 10 seconds timeout
+            timeout=10,
         )
-    )  # Not stable due to network issues.
+    )
     tools: list[ToolUnion] = [load_memory_tool, weather_toolset]  # pyright: ignore
     if agui_toolset is True:
         tools.extend([AGUIToolset(), HotelViewingToolset()])  # pyright: ignore
@@ -62,7 +63,7 @@ def create_adk_app(root_agent: BaseAgent) -> App:
     return App(
         name="chat",
         root_agent=root_agent,
-        plugins=[],
+        plugins=[ReflectAndRetryToolPlugin(max_retries=3)],
         # Set the resumability config to enable resumability.
         resumability_config=ResumabilityConfig(is_resumable=True),
     )

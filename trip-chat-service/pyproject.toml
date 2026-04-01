@@ -14,7 +14,7 @@ dependencies = [
     "nacos-sdk-python>=3.0.3",
     "openinference-instrumentation-google-adk>=0.1.8",
     "openinference-instrumentation-litellm>=0.1.29",
-    "opentelemetry-distro[otlp]>=0.58b0",
+    "opentelemetry-distro[otlp]>=0.59b0",
     "pydantic-settings>=2.11.0",
     "pymongo>=4.15.3",
     "tripsphere>=0.1.0",
@@ -36,7 +36,6 @@ dev = [
 ]
 
 [tool.uv.sources]
-ag-ui-adk = { git = "https://github.com/ag-ui-protocol/ag-ui", subdirectory = "integrations/adk-middleware/python", branch = "main" }
 tripsphere = { workspace = true }
 
 [tool.uv.workspace]

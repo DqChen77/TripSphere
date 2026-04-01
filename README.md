@@ -4,7 +4,21 @@
 
 This monorepo contains the TripSphere, an AI-native distributed system based on microservices architecture.
 
-## Quick Start
+## Motivation
+
+
+
+## Deployment
+
+### Docker Compose
+
+
+
+### Kubernetes
+
+ONGOING
+
+## Development
 
 ### Prerequisites
 
@@ -14,18 +28,9 @@ This monorepo contains the TripSphere, an AI-native distributed system based on 
 
 Protobuf and gRPC codes are useful to ensure projects can be compiled, and provide hints for IDEs. We use Buf to generate protobuf and gRPC codes. Run `task gen-proto` to generate protobuf and gRPC codes with Buf CLI.
 
-## Deployment
+### Toolchain & Environment
 
-### Docker Compose
-
-TODO
-
-### Kubernetes
-
-TODO
-
-## Development
-
-### Prerequisites
-
-TODO
+- Bun 1.3.11 as JavaScript/TypeScript runtime and package manager
+- `uv` as Python package and environment manager (Python 3.12.12)
+- Maven Wrapper (`./mvnw`) as Java build and project manager (JDK 21)
+- Go 1.25.6 as Golang runtime and package manager

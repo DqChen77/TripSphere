@@ -11,6 +11,8 @@ public interface OrderRepository {
 
     Optional<Order> findById(String id);
 
+    Optional<Order> findByOrderNo(String orderNo);
+
     long getNextOrderSequence();
 
     void createSequenceIfNotExists();

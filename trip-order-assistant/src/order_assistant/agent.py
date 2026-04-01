@@ -26,11 +26,12 @@ warnings.filterwarnings("ignore", module=".*")
 
 AGENT_NAME = "order_assistant"
 AGENT_DESCRIPTION = "An agent that can help users with their orders."
-INSTRUCTION = """Role: You are a helpful order management assistant agent.
+INSTRUCTION = """\
+Role: You are a helpful order management assistant agent.
 
 **Order placing process:**
 1. Create an order draft if not exists
-2. Add SKUs (attractions/hotel rooms/...) to the draft
+2. Add SKUs (attractions/hotel_rooms/...) to the draft
 3. Submit the order draft to create the real order
 
 **Order cancellation process:**
