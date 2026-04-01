@@ -2,10 +2,8 @@ import "server-only";
 
 import { cache } from "react";
 import { getAuthMetadata, getOrderService } from "@/lib/grpc/client";
-import type {
-  Order,
-  ListUserOrdersResponse,
-} from "@/lib/grpc/generated/tripsphere/order/v1/order";
+import type { ListUserOrdersResponse } from "@/lib/grpc/generated/tripsphere/order/v1/order";
+import type { Order } from "@/lib/grpc/generated/tripsphere/order/v1/types";
 
 export interface ListUserOrdersResult {
   orders: Order[];

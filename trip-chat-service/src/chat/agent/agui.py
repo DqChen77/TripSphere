@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class HotelViewingToolset(BaseToolset):
-    def __init__(self, tool_name_prefix: str = "hotel_viewing_") -> None:
+    def __init__(self, tool_name_prefix: str = "hotel_viewing") -> None:
         super().__init__(tool_name_prefix=tool_name_prefix)
         self._get_hotel = FunctionTool(self.get_hotel)
         self._get_room_types = FunctionTool(self.get_room_types)

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class ProductToolset(BaseToolset):
-    def __init__(self, tool_name_prefix: str = "product_") -> None:
+    def __init__(self, tool_name_prefix: str = "product") -> None:
         super().__init__(tool_name_prefix=tool_name_prefix)
         self.service_name = "trip-product-service"
         self._get_spu_by_id = FunctionTool(self.get_spu_by_id)

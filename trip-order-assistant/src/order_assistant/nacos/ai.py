@@ -49,7 +49,6 @@ class NacosAI:
                 version=version,
                 address=self.ip,
                 port=self.port,
-                path="/a2a/order_assistant",
             )
         )
 

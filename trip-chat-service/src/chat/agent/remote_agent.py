@@ -1,7 +1,10 @@
 import asyncio
 import logging
 import warnings
+from typing import Any
 
+from a2a.types import Message as A2AMessage
+from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 
 from chat.nacos.ai import NacosAI
@@ -12,8 +15,15 @@ warnings.filterwarnings("ignore", module=".*")
 logger = logging.getLogger(__name__)
 
 
-# async def _add_session_to_memory(callback_context: CallbackContext) -> None:
-#     await callback_context.add_session_to_memory()
+def a2a_request_meta_provider(
+    ctx: InvocationContext, message: A2AMessage
+) -> dict[str, Any]:
+    headers: dict[str, Any] = ctx.session.state.get("headers", {})
+    return {
+        "x-user-id": headers.get("user_id"),
+        "x-user-roles": headers.get("user_roles"),
+        "authorization": headers.get("authorization"),
+    }
 
 
 class RemoteAgentsFactory:
@@ -40,4 +50,9 @@ class RemoteAgentsFactory:
             logger.exception("Failed to resolve remote agent '%s'", agent_name)
             return None
         logger.debug(f"Resolved remote agent '{agent_name}': {agent_card}")
-        return RemoteA2aAgent(name=agent_card.name, agent_card=agent_card)
+        return RemoteA2aAgent(
+            name=agent_card.name,
+            agent_card=agent_card,
+            a2a_request_meta_provider=a2a_request_meta_provider,
+            # use_legacy=False,
+        )

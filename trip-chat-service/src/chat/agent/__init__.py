@@ -41,11 +41,11 @@ def create_agent(
     weather_toolset = McpToolset(
         connection_params=StdioConnectionParams(
             server_params=StdioServerParameters(
-                command="python", args=["-m", "mcp_weather_server", "--debug"]
+                command="python", args=["-m", "mcp_weather_server"]
             ),
             timeout=10,  # 10 seconds timeout
         )
-    )
+    )  # Not stable due to network issues.
     tools: list[ToolUnion] = [load_memory_tool, weather_toolset]  # pyright: ignore
     if agui_toolset is True:
         tools.extend([AGUIToolset(), HotelViewingToolset()])  # pyright: ignore
@@ -55,7 +55,6 @@ def create_agent(
         instruction=DELEGATOR_INSTRUCTION,
         sub_agents=sub_agents,
         tools=tools,
-        # before_model_callback=_inject_agui_context,
     )
 
 
@@ -78,9 +77,7 @@ uv run adk web --log_level debug src/
 """
 order_assistant = RemoteA2aAgent(
     name="order_assistant",
-    agent_card=(
-        f"http://localhost:24211/a2a/order_assistant{AGENT_CARD_WELL_KNOWN_PATH}"
-    ),
+    agent_card=(f"http://localhost:24211{AGENT_CARD_WELL_KNOWN_PATH}"),
 )
 root_agent = create_agent(False, sub_agents=[order_assistant])
 app = create_adk_app(root_agent)

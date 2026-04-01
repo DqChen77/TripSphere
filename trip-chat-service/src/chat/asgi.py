@@ -68,7 +68,9 @@ async def _init_adk_app(app: FastAPI) -> None:
     add_adk_fastapi_endpoint(
         app=app,
         agent=root_agent,
-        extract_state_from_request=make_extract_headers(["x-user-id"]),
+        extract_state_from_request=make_extract_headers(
+            ["x-user-id", "x-user-roles", "authorization"]
+        ),
     )
 
 

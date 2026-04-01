@@ -8,6 +8,7 @@ from typing import Any
 
 from a2a.types import AgentCard
 from google.adk.agents import LlmAgent
+from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.tools.long_running_tool import LongRunningFunctionTool
@@ -56,6 +57,22 @@ def ask_for_confirmation(
     return {"status": "pending", "order_id": order_id, "reason": reason}
 
 
+def before_agent_callback(callback_context: CallbackContext) -> None:
+    if (
+        not callback_context.run_config
+        or not callback_context.run_config.custom_metadata
+    ):
+        return
+    a2a_metadata: dict[str, Any] = (
+        callback_context.run_config.custom_metadata.get("a2a_metadata") or {}
+    )
+    callback_context.state["headers"] = {
+        "user_id": a2a_metadata.get("x-user-id"),
+        "user_roles": a2a_metadata.get("x-user-roles"),
+        "authorization": a2a_metadata.get("authorization"),
+    }
+
+
 def create_agent(model: str = "openai/gpt-4o") -> LlmAgent:
     settings = get_settings()
     if not os.environ.get("OPENAI_API_KEY", None):
@@ -68,6 +85,7 @@ def create_agent(model: str = "openai/gpt-4o") -> LlmAgent:
         description=AGENT_DESCRIPTION,
         model=LiteLlm(model=model),
         instruction=root_instruction,
+        before_agent_callback=before_agent_callback,
         tools=[
             OrderToolset(),
             ProductToolset(),

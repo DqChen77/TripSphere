@@ -29,7 +29,7 @@ ORDER_DRAFTS: dict[str, dict[str, Any]] = {}
 
 
 class OrderDraftToolset(BaseToolset):
-    def __init__(self, tool_name_prefix: str = "order_draft_") -> None:
+    def __init__(self, tool_name_prefix: str = "order_draft") -> None:
         super().__init__(tool_name_prefix=tool_name_prefix)
         self._create_order_draft = FunctionTool(self.create_order_draft)
         self._get_order_draft = FunctionTool(self.get_order_draft)
@@ -58,21 +58,24 @@ class OrderDraftToolset(BaseToolset):
                 e.g., {"status": "success", "message": "", "result": "<uuid>"}
         """
         order_draft_id = str(uuid4())
+        logger.debug("headers: %s", tool_context.state.get("headers"))
+        user_id: str | None = tool_context.state.get("headers", {}).get("user_id", None)
+        if user_id is None:
+            return {
+                "status": "error",
+                "message": "User ID is missing in the headers",
+                "result": None,
+            }
         ORDER_DRAFTS[order_draft_id] = {
-            # TODO: get user ID from context
-            "user_id": "019cb936-58c6-7ddf-9200-f8ad32140a05",
+            "user_id": user_id,
             "items": [],
             "source": {
-                "channel": "web",  # Only web channel is supported for now.
-                "agent_id": "order-assistant",
+                "channel": "web",
+                "agent_id": "order_assistant",
                 "session_id": tool_context.session.id,
             },
-            # TODO: get contact information from confirmation
-            "contact": {
-                "name": "谢森煜",
-                "phone": "15159596227",
-                "email": "senyuxie@qq.com",
-            },
+            # TODO: get real contact information
+            "contact": {"name": "", "phone": "", "email": ""},
         }
         return {
             "status": "success",

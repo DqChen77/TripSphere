@@ -15,10 +15,10 @@ logger = logging.getLogger(__name__)
 
 
 class OrderToolset(BaseToolset):
-    def __init__(self, tool_name_prefix: str = "order_") -> None:
+    def __init__(self, tool_name_prefix: str = "order") -> None:
         super().__init__(tool_name_prefix=tool_name_prefix)
         self.service_name = "trip-order-service"
-        self._get_order = FunctionTool(self.get_order)
+        self._get_order_by_id = FunctionTool(self.get_order_by_id)
         self._cancel_order = FunctionTool(self.cancel_order)
 
     async def _get_server_address(self) -> str:
@@ -31,7 +31,7 @@ class OrderToolset(BaseToolset):
         grpc_port = instance.metadata.get("gRPC_port", "50062")  # pyright: ignore
         return f"{instance.ip}:{grpc_port}"
 
-    async def get_order(self, order_id: str) -> dict[str, Any]:
+    async def get_order_by_id(self, order_id: str) -> dict[str, Any]:
         """Get the order by order ID.
 
         Args:
@@ -97,7 +97,7 @@ class OrderToolset(BaseToolset):
     async def get_tools(
         self, readonly_context: ReadonlyContext | None = None
     ) -> list[BaseTool]:
-        return [self._get_order, self._cancel_order]
+        return [self._get_order_by_id, self._cancel_order]
 
     async def close(self) -> None:
         # Nacos client shutdown is handled by the application.

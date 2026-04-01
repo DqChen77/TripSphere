@@ -1,15 +1,15 @@
 import logging
 import warnings
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import AsyncGenerator, cast
 
 from a2a.types import AgentCard
-from fastapi import FastAPI
-from google.adk.cli.fast_api import get_fast_api_app
+from google.adk.a2a.utils.agent_to_a2a import to_a2a
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 from openinference.instrumentation.litellm import LiteLLMInstrumentor
+from starlette.applications import Starlette
 
-from order_assistant.agent import AGENT_NAME, load_agent_card
+from order_assistant.agent import AGENT_NAME, create_agent, load_agent_card
 from order_assistant.config.settings import get_settings
 from order_assistant.nacos.ai import NacosAI
 from order_assistant.nacos.utils import client_shutdown
@@ -25,7 +25,7 @@ GoogleADKInstrumentor().instrument()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+async def lifespan(app: Starlette) -> AsyncGenerator[None, None]:
     settings = get_settings()
     logger.info(f"Loaded settings: {settings}")
 
@@ -54,16 +54,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await client_shutdown(app.state.nacos_ai, _nacos_naming)
 
 
-def create_app() -> FastAPI:
+def create_app() -> Starlette:
     settings = get_settings()
-    app = get_fast_api_app(
-        agents_dir="src/",
-        web=True,
-        a2a=True,
-        host=settings.uvicorn.host,
-        port=settings.uvicorn.port,
-        lifespan=lifespan,
+    root_agent = create_agent()
+    agent_card = load_agent_card()
+    app = cast(
+        Starlette,
+        to_a2a(
+            root_agent,
+            host=settings.uvicorn.host,
+            port=settings.uvicorn.port,
+            agent_card=agent_card,
+            lifespan=lifespan,
+        ),
     )
+    app.debug = settings.app.debug
     return app
 
 

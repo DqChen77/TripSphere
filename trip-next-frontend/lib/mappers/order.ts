@@ -1,4 +1,4 @@
-import type { Order } from "@/lib/grpc/generated/tripsphere/order/v1/order";
+import type { Order } from "@/lib/grpc/generated/tripsphere/order/v1/types";
 import type { OrderData } from "@/lib/order-types";
 
 function formatDate(d: Date | undefined): string | undefined {
