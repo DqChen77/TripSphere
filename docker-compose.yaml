@@ -218,21 +218,23 @@ services:
     ports:
       - "3000:3000" # HTTP
     environment:
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY:-}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
-      - COPILOT_DEFAULT_AGENT_URL="http://trip-chat-service:24210/"
-      - COPILOT_ITINERARY_PLANNER_URL="http://trip-itinerary-planner:24215/"
+      - COPILOT_DEFAULT_AGENT_URL=http://trip-chat-service:24210/
+      - COPILOT_ITINERARY_PLANNER_URL=http://trip-itinerary-planner:24215/
       - ATTRACTION_SERVICE_ADDR=trip-attraction-service:50053
       - HOTEL_SERVICE_ADDR=trip-hotel-service:50054
       - USER_SERVICE_ADDR=trip-user-service:50056
       - ITINERARY_SERVICE_ADDR=trip-itinerary-service:50052
       - ORDER_SERVICE_ADDR=trip-order-service:50062
+      - PRODUCT_SERVICE_ADDR=trip-product-service:50060
     depends_on:
       trip-chat-service:
         condition: service_healthy
       trip-hotel-service:
         condition: service_started
       trip-user-service:
-        condition: service_healthy
+        condition: service_started
     restart: unless-stopped
 
   trip-note-service:
