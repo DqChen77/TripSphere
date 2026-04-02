@@ -1,8 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  serverExternalPackages: ["@copilotkit/runtime"],
+  serverExternalPackages: [
+    "@copilotkit/runtime",
+    "@grpc/grpc-js",
+    "@bufbuild/protobuf",
+  ],
 };
 
 export default nextConfig;
