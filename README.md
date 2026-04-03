@@ -6,13 +6,13 @@ This monorepo contains TripSphere, an AI-native distributed system based on micr
 
 ## Motivation
 
-Agentic Systems are rapidly emerging as a new software paradigm, with LLMs serving as the core reasoning engine. While powerful, the inherent non-determinism of LLMs — hallucinations, tool-call failures, cascading errors — can undermine the reliability of the entire distributed system. Studying the resilience of such systems is therefore critical.
+As AI agents become deeply embedded in software systems, they are driving a broader shift in the software paradigm, with LLMs serving as the core reasoning engine. While powerful, the inherent non-determinism of LLMs — hallucinations, tool-call failures, cascading errors — can undermine the reliability of the entire distributed system. Studying the resilience of such systems is therefore critical.
 
-TripSphere is a full-stack AI-native application designed as a benchmark and testbed for Agentic System research. It is a living system comprising microservices and AI agents built with four languages (Java, Python, Go, TypeScript).
+TripSphere is a full-stack AI-native application designed as a benchmark and testbed for AI-native System research. It is a living system comprising microservices and AI agents built with four languages (Java, Python, Go, TypeScript).
 
-- **Stateful environment.** Business flows persist data across databases and caches; agent decisions are influenced by historical system state, not just the current prompt.
-- **Cloud-native.** Microservices architecture with full containerization, container orchestration, and OpenTelemetry-based observability where distributed traces span HTTP/gRPC calls and agent execution.
-- **Modern agentic stack.** Integrates MCP, A2A, AI gateway, agent memory, and other contemporary patterns to produce representative traces and trajectories.
+- **Stateful environment:** Business flows persist data across databases and caches; agent decisions are influenced by historical system state, not just the current prompt.
+- **Cloud-native:** Microservices architecture with full containerization, container orchestration, and OpenTelemetry observability where distributed traces span API calls and agent execution.
+- **Modern agentic stack:** Integrates MCP, A2A, AI gateway, agent memory, and other contemporary patterns to produce representative traces and trajectories.
 
 ## Deployment
 
@@ -116,16 +116,6 @@ Agents automatically pick up these rules when working in the corresponding direc
 
 #### Agent Skills
 
-Skills are modular knowledge packages (under `.agents/skills/`) that teach agents specialized workflows and best practices. This repo includes project-level skills:
+Skills are modular knowledge packages (under `.agents/skills/`) that teach agents specialized workflows and best practices. We develop this repository under the help of AI Coding Agents equipped with skills like adk-cheatsheet, shadcn, vercel-react-best-practices, etc.
 
-| Skill                         | Purpose                                                                 |
-| ----------------------------- | ----------------------------------------------------------------------- |
-| `adk-cheatsheet`              | ADK API quick reference — agent types, tools, orchestration, callbacks  |
-| `adk-dev-guide`               | ADK development lifecycle and mandatory coding guidelines               |
-| `adk-observability-guide`     | ADK observability — tracing, logging, and analytics setup               |
-| `shadcn`                      | ShadcnUI component management — adding, styling, composing UI           |
-| `vercel-composition-patterns` | React composition patterns — compound components, render props, context |
-| `vercel-react-best-practices` | React/Next.js performance optimization from Vercel Engineering          |
-| `web-design-guidelines`       | Web Interface Guidelines compliance and accessibility review            |
-
-We manage these skills via the [Skills CLI](https://skills.sh/). Run `bunx -b skills ls` to list all installed skills.
+These skills are managed via the [Skills CLI](https://skills.sh/) (see `skills-lock.json`). Run `bunx -b skills ls` to list all installed skills.
