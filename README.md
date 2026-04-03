@@ -96,7 +96,36 @@ Protobuf and gRPC codes are useful to ensure projects can be compiled, and provi
 
 ### Toolchain & Environment
 
-- Bun 1.3.11 as JavaScript/TypeScript runtime and package manager
-- `uv` as Python package and environment manager (Python 3.12.12)
+- [Bun](https://bun.com/) 1.3.11 as JavaScript/TypeScript runtime and package manager
+- [uv](https://docs.astral.sh/uv/) as Python package and environment manager (Python 3.12.12)
 - Maven Wrapper (`./mvnw`) as Java build and project manager (JDK 21)
-- Go 1.25.6 as Golang runtime and package manager
+- [Go](https://go.dev/) 1.25.6 as Golang project and package manager
+
+### AI Coding Agents
+
+This repository provides built-in guidance for AI coding agents (Cursor, Copilot, Windsurf, etc.) through two mechanisms: **Agent Rules** and **Agent Skills**.
+
+#### Agent Rules
+
+`AGENTS.md` files define repository-level conventions that agents must follow. They are placed at key directories:
+
+- `AGENTS.md` (root) — toolchain requirements (`bun`, `uv`, `./mvnw`) and universal code style guidelines.
+- `trip-next-frontend/AGENTS.md` — frontend-specific rules: Next.js 16 conventions, CopilotKit V2 API, ShadcnUI theming, and refactoring workflows.
+
+Agents automatically pick up these rules when working in the corresponding directories.
+
+#### Agent Skills
+
+Skills are modular knowledge packages (under `.agents/skills/`) that teach agents specialized workflows and best practices. This repo includes project-level skills:
+
+| Skill                         | Purpose                                                                 |
+| ----------------------------- | ----------------------------------------------------------------------- |
+| `adk-cheatsheet`              | ADK API quick reference — agent types, tools, orchestration, callbacks  |
+| `adk-dev-guide`               | ADK development lifecycle and mandatory coding guidelines               |
+| `adk-observability-guide`     | ADK observability — tracing, logging, and analytics setup               |
+| `shadcn`                      | ShadcnUI component management — adding, styling, composing UI           |
+| `vercel-composition-patterns` | React composition patterns — compound components, render props, context |
+| `vercel-react-best-practices` | React/Next.js performance optimization from Vercel Engineering          |
+| `web-design-guidelines`       | Web Interface Guidelines compliance and accessibility review            |
+
+We manage these skills via the [Skills CLI](https://skills.sh/). Run `bunx -b skills ls` to list all installed skills.
