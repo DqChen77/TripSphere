@@ -4,6 +4,8 @@
 
 This monorepo contains TripSphere, an AI-native distributed system. It simulates an online travel platform where AI agents incorporate with complex business workflows, orchestrating and composing backend capabilities across services to fulfill end-to-end tasks.
 
+![TripSphere Architecture](./docs/assets/architecture_1.jpg "TripSphere Architecture")
+
 ## Motivation
 
 Agentic AI is moving beyond isolated, lightweight tasks into real business systems, where planning and execution are shaped by business rules, service boundaries, system state, and infrastructure constraints. TripSphere is built as a full-stack AI-native benchmark and testbed for studying this deeper integration, providing an open environment for exploring how agents interact with complex workflows, heterogeneous services, and dynamic runtime conditions.
