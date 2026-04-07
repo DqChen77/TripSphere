@@ -2,17 +2,11 @@
 
 ## Overview
 
-This monorepo contains TripSphere, an AI-native distributed system based on microservices architecture. It simulates an online travel platform where AI agents collaborate with backend services to handle tasks such as itinerary planning, order processing, etc.
+This monorepo contains TripSphere, an AI-native distributed system. It simulates an online travel platform where AI agents incorporate with complex business workflows, orchestrating and composing backend capabilities across services to fulfill end-to-end tasks.
 
 ## Motivation
 
-As AI agents become deeply embedded in software systems, they are driving a broader shift in the software paradigm, with LLMs serving as the core reasoning engine. While powerful, the inherent non-determinism of LLMs — hallucinations, tool-call failures, cascading errors — can undermine the reliability of the entire distributed system. Studying the resilience of such systems is therefore critical.
-
-TripSphere is a full-stack AI-native application designed as a benchmark and testbed for AI-native System research. It is a living system comprising microservices and AI agents built with four languages (Java, Python, Go, TypeScript).
-
-- **Stateful environment:** Business flows persist data across databases and caches; agent decisions are influenced by historical system state, not just the current prompt.
-- **Cloud-native:** Microservices architecture with full containerization, container orchestration, and OpenTelemetry observability where distributed traces span API calls and agent execution.
-- **Modern agentic stack:** Integrates MCP, A2A, AI gateway, agent memory, and other contemporary patterns to produce representative traces and trajectories.
+Agentic AI is moving beyond isolated, lightweight tasks into real business systems, where planning and execution are shaped by business rules, service boundaries, system state, and infrastructure constraints. TripSphere is built as a full-stack AI-native benchmark and testbed for studying this deeper integration, providing an open environment for exploring how agents interact with complex workflows, heterogeneous services, and dynamic runtime conditions.
 
 ## Deployment
 
@@ -38,7 +32,6 @@ For example, if you want to build docker image for `trip-chat-service`, execute 
 cd trip-chat-service
 buf generate
 docker build . -t tripsphere/trip-chat-service:latest
-cd ..
 ```
 
 NOTE: Running `buf generate` too frequently/simultaneously may trigger rate limit from Buf Schema Registry (BSR).
@@ -96,7 +89,7 @@ Protobuf and gRPC codes are useful to ensure projects can be compiled, and provi
 
 ### Toolchain & Environment
 
-- [Bun](https://bun.com/) 1.3.11 as JavaScript/TypeScript runtime and package manager
+- [Bun](https://bun.com/) as JavaScript/TypeScript runtime and package manager
 - [uv](https://docs.astral.sh/uv/) as Python package and environment manager (Python 3.12.12)
 - Maven Wrapper (`./mvnw`) as Java build and project manager (JDK 21)
 - [Go](https://go.dev/) 1.25.6 as Golang project and package manager
