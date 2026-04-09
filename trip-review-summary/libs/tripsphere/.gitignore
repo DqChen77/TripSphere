@@ -1,3 +1,0 @@
-src/tripsphere/*
-!src/tripsphere/py.typed
-!src/tripsphere/__init__.py
