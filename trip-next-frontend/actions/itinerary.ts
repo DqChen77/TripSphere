@@ -89,7 +89,7 @@ export interface Itinerary {
 export interface PlanItineraryResult {
   itinerary: Itinerary;
   markdown_content: string;
-  conversation_messages: { role: string; content: string }[];
+  messages: { role: string; content: string }[];
 }
 
 export interface SavedItinerarySummary {
@@ -392,7 +392,7 @@ export async function getItinerary(id: string): Promise<PlanItineraryResult> {
   return {
     itinerary: protoItineraryToFrontend(itinerary),
     markdown_content: itinerary.markdownContent ?? "",
-    conversation_messages: [],
+    messages: [],
   };
 }
 

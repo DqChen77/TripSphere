@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import Link from "next/link";
+import { useFrontendTool } from "@copilotkit/react-core";
 import { useAgent } from "@copilotkit/react-core/v2";
 import { CopilotSidebar } from "@copilotkit/react-core/v2";
 import { Badge } from "@/components/ui/badge";
@@ -64,9 +65,46 @@ function PlannerContent() {
       try {
         await updateSavedItinerary(id, it, md);
         setSyncStatus("saved");
-      } catch {
+      } catch (err) {
+        console.error("[syncToBackend] save failed:", err);
         setSyncStatus("error");
       }
+    },
+    [],
+  );
+
+  const itineraryRef = useRef(itinerary);
+  const markdownRef = useRef(markdownContent);
+  const idRef = useRef(itineraryId);
+  useEffect(() => {
+    itineraryRef.current = itinerary;
+    markdownRef.current = markdownContent;
+    idRef.current = itineraryId;
+  }, [itinerary, markdownContent, itineraryId]);
+
+  useFrontendTool(
+    {
+      name: "update_itinerary",
+      description:
+        "Persist the current itinerary to the backend after modifications. " +
+        "Call this after any itinerary change (add/remove/update activities, days, etc.).",
+      parameters: [],
+      handler: async () => {
+        const id = idRef.current;
+        const it = itineraryRef.current;
+        const md = markdownRef.current;
+        if (!id || !it) return "No itinerary to save.";
+        setSyncStatus("saving");
+        try {
+          await updateSavedItinerary(id, it, md);
+          setSyncStatus("saved");
+          return "Itinerary saved successfully.";
+        } catch (err) {
+          console.error("[update_itinerary] save failed:", err);
+          setSyncStatus("error");
+          return `Save failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      },
     },
     [],
   );
@@ -137,6 +175,10 @@ function PlannerContent() {
   }, []);
 
   useEffect(() => {
+    console.log("🔥 agent.state changed:", agent.state);
+  }, [agent.state]);
+
+  useEffect(() => {
     if (!loaded) return;
 
     if (selfWriteRef.current) {
@@ -150,7 +192,15 @@ function PlannerContent() {
     const agentMarkdown = (agent.state as { markdown_content?: string } | null)
       ?.markdown_content;
 
-    if (!agentItinerary) return;
+    if (!agentItinerary?.id) {
+      // Backend sent an empty or schema-default STATE_SNAPSHOT (no real itinerary yet).
+      // Restore the local itinerary back into the agent so it retains context.
+      if (itinerary) {
+        selfWriteRef.current = true;
+        agent.setState({ itinerary, markdown_content: markdownContent });
+      }
+      return;
+    }
 
     const snap = JSON.stringify(agentItinerary);
     if (snap === snapshotRef.current) return;

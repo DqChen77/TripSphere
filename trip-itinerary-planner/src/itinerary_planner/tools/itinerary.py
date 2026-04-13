@@ -68,7 +68,18 @@ def _update(
     message: str,
     new_itinerary: dict[str, Any],
 ) -> Command:  # type: ignore[type-arg]
-    """Return a Command that updates itinerary + adds a ToolMessage."""
+    """Return a Command that updates itinerary + adds a ToolMessage.
+
+    Refuses to write an itinerary without an ``id`` – that would mean the
+    state was never properly initialised from the frontend and operating on it
+    would silently wipe all existing data.
+    """
+    if not new_itinerary.get("id"):
+        return _ok(
+            tool_call_id,
+            "⚠️ Cannot apply change: itinerary has no ID "
+            "(frontend state not yet synced – please retry).",
+        )
     return Command(
         update={
             "itinerary": _recompute_summary(new_itinerary),

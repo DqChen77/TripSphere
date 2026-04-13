@@ -31,7 +31,7 @@ class PlanningState(TypedDict):
     # Output
     itinerary: Itinerary | None
     markdown_content: str
-    conversation_messages: list[dict[str, str]]
+    messages: list[dict[str, str]]
     error: str | None
 
     # Streaming events (accumulated using operator.add)

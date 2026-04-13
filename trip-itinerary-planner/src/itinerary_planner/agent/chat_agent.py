@@ -4,21 +4,24 @@ Architecture
 ────────────
 A custom 2-node LangGraph (agent → tools → agent → …) served through
 ag_ui_langgraph.  The itinerary is held in the graph state so the
-frontend can sync it bidirectionally via CopilotKit's useCoAgent hook:
+frontend can sync it bidirectionally via CopilotKit's useAgent hook:
 
   frontend state.itinerary  ←→  ChatState["itinerary"]
 
 Flow per user turn
 ──────────────────
-1. CopilotKit sends the current agent state (incl. itinerary) in
-   RunAgentInput.state — ag_ui_langgraph merges it into the graph state.
+1. CopilotKit sends the current agent state (incl. itinerary and
+   copilotkit.actions) — ag_ui_langgraph merges it into the graph state.
 2. agent_node builds a fresh SystemMessage from state["itinerary"],
-   strips stale system messages, binds tools, and calls the LLM.
-3. If the LLM emits tool calls, ToolNode executes them.
-   Every tool updates state["itinerary"] (and/or "markdown_content")
-   atomically via a Command return + ToolMessage.
+   strips stale system messages, binds backend + frontend tools, and
+   calls the LLM.
+3. If the LLM emits backend tool calls, ToolNode executes them.
+   Frontend tool calls skip ToolNode and are routed to the browser by
+   the AG-UI / CopilotKit framework.
+   Every backend tool updates state["itinerary"] (and/or
+   "markdown_content") atomically via a Command return + ToolMessage.
 4. After the last tool call the LLM generates a text reply.
-5. ag_ui_langgraph emits StateSnapshotEvent → CopilotKit → useCoAgent
+5. ag_ui_langgraph emits StateSnapshotEvent → CopilotKit → useAgent
    updates state.itinerary on the frontend in real-time.
 """
 
@@ -50,21 +53,31 @@ _SEP = "─" * 60
 
 
 # ── State ──────────────────────────────────────────────────────────────────
+# All field types are kept JSON-schema-friendly so that
+# ag-ui-langgraph's schema-based state filtering includes every key.
 
-ChatState = TypedDict(
-    "ChatState",
-    {
-        # Full conversation history; add_messages merges instead of replacing.
-        "messages": Annotated[list[AnyMessage], add_messages],
-        # Current itinerary as a plain dict (JSON-serialisable).
-        # Initialised by the frontend via useCoAgent initialState / setState.
-        # Tools update it via Command; ag_ui_langgraph streams it back via
-        # StateSnapshotEvent so the frontend ItineraryViewer re-renders live.
-        "itinerary": dict[str, Any] | None,
-        # Markdown narrative synced alongside the itinerary.
-        "markdown_content": str,
-    },
-)
+
+def _keep_itinerary(
+    old: dict[str, Any] | None,
+    new: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Reducer that only accepts a new itinerary when it carries a real ID.
+
+    ag_ui_langgraph may inject a schema-default empty dict (no ``id``) when the
+    frontend hasn't yet pushed the itinerary into the graph state.  Without this
+    guard, that empty default would overwrite a valid itinerary already stored in
+    the MemorySaver checkpoint.
+    """
+    if new is not None and new.get("id"):
+        return new
+    return old
+
+
+class ChatState(TypedDict):
+    messages: Annotated[list[AnyMessage], add_messages]
+    copilotkit: dict[str, Any]
+    itinerary: Annotated[dict[str, Any] | None, _keep_itinerary]
+    markdown_content: str
 
 
 # ── System prompt builder ──────────────────────────────────────────────────
@@ -116,12 +129,11 @@ def create_chat_graph(nacos_naming: NacosNaming | None = None) -> CompiledStateG
         base_url=settings.openai.base_url,
     )
 
-    all_tools = [geocoding_tool, *INLINE_TOOLS]
+    backend_tools: list[Any] = [geocoding_tool, *INLINE_TOOLS]
     if nacos_naming is not None:
-        all_tools.append(make_regenerate_day_tool(nacos_naming))
+        backend_tools.append(make_regenerate_day_tool(nacos_naming))
 
-    tool_node = ToolNode(all_tools)
-    model_with_tools = model.bind_tools(all_tools)
+    tool_node = ToolNode(backend_tools)
 
     # ── Nodes ──────────────────────────────────────────────────────────────
 
@@ -139,15 +151,26 @@ def create_chat_graph(nacos_naming: NacosNaming | None = None) -> CompiledStateG
         non_system = [m for m in state["messages"] if not isinstance(m, SystemMessage)]
         conversation = [system_msg, *non_system]
 
+        # Bind backend + CopilotKit frontend tools per-request so the
+        # model can invoke frontend tools registered via useFrontendTool.
+        frontend_tools = state.get("copilotkit", {}).get("actions", [])
+        model_with_tools = model.bind_tools(backend_tools + frontend_tools)
+
         response = await model_with_tools.ainvoke(conversation, config)
         logger.info(_SEP)
         return {"messages": [response]}
 
     def should_continue(state: ChatState) -> Literal["tools", "__end__"]:
         last = state["messages"][-1]
-        if getattr(last, "tool_calls", None):
-            return "tools"
-        return "__end__"
+        tool_calls = getattr(last, "tool_calls", None)
+        if not tool_calls:
+            return "__end__"
+        frontend_names = {
+            t.get("function", {}).get("name") or t.get("name")
+            for t in (state.get("copilotkit") or {}).get("actions", [])
+        }
+        has_backend = any(tc["name"] not in frontend_names for tc in tool_calls)
+        return "tools" if has_backend else "__end__"
 
     # ── Graph ──────────────────────────────────────────────────────────────
 
@@ -166,7 +189,7 @@ def create_chat_graph(nacos_naming: NacosNaming | None = None) -> CompiledStateG
     checkpointer = MemorySaver()
     graph = workflow.compile(checkpointer=checkpointer)
     logger.info(
-        "[ChatAgent] ReAct graph compiled (%d tool(s), checkpointer=MemorySaver)",
-        len(all_tools),
+        "[ChatAgent] ReAct graph compiled (%d backend tool(s), checkpointer=MemorySaver)",
+        len(backend_tools),
     )
     return graph

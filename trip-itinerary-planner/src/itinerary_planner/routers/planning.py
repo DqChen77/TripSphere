@@ -43,7 +43,7 @@ class PlanItineraryRequest(BaseModel):
 class PlanItineraryResponse(BaseModel):
     itinerary: Itinerary = Field(description="Structured itinerary data")
     markdown_content: str = Field(description="Natural-language Markdown itinerary")
-    conversation_messages: list[dict[str, str]] = Field(
+    messages: list[dict[str, str]] = Field(
         description="Initial conversation messages for Deep Agent handoff"
     )
 
@@ -74,7 +74,7 @@ def get_initial_state(
         hotel_details=[],
         itinerary=None,
         markdown_content="",
-        conversation_messages=[],
+        messages=[],
         error=None,
         events=[],
     )
@@ -105,8 +105,8 @@ async def plan_itinerary(
             raise HTTPException(status_code=500, detail="Failed to generate itinerary")
 
         markdown_content: str = final_state.get("markdown_content", "")
-        conversation_messages: list[dict[str, str]] = final_state.get(
-            "conversation_messages", []
+        messages: list[dict[str, str]] = final_state.get(
+            "messages", []
         )
 
         # Persist to itinerary service via gRPC
@@ -125,7 +125,7 @@ async def plan_itinerary(
         return PlanItineraryResponse(
             itinerary=itinerary,
             markdown_content=markdown_content,
-            conversation_messages=conversation_messages,
+            messages=messages,
         )
     except HTTPException:
         raise
