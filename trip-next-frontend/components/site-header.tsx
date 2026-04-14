@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { Search, Bell, ShoppingBag, Sailboat } from "lucide-react";
+import { Search, ShoppingBag, Sailboat } from "lucide-react";
 import { getSession } from "@/lib/session";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { UserNavigation } from "@/components/user-navigation";
 
@@ -58,18 +57,6 @@ export async function SiteHeader({ ...props }: React.ComponentProps<"header">) {
             </Link>
           </Button>
 
-          <Button variant="ghost" size="icon-sm" className="relative" asChild>
-            <Link href="/notification">
-              <Bell className="size-4" aria-hidden="true" />
-              <Badge
-                variant="destructive"
-                className="absolute -top-1 -right-1 size-4 justify-center p-0 text-[10px]"
-              >
-                3
-              </Badge>
-              <span className="sr-only">消息通知</span>
-            </Link>
-          </Button>
         </div>
       </div>
     </header>

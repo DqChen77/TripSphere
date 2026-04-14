@@ -36,7 +36,7 @@ public interface OrderEntityMapper {
                 .orderNo(entity.getOrderNo())
                 .userId(entity.getUserId())
                 .status(OrderStatus.valueOf(entity.getStatus()))
-                .type(OrderType.valueOf(entity.getType()))
+                .type(parseOrderType(entity.getType()))
                 .resourceId(entity.getResourceId())
                 .totalAmount(new Money(entity.getTotalCurrency(), entity.getTotalUnits(), entity.getTotalNanos()))
                 .contact(new ContactInfo(entity.getContactName(), entity.getContactPhone(), entity.getContactEmail()))
@@ -88,6 +88,17 @@ public interface OrderEntityMapper {
 
     default String mapOrderType(OrderType type) {
         return type != null ? type.name() : null;
+    }
+
+    default OrderType parseOrderType(String type) {
+        if (type == null || type.isBlank()) {
+            return OrderType.UNSPECIFIED;
+        }
+        try {
+            return OrderType.valueOf(type);
+        } catch (IllegalArgumentException ignored) {
+            return OrderType.UNSPECIFIED;
+        }
     }
 
     default Money toMoney(String currency, Long units, Integer nanos) {

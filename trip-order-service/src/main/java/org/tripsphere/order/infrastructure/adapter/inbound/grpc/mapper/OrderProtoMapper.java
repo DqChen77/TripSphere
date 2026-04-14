@@ -48,16 +48,12 @@ public interface OrderProtoMapper {
     @ValueMapping(source = "UNSPECIFIED", target = "ORDER_TYPE_UNSPECIFIED")
     @ValueMapping(source = "ATTRACTION", target = "ORDER_TYPE_ATTRACTION")
     @ValueMapping(source = "HOTEL", target = "ORDER_TYPE_HOTEL")
-    @ValueMapping(source = "FLIGHT", target = "ORDER_TYPE_FLIGHT")
-    @ValueMapping(source = "TRAIN", target = "ORDER_TYPE_TRAIN")
     org.tripsphere.order.v1.OrderType mapType(OrderType type);
 
     default OrderType mapTypeToDomain(org.tripsphere.order.v1.OrderType proto) {
         return switch (proto) {
             case ORDER_TYPE_ATTRACTION -> OrderType.ATTRACTION;
             case ORDER_TYPE_HOTEL -> OrderType.HOTEL;
-            case ORDER_TYPE_FLIGHT -> OrderType.FLIGHT;
-            case ORDER_TYPE_TRAIN -> OrderType.TRAIN;
             default -> null;
         };
     }

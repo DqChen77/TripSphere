@@ -23,8 +23,7 @@ enum OrderType {
   ORDER_TYPE_UNSPECIFIED = 0;
   ORDER_TYPE_ATTRACTION = 1;
   ORDER_TYPE_HOTEL = 2;
-  ORDER_TYPE_FLIGHT = 3;
-  ORDER_TYPE_TRAIN = 4;
+  reserved 3, 4;
 }
 
 message Order {
