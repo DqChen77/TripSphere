@@ -33,6 +33,9 @@ public class CreateItineraryUseCase {
         itinerary.ensureAllIds();
 
         Itinerary saved = itineraryRepository.save(itinerary);
+        if (saved.getId() == null || saved.getId().isBlank()) {
+            throw new IllegalStateException("Persisted itinerary id is missing");
+        }
         log.info("Created itinerary with id: {}", saved.getId());
         return saved;
     }

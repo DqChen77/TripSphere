@@ -15,7 +15,6 @@ import {
   getItinerary,
   updateSavedItinerary,
   type Itinerary,
-  type PlanItineraryResult,
 } from "@/actions/itinerary";
 
 type SyncStatus = "saved" | "saving" | "unsaved" | "error";
@@ -47,8 +46,10 @@ function SyncStatusBadge({ status }: { status: SyncStatus }) {
 
 function PlannerContent() {
   const searchParams = useSearchParams();
+  const queryItineraryId = searchParams.get("id")?.trim() ?? "";
   const [loaded, setLoaded] = useState(false);
-  const [itineraryId, setItineraryId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [activeItineraryId, setActiveItineraryId] = useState<string | null>(null);
   const [itinerary, setItinerary] = useState<Itinerary | null>(null);
   const [markdownContent, setMarkdownContent] = useState("");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("saved");
@@ -75,12 +76,12 @@ function PlannerContent() {
 
   const itineraryRef = useRef(itinerary);
   const markdownRef = useRef(markdownContent);
-  const idRef = useRef(itineraryId);
+  const idRef = useRef(activeItineraryId);
   useEffect(() => {
     itineraryRef.current = itinerary;
     markdownRef.current = markdownContent;
-    idRef.current = itineraryId;
-  }, [itinerary, markdownContent, itineraryId]);
+    idRef.current = activeItineraryId;
+  }, [itinerary, markdownContent, activeItineraryId]);
 
   useFrontendTool(
     {
@@ -119,60 +120,61 @@ function PlannerContent() {
     let cancelled = false;
 
     async function load() {
-      const idParam = searchParams.get("id");
-      let data: { itinerary: Itinerary; markdown_content: string } | null =
-        null;
-      let resolvedId: string | null = null;
-
-      if (idParam) {
-        try {
-          data = await getItinerary(idParam);
-          resolvedId = idParam;
-        } catch {
-          /* leave empty */
-        }
-      } else {
-        const raw = sessionStorage.getItem("itinerary_plan_result");
-        if (raw) {
-          try {
-            const parsed = JSON.parse(raw) as PlanItineraryResult;
-            data = parsed;
-            resolvedId = parsed.itinerary.id;
-            const url = new URL(window.location.href);
-            url.searchParams.set("id", resolvedId);
-            window.history.replaceState({}, "", url.toString());
-          } catch {
-            /* ignore */
-          }
-        }
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+        debounceTimer.current = null;
       }
 
-      if (cancelled) return;
+      snapshotRef.current = null;
+      selfWriteRef.current = false;
+      setLoaded(false);
+      setLoadError(null);
+      setSyncStatus("saved");
+      setItinerary(null);
+      setMarkdownContent("");
+      setActiveItineraryId(null);
 
-      if (data) {
+      if (!queryItineraryId) {
+        setLoadError("缺少行程 ID，请返回“我的行程”重新进入。");
+        setLoaded(true);
+        return;
+      }
+
+      try {
+        const data = await getItinerary(queryItineraryId);
+        if (cancelled) return;
+
+        const itineraryId = data.itinerary?.id?.trim();
+        if (!itineraryId) {
+          throw new Error("行程数据缺少 id");
+        }
+
         const snap = JSON.stringify(data.itinerary);
         snapshotRef.current = snap;
-
         setItinerary(data.itinerary);
         setMarkdownContent(data.markdown_content);
-        setItineraryId(resolvedId);
+        setActiveItineraryId(itineraryId);
 
         selfWriteRef.current = true;
         agent.setState({
           itinerary: data.itinerary,
           markdown_content: data.markdown_content,
         });
+      } catch (err) {
+        if (cancelled) return;
+        setLoadError(err instanceof Error ? err.message : "加载行程失败");
+      } finally {
+        if (!cancelled) {
+          setLoaded(true);
+        }
       }
-
-      setLoaded(true);
     }
 
     load();
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [agent, queryItineraryId]);
 
   useEffect(() => {
     console.log("🔥 agent.state changed:", agent.state);
@@ -191,13 +193,32 @@ function PlannerContent() {
     )?.itinerary;
     const agentMarkdown = (agent.state as { markdown_content?: string } | null)
       ?.markdown_content;
+    const activeId = idRef.current;
+    if (!activeId) return;
+    const localItinerary = itineraryRef.current;
+    const localMarkdown = markdownRef.current;
 
     if (!agentItinerary?.id) {
       // Backend sent an empty or schema-default STATE_SNAPSHOT (no real itinerary yet).
       // Restore the local itinerary back into the agent so it retains context.
-      if (itinerary) {
+      if (localItinerary?.id === activeId) {
         selfWriteRef.current = true;
-        agent.setState({ itinerary, markdown_content: markdownContent });
+        agent.setState({
+          itinerary: localItinerary,
+          markdown_content: localMarkdown,
+        });
+      }
+      return;
+    }
+
+    // Ignore stale snapshots from old planner sessions.
+    if (agentItinerary.id !== activeId) {
+      if (localItinerary?.id === activeId) {
+        selfWriteRef.current = true;
+        agent.setState({
+          itinerary: localItinerary,
+          markdown_content: localMarkdown,
+        });
       }
       return;
     }
@@ -209,16 +230,14 @@ function PlannerContent() {
     setItinerary(agentItinerary);
     if (agentMarkdown !== undefined) setMarkdownContent(agentMarkdown);
 
-    if (itineraryId) {
-      setSyncStatus("unsaved");
-      if (debounceTimer.current) clearTimeout(debounceTimer.current);
-      debounceTimer.current = setTimeout(
-        () => syncToBackend(agentItinerary, agentMarkdown ?? "", itineraryId),
-        1500,
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agent.state]);
+    setSyncStatus("unsaved");
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      const latestId = idRef.current;
+      if (!latestId || latestId !== agentItinerary.id) return;
+      void syncToBackend(agentItinerary, agentMarkdown ?? "", latestId);
+    }, 1500);
+  }, [agent, agent.state, loaded, syncToBackend]);
 
   if (!loaded) {
     return (
@@ -232,12 +251,17 @@ function PlannerContent() {
     return (
       <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
         <div className="text-center">
-          <p className="text-foreground text-lg font-medium">暂无行程数据</p>
+          <p className="text-foreground text-lg font-medium">
+            {loadError ? "行程加载失败" : "暂无行程数据"}
+          </p>
+          {loadError && (
+            <p className="text-muted-foreground mt-2 text-sm">{loadError}</p>
+          )}
           <Link
             href="/itinerary"
             className="text-primary mt-2 inline-block text-sm hover:underline"
           >
-            返回规划页面
+            返回我的行程
           </Link>
         </div>
       </div>

@@ -93,8 +93,11 @@ export function ItineraryPlanForm({ today: todayStr }: ItineraryPlanFormProps) {
           additionalPreferences,
         });
 
-        sessionStorage.setItem("itinerary_plan_result", JSON.stringify(result));
-        router.push("/itinerary/planner");
+        const itineraryId = result.itinerary?.id?.trim();
+        if (!itineraryId) {
+          throw new Error("规划成功但未返回有效 itinerary id");
+        }
+        router.push(`/itinerary/planner?id=${itineraryId}`);
       } catch (err) {
         setError(err instanceof Error ? err.message : "规划失败，请重试");
       }

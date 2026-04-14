@@ -109,18 +109,27 @@ async def plan_itinerary(
             "messages", []
         )
 
-        # Persist to itinerary service via gRPC
+        # Persist to itinerary service via gRPC (strong consistency required)
         try:
             saved = await svc.create_itinerary(
                 itinerary=itinerary,
                 user_id=user_id,
                 markdown_content=markdown_content,
             )
-            # Use the server-assigned ID for subsequent operations
-            itinerary = itinerary.model_copy(update={"id": saved.id})
         except Exception as exc:
-            # Non-fatal: the itinerary is still returned even if save fails
-            logger.error("Failed to persist itinerary via gRPC: %s", exc)
+            logger.exception("Failed to persist itinerary via gRPC")
+            raise HTTPException(
+                status_code=502, detail="Failed to persist itinerary"
+            ) from exc
+
+        if not saved.id:
+            logger.error("Persisted itinerary is missing server-assigned id")
+            raise HTTPException(
+                status_code=500, detail="Persisted itinerary is missing id"
+            )
+
+        # Use the server-assigned ID for subsequent operations
+        itinerary = itinerary.model_copy(update={"id": saved.id})
 
         return PlanItineraryResponse(
             itinerary=itinerary,

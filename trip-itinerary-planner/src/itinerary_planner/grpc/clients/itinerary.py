@@ -292,6 +292,8 @@ class ItineraryServiceClient:
                 itinerary_pb2.CreateItineraryRequest(itinerary=proto),
                 metadata=metadata,
             )
+        if not response.itinerary.id:
+            raise ValueError("CreateItinerary returned empty itinerary.id")
         saved, _ = _proto_to_itinerary(response.itinerary)
         return saved.model_copy(update={"id": response.itinerary.id})
 
