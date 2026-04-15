@@ -8,6 +8,10 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 
 from chat.nacos.ai import NacosAI
+from chat.observability.tracing import (
+    build_a2a_metadata,
+    enrich_current_span_with_experiment,
+)
 
 # Suppress ADK Experimental Warnings
 warnings.filterwarnings("ignore", module=".*")
@@ -19,11 +23,8 @@ def a2a_request_meta_provider(
     ctx: InvocationContext, message: A2AMessage
 ) -> dict[str, Any]:
     headers: dict[str, Any] = ctx.session.state.get("headers", {})
-    return {
-        "x-user-id": headers.get("user_id"),
-        "x-user-roles": headers.get("user_roles"),
-        "authorization": headers.get("authorization"),
-    }
+    enrich_current_span_with_experiment(headers)
+    return build_a2a_metadata(headers)
 
 
 class RemoteAgentsFactory:

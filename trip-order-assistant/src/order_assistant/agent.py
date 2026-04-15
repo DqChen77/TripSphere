@@ -71,6 +71,8 @@ def before_agent_callback(callback_context: CallbackContext) -> None:
         "user_id": a2a_metadata.get("x-user-id"),
         "user_roles": a2a_metadata.get("x-user-roles"),
         "authorization": a2a_metadata.get("authorization"),
+        "experiment_id": a2a_metadata.get("x-experiment-id"),
+        "fault_scenario": a2a_metadata.get("x-fault-scenario"),
     }
 
 

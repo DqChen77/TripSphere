@@ -5,7 +5,7 @@ from typing import Any, AsyncGenerator, cast
 from ag_ui_adk import ADKAgent, add_adk_fastapi_endpoint  # type: ignore
 from ag_ui_adk.adk_agent import RunAgentInput  # type: ignore
 from ag_ui_adk.endpoint import make_extract_headers  # type: ignore
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from mem0 import AsyncMemory  # type: ignore
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
@@ -22,6 +22,7 @@ from chat.config.settings import Settings, get_settings
 from chat.nacos.ai import NacosAI
 from chat.nacos.naming import NacosNaming
 from chat.nacos.utils import client_shutdown
+from chat.observability.tracing import chat_entry_span
 from chat.routers.health import health
 
 logger = logging.getLogger(__name__)
@@ -69,7 +70,13 @@ async def _init_adk_app(app: FastAPI) -> None:
         app=app,
         agent=root_agent,
         extract_state_from_request=make_extract_headers(
-            ["x-user-id", "x-user-roles", "authorization"]
+            [
+                "x-user-id",
+                "x-user-roles",
+                "authorization",
+                "x-experiment-id",
+                "x-fault-scenario",
+            ]
         ),
     )
 
@@ -99,6 +106,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(debug=settings.app.debug, lifespan=lifespan)
+
+    @app.middleware("http")
+    async def chat_entry_observability_middleware(
+        request: Request, call_next: Any
+    ) -> Any:
+        if request.url.path == "/api/v1/health":
+            return await call_next(request)
+
+        with chat_entry_span(
+            method=request.method, path=request.url.path, headers=request.headers
+        ) as span:
+            response = await call_next(request)
+            span.set_attribute("http.response.status_code", response.status_code)
+            return response
 
     # Configure CORS
     app.add_middleware(

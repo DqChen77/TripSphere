@@ -21,6 +21,7 @@ from order_assistant.mappers.order_mapper import (
     order_source_to_proto,
 )
 from order_assistant.nacos.naming import get_nacos_naming
+from order_assistant.observability.tracing import rpc_span, tool_span
 
 logger = logging.getLogger(__name__)
 
@@ -57,36 +58,40 @@ class OrderDraftToolset(BaseToolset):
             dict[str, Any]: A dictionary with the ID of the created draft, \
                 e.g., {"status": "success", "message": "", "result": "<uuid>"}
         """
-        order_draft_id = str(uuid4())
-        logger.debug("headers: %s", tool_context.state.get("headers"))
-        user_id: str | None = tool_context.state.get("headers", {}).get("user_id", None)
-        if user_id is None:
-            return {
-                "status": "error",
-                "message": "User ID is missing in the headers",
-                "result": None,
+        headers = tool_context.state.get("headers", {})
+        with tool_span("order_draft.create_order_draft", headers=headers):
+            order_draft_id = str(uuid4())
+            logger.debug("headers: %s", headers)
+            user_id: str | None = headers.get("user_id", None)
+            if user_id is None:
+                return {
+                    "status": "error",
+                    "message": "User ID is missing in the headers",
+                    "result": None,
+                }
+            ORDER_DRAFTS[order_draft_id] = {
+                "user_id": user_id,
+                "items": [],
+                "source": {
+                    "channel": "web",
+                    "agent_id": "order_assistant",
+                    "session_id": tool_context.session.id,
+                },
+                # TODO: get real contact information
+                "contact": {"name": "", "phone": "", "email": ""},
             }
-        ORDER_DRAFTS[order_draft_id] = {
-            "user_id": user_id,
-            "items": [],
-            "source": {
-                "channel": "web",
-                "agent_id": "order_assistant",
-                "session_id": tool_context.session.id,
-            },
-            # TODO: get real contact information
-            "contact": {"name": "", "phone": "", "email": ""},
-        }
-        return {
-            "status": "success",
-            "message": (
-                "Order draft created successfully. "
-                f"Use this ID {order_draft_id} to modify the draft later."
-            ),
-            "result": order_draft_id,
-        }
+            return {
+                "status": "success",
+                "message": (
+                    "Order draft created successfully. "
+                    f"Use this ID {order_draft_id} to modify the draft later."
+                ),
+                "result": order_draft_id,
+            }
 
-    def get_order_draft(self, order_draft_id: str) -> dict[str, Any]:
+    def get_order_draft(
+        self, order_draft_id: str, tool_context: ToolContext
+    ) -> dict[str, Any]:
         """Get the order draft by ID.
 
         Args:
@@ -96,19 +101,27 @@ class OrderDraftToolset(BaseToolset):
             dict[str, Any]: A dictionary with the order draft, \
                 e.g., {"status": "success", "message": "", "result": {...}}
         """
-        if order_draft_id not in ORDER_DRAFTS:
+        headers = tool_context.state.get("headers", {})
+        with tool_span(
+            "order_draft.get_order_draft",
+            headers=headers,
+            attributes={"order_draft.id": order_draft_id},
+        ):
+            if order_draft_id not in ORDER_DRAFTS:
+                return {
+                    "status": "error",
+                    "message": f"Order draft with ID {order_draft_id} not found",
+                    "result": None,
+                }
             return {
-                "status": "error",
-                "message": f"Order draft with ID {order_draft_id} not found",
-                "result": None,
+                "status": "success",
+                "message": "",
+                "result": ORDER_DRAFTS[order_draft_id],
             }
-        return {
-            "status": "success",
-            "message": "",
-            "result": ORDER_DRAFTS[order_draft_id],
-        }
 
-    def delete_order_draft(self, order_draft_id: str) -> dict[str, Any]:
+    def delete_order_draft(
+        self, order_draft_id: str, tool_context: ToolContext
+    ) -> dict[str, Any]:
         """Delete the order draft by ID.
 
         Args:
@@ -118,18 +131,24 @@ class OrderDraftToolset(BaseToolset):
             dict[str, Any]: A dictionary with the ID of the deleted draft, \
                 e.g., {"status": "success", "message": "", "result": "<uuid>"}
         """
-        if order_draft_id not in ORDER_DRAFTS:
+        headers = tool_context.state.get("headers", {})
+        with tool_span(
+            "order_draft.delete_order_draft",
+            headers=headers,
+            attributes={"order_draft.id": order_draft_id},
+        ):
+            if order_draft_id not in ORDER_DRAFTS:
+                return {
+                    "status": "error",
+                    "message": f"Order draft with ID {order_draft_id} not found",
+                    "result": None,
+                }
+            del ORDER_DRAFTS[order_draft_id]
             return {
-                "status": "error",
-                "message": f"Order draft with ID {order_draft_id} not found",
-                "result": None,
+                "status": "success",
+                "message": f"Order draft with ID {order_draft_id} deleted successfully.",
+                "result": order_draft_id,
             }
-        del ORDER_DRAFTS[order_draft_id]
-        return {
-            "status": "success",
-            "message": f"Order draft with ID {order_draft_id} deleted successfully.",
-            "result": order_draft_id,
-        }
 
     async def add_hotel_room_to_draft(
         self,
@@ -138,6 +157,7 @@ class OrderDraftToolset(BaseToolset):
         start_date: str,
         end_date: str,
         quantity: int,
+        tool_context: ToolContext,
     ) -> dict[str, Any]:
         """Add a hotel room SKU to the order draft.
 
@@ -152,47 +172,65 @@ class OrderDraftToolset(BaseToolset):
             dict[str, Any]: A dictionary with the added hotel room SKU, \
                 e.g., {"status": "success", "message": "", "result": {...}}
         """
-        if order_draft_id not in ORDER_DRAFTS:
-            return {
-                "status": "error",
-                "message": f"Order draft with ID {order_draft_id} not found",
-                "result": None,
-            }
+        headers = tool_context.state.get("headers", {})
+        with tool_span(
+            "order_draft.add_hotel_room_to_draft",
+            headers=headers,
+            attributes={"order_draft.id": order_draft_id, "sku.id": sku_id},
+        ):
+            if order_draft_id not in ORDER_DRAFTS:
+                return {
+                    "status": "error",
+                    "message": f"Order draft with ID {order_draft_id} not found",
+                    "result": None,
+                }
 
-        try:
-            server_address = await self._get_server_address("trip-product-service")
-        except Exception as e:
-            return {"status": "error", "message": str(e), "result": None}
-
-        async with grpc.aio.insecure_channel(server_address) as channel:
-            stub = product_pb2_grpc.ProductServiceStub(channel)
             try:
-                response = await stub.GetSkuById(
-                    product_pb2.GetSkuByIdRequest(id=sku_id)
-                )
-            except grpc.RpcError as e:
-                logger.error(f"Failed to get SKU by ID {sku_id}: {e}")
-                status: status_pb2.Status = rpc_status.from_call(e)  # type: ignore
-                message = status.message if status else ""  # pyright: ignore
-                return {"status": "error", "message": message, "result": None}
+                server_address = await self._get_server_address("trip-product-service")
+            except Exception as e:
+                return {"status": "error", "message": str(e), "result": None}
 
-        ORDER_DRAFTS[order_draft_id]["items"].append(
-            {
-                "sku_id": sku_id,
-                "date": datetime.date.fromisoformat(start_date),
-                "end_date": datetime.date.fromisoformat(end_date),
-                "quantity": quantity,
+            async with grpc.aio.insecure_channel(server_address) as channel:
+                stub = product_pb2_grpc.ProductServiceStub(channel)
+                try:
+                    with rpc_span(
+                        "product",
+                        "GetSkuById",
+                        headers=headers,
+                        server_address=server_address,
+                        attributes={"order_draft.id": order_draft_id, "sku.id": sku_id},
+                    ):
+                        response = await stub.GetSkuById(
+                            product_pb2.GetSkuByIdRequest(id=sku_id)
+                        )
+                except grpc.RpcError as e:
+                    logger.error(f"Failed to get SKU by ID {sku_id}: {e}")
+                    status: status_pb2.Status = rpc_status.from_call(e)  # type: ignore
+                    message = status.message if status else ""  # pyright: ignore
+                    return {"status": "error", "message": message, "result": None}
+
+            ORDER_DRAFTS[order_draft_id]["items"].append(
+                {
+                    "sku_id": sku_id,
+                    "date": datetime.date.fromisoformat(start_date),
+                    "end_date": datetime.date.fromisoformat(end_date),
+                    "quantity": quantity,
+                }
+            )
+
+            return {
+                "status": "success",
+                "message": f"Hotel room SKU {sku_id} added to order draft successfully.",
+                "result": MessageToDict(response.sku),
             }
-        )
-
-        return {
-            "status": "success",
-            "message": f"Hotel room SKU {sku_id} added to order draft successfully.",
-            "result": MessageToDict(response.sku),
-        }
 
     async def add_attraction_to_draft(
-        self, order_draft_id: str, sku_id: str, date: str, quantity: int
+        self,
+        order_draft_id: str,
+        sku_id: str,
+        date: str,
+        quantity: int,
+        tool_context: ToolContext,
     ) -> dict[str, Any]:
         """Add an attraction SKU to the order draft.
 
@@ -206,46 +244,61 @@ class OrderDraftToolset(BaseToolset):
             dict[str, Any]: A dictionary with the added attraction SKU, \
                 e.g., {"status": "success", "message": "", "result": {...}}
         """
-        if order_draft_id not in ORDER_DRAFTS:
-            return {
-                "status": "error",
-                "message": f"Order draft with ID {order_draft_id} not found",
-                "result": None,
-            }
+        headers = tool_context.state.get("headers", {})
+        with tool_span(
+            "order_draft.add_attraction_to_draft",
+            headers=headers,
+            attributes={"order_draft.id": order_draft_id, "sku.id": sku_id},
+        ):
+            if order_draft_id not in ORDER_DRAFTS:
+                return {
+                    "status": "error",
+                    "message": f"Order draft with ID {order_draft_id} not found",
+                    "result": None,
+                }
 
-        try:
-            server_address = await self._get_server_address("trip-product-service")
-        except Exception as e:
-            return {"status": "error", "message": str(e), "result": None}
-
-        async with grpc.aio.insecure_channel(server_address) as channel:
-            stub = product_pb2_grpc.ProductServiceStub(channel)
             try:
-                response = await stub.GetSkuById(
-                    product_pb2.GetSkuByIdRequest(id=sku_id)
-                )
-            except grpc.RpcError as e:
-                logger.error(f"Failed to get SKU by ID {sku_id}: {e}")
-                status: status_pb2.Status = rpc_status.from_call(e)  # type: ignore
-                message = status.message if status else ""  # pyright: ignore
-                return {"status": "error", "message": message, "result": None}
+                server_address = await self._get_server_address("trip-product-service")
+            except Exception as e:
+                return {"status": "error", "message": str(e), "result": None}
 
-        ORDER_DRAFTS[order_draft_id]["items"].append(
-            {
-                "sku_id": sku_id,
-                "date": datetime.date.fromisoformat(date),
-                "end_date": None,
-                "quantity": quantity,
+            async with grpc.aio.insecure_channel(server_address) as channel:
+                stub = product_pb2_grpc.ProductServiceStub(channel)
+                try:
+                    with rpc_span(
+                        "product",
+                        "GetSkuById",
+                        headers=headers,
+                        server_address=server_address,
+                        attributes={"order_draft.id": order_draft_id, "sku.id": sku_id},
+                    ):
+                        response = await stub.GetSkuById(
+                            product_pb2.GetSkuByIdRequest(id=sku_id)
+                        )
+                except grpc.RpcError as e:
+                    logger.error(f"Failed to get SKU by ID {sku_id}: {e}")
+                    status: status_pb2.Status = rpc_status.from_call(e)  # type: ignore
+                    message = status.message if status else ""  # pyright: ignore
+                    return {"status": "error", "message": message, "result": None}
+
+            ORDER_DRAFTS[order_draft_id]["items"].append(
+                {
+                    "sku_id": sku_id,
+                    "date": datetime.date.fromisoformat(date),
+                    "end_date": None,
+                    "quantity": quantity,
+                }
+            )
+
+            return {
+                "status": "success",
+                "message": f"Attraction SKU {sku_id} added to order draft successfully.",
+                "result": MessageToDict(response.sku),
             }
-        )
 
-        return {
-            "status": "success",
-            "message": f"Attraction SKU {sku_id} added to order draft successfully.",
-            "result": MessageToDict(response.sku),
-        }
-
-    async def submit_order_draft(self, order_draft_id: str) -> dict[str, Any]:
+    async def submit_order_draft(
+        self, order_draft_id: str, tool_context: ToolContext
+    ) -> dict[str, Any]:
         """Submit the order draft to place the order.
 
         Args:
@@ -255,53 +308,66 @@ class OrderDraftToolset(BaseToolset):
             dict[str, Any]: A dictionary with the created order, \
                 e.g., {"status": "success", "message": "", "result": {...}}
         """
-        if order_draft_id not in ORDER_DRAFTS:
-            return {
-                "status": "error",
-                "message": f"Order draft with ID {order_draft_id} not found",
-                "result": None,
-            }
+        headers = tool_context.state.get("headers", {})
+        with tool_span(
+            "order_draft.submit_order_draft",
+            headers=headers,
+            attributes={"order_draft.id": order_draft_id},
+        ):
+            if order_draft_id not in ORDER_DRAFTS:
+                return {
+                    "status": "error",
+                    "message": f"Order draft with ID {order_draft_id} not found",
+                    "result": None,
+                }
 
-        try:
-            server_address = await self._get_server_address("trip-order-service")
-        except Exception as e:
-            return {"status": "error", "message": str(e), "result": None}
-
-        async with grpc.aio.insecure_channel(server_address) as channel:
-            stub = order_pb2_grpc.OrderServiceStub(channel)
             try:
-                response = await stub.CreateOrder(
-                    order_pb2.CreateOrderRequest(
-                        user_id=ORDER_DRAFTS[order_draft_id]["user_id"],
-                        request_id=str(uuid4()),
-                        items=[
-                            order_pb2.CreateOrderItem(
-                                sku_id=item["sku_id"],
-                                date=date_to_proto(item["date"]),
-                                end_date=date_to_proto(item["end_date"]),
-                                quantity=item["quantity"],
-                            )
-                            for item in ORDER_DRAFTS[order_draft_id]["items"]
-                        ],
-                        contact=contact_info_to_proto(
-                            ORDER_DRAFTS[order_draft_id]["contact"]
-                        ),
-                        source=order_source_to_proto(
-                            ORDER_DRAFTS[order_draft_id]["source"]
-                        ),
-                    )
-                )
-            except grpc.RpcError as e:
-                logger.error(f"Failed to create order: {e}")
-                status: status_pb2.Status = rpc_status.from_call(e)  # type: ignore
-                message = status.message if status else ""  # pyright: ignore
-                return {"status": "error", "message": message, "result": None}
+                server_address = await self._get_server_address("trip-order-service")
+            except Exception as e:
+                return {"status": "error", "message": str(e), "result": None}
 
-        return {
-            "status": "success",
-            "message": f"Order submitted successfully. Order ID: {response.order.id}",
-            "result": MessageToDict(response.order),
-        }
+            async with grpc.aio.insecure_channel(server_address) as channel:
+                stub = order_pb2_grpc.OrderServiceStub(channel)
+                try:
+                    with rpc_span(
+                        "order",
+                        "CreateOrder",
+                        headers=headers,
+                        server_address=server_address,
+                        attributes={"order_draft.id": order_draft_id},
+                    ):
+                        response = await stub.CreateOrder(
+                            order_pb2.CreateOrderRequest(
+                                user_id=ORDER_DRAFTS[order_draft_id]["user_id"],
+                                request_id=str(uuid4()),
+                                items=[
+                                    order_pb2.CreateOrderItem(
+                                        sku_id=item["sku_id"],
+                                        date=date_to_proto(item["date"]),
+                                        end_date=date_to_proto(item["end_date"]),
+                                        quantity=item["quantity"],
+                                    )
+                                    for item in ORDER_DRAFTS[order_draft_id]["items"]
+                                ],
+                                contact=contact_info_to_proto(
+                                    ORDER_DRAFTS[order_draft_id]["contact"]
+                                ),
+                                source=order_source_to_proto(
+                                    ORDER_DRAFTS[order_draft_id]["source"]
+                                ),
+                            )
+                        )
+                except grpc.RpcError as e:
+                    logger.error(f"Failed to create order: {e}")
+                    status: status_pb2.Status = rpc_status.from_call(e)  # type: ignore
+                    message = status.message if status else ""  # pyright: ignore
+                    return {"status": "error", "message": message, "result": None}
+
+            return {
+                "status": "success",
+                "message": f"Order submitted successfully. Order ID: {response.order.id}",
+                "result": MessageToDict(response.order),
+            }
 
     async def get_tools(
         self, readonly_context: ReadonlyContext | None = None
