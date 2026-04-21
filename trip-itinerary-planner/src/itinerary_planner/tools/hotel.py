@@ -1,11 +1,13 @@
 import logging
 
 import grpc
+from opentelemetry.trace import Status, StatusCode
 from pydantic import BaseModel, Field
 from tripsphere.common.v1 import map_pb2
 from tripsphere.hotel.v1 import hotel_pb2, hotel_pb2_grpc
 
 from itinerary_planner.nacos.naming import NacosNaming
+from itinerary_planner.observability.tracing import inject_trace_context, rpc_span
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +61,29 @@ async def search_hotels_nearby(
     request = hotel_pb2.GetHotelsNearbyRequest(
         location=location, radius_meters=radius_km * 1000
     )
-    async with grpc.aio.insecure_channel(f"{ip}:{port}") as channel:
+    target = f"{ip}:{port}"
+    async with grpc.aio.insecure_channel(target) as channel:
         stub = hotel_pb2_grpc.HotelServiceStub(channel)
-        response = await stub.GetHotelsNearby(request)
+        with rpc_span(
+            "HotelService",
+            "GetHotelsNearby",
+            server_address=target,
+            attributes={
+                "tool.name": "search_hotels_nearby",
+                "trip.search.radius_km": radius_km,
+                "trip.search.limit": limit,
+            },
+        ) as span:
+            try:
+                response = await stub.GetHotelsNearby(
+                    request,
+                    metadata=list(inject_trace_context({}).items()),
+                )
+            except Exception as exc:
+                span.record_exception(exc)
+                span.set_status(Status(StatusCode.ERROR, str(exc)))
+                raise
+            span.set_attribute("trip.search.result_count", len(response.hotels))
 
     hotel_details: list[HotelDetail] = []
     for hotel in response.hotels[:limit]:

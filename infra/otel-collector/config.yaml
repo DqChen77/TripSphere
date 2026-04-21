@@ -13,6 +13,13 @@ processors:
       span:
         - 'name == "chat_db.find"'
         - 'attributes["db.system"] == "mongodb" and (attributes["db.operation"] == "find" or attributes["db.operation.name"] == "find") and (attributes["db.name"] == "chat_db" or attributes["db.namespace"] == "chat_db")'
+  filter/itinerary_asgi_event_noise:
+    error_mode: ignore
+    traces:
+      span:
+        - 'resource.attributes["service.name"] == "trip-itinerary-planner" and attributes["asgi.event.type"] == "http.request"'
+        - 'resource.attributes["service.name"] == "trip-itinerary-planner" and attributes["asgi.event.type"] == "http.response.start"'
+        - 'resource.attributes["service.name"] == "trip-itinerary-planner" and attributes["asgi.event.type"] == "http.response.body"'
   batch:
     timeout: 1s
     send_batch_size: 1024
@@ -38,7 +45,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [filter/chat_db_find_noise, batch]
+      processors: [filter/chat_db_find_noise, filter/itinerary_asgi_event_noise, batch]
       exporters: [otlp/tempo, debug]
     metrics:
       receivers: [otlp]

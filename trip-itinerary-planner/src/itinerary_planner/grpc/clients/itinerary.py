@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 import grpc
+from opentelemetry.trace import Status, StatusCode
 from tripsphere.attraction.v1 import attraction_pb2
 from tripsphere.common.v1 import date_pb2, map_pb2, money_pb2, timeofday_pb2
 from tripsphere.hotel.v1 import hotel_pb2
@@ -18,6 +19,7 @@ from tripsphere.itinerary.v1 import itinerary_pb2, itinerary_pb2_grpc
 
 from itinerary_planner.models.activity import Activity, ActivityLocation, Cost
 from itinerary_planner.models.itinerary import DayPlan, Itinerary, ItinerarySummary
+from itinerary_planner.observability.tracing import inject_trace_context, rpc_span
 
 if TYPE_CHECKING:
     from itinerary_planner.nacos.naming import NacosNaming
@@ -26,6 +28,37 @@ logger = logging.getLogger(__name__)
 
 # Default gRPC port when metadata is missing (e.g. legacy instance)
 _DEFAULT_GRPC_PORT = 50052
+
+
+def _non_empty_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    value_text = str(value).strip()
+    if value_text == "":
+        return None
+    return value_text
+
+
+def _grpc_metadata(
+    *,
+    user_id: str,
+    headers: dict[str, Any] | None = None,
+) -> list[tuple[str, str]]:
+    metadata: dict[str, str] = {"x-user-id": user_id}
+    if headers is not None:
+        experiment_id = headers.get("experiment_id") or headers.get("x-experiment-id")
+        fault_scenario = headers.get("fault_scenario") or headers.get("x-fault-scenario")
+
+        experiment_id_text = _non_empty_string(experiment_id)
+        if experiment_id_text is not None:
+            metadata["x-experiment-id"] = experiment_id_text
+
+        fault_scenario_text = _non_empty_string(fault_scenario)
+        if fault_scenario_text is not None:
+            metadata["x-fault-scenario"] = fault_scenario_text
+
+    metadata = inject_trace_context(metadata)
+    return list(metadata.items())
 
 # ── Kind string → proto enum ────────────────────────────────────────────────
 
@@ -278,6 +311,7 @@ class ItineraryServiceClient:
         itinerary: Itinerary,
         user_id: str,
         markdown_content: str = "",
+        headers: dict[str, Any] | None = None,
     ) -> Itinerary:
         """Create the itinerary via gRPC.
         The server overwrites user_id from auth metadata.
@@ -286,43 +320,93 @@ class ItineraryServiceClient:
         address = await self._resolve_address()
         async with grpc.aio.insecure_channel(address) as channel:
             stub = itinerary_pb2_grpc.ItineraryServiceStub(channel)
-            # x-user-id is read by AuthInterceptor to populate GrpcAuthContext
-            metadata = [("x-user-id", user_id)]
-            response = await stub.CreateItinerary(
-                itinerary_pb2.CreateItineraryRequest(itinerary=proto),
-                metadata=metadata,
-            )
+            metadata = _grpc_metadata(user_id=user_id, headers=headers)
+            with rpc_span(
+                "ItineraryService",
+                "CreateItinerary",
+                headers=headers,
+                server_address=address,
+                attributes={
+                    "enduser.id": user_id,
+                    "itinerary.destination": itinerary.destination,
+                },
+            ) as span:
+                try:
+                    response = await stub.CreateItinerary(
+                        itinerary_pb2.CreateItineraryRequest(itinerary=proto),
+                        metadata=metadata,
+                    )
+                except Exception as exc:
+                    span.record_exception(exc)
+                    span.set_status(Status(StatusCode.ERROR, str(exc)))
+                    raise
         if not response.itinerary.id:
             raise ValueError("CreateItinerary returned empty itinerary.id")
         saved, _ = _proto_to_itinerary(response.itinerary)
         return saved.model_copy(update={"id": response.itinerary.id})
 
     async def get_itinerary(
-        self, itinerary_id: str, user_id: str
+        self,
+        itinerary_id: str,
+        user_id: str,
+        headers: dict[str, Any] | None = None,
     ) -> tuple[Itinerary, str]:
         address = await self._resolve_address()
         async with grpc.aio.insecure_channel(address) as channel:
             stub = itinerary_pb2_grpc.ItineraryServiceStub(channel)
-            metadata = [("x-user-id", user_id)]
-            response = await stub.GetItinerary(
-                itinerary_pb2.GetItineraryRequest(id=itinerary_id),
-                metadata=metadata,
-            )
+            metadata = _grpc_metadata(user_id=user_id, headers=headers)
+            with rpc_span(
+                "ItineraryService",
+                "GetItinerary",
+                headers=headers,
+                server_address=address,
+                attributes={
+                    "enduser.id": user_id,
+                    "itinerary.id": itinerary_id,
+                },
+            ) as span:
+                try:
+                    response = await stub.GetItinerary(
+                        itinerary_pb2.GetItineraryRequest(id=itinerary_id),
+                        metadata=metadata,
+                    )
+                except Exception as exc:
+                    span.record_exception(exc)
+                    span.set_status(Status(StatusCode.ERROR, str(exc)))
+                    raise
         return _proto_to_itinerary(response.itinerary)
 
     async def list_user_itineraries(
-        self, user_id: str, page_size: int = 50
+        self,
+        user_id: str,
+        page_size: int = 50,
+        headers: dict[str, Any] | None = None,
     ) -> list[dict]:  # type: ignore[type-arg]
         address = await self._resolve_address()
         async with grpc.aio.insecure_channel(address) as channel:
             stub = itinerary_pb2_grpc.ItineraryServiceStub(channel)
-            metadata = [("x-user-id", user_id)]
-            response = await stub.ListUserItineraries(
-                itinerary_pb2.ListUserItinerariesRequest(
-                    user_id=user_id, page_size=page_size
-                ),
-                metadata=metadata,
-            )
+            metadata = _grpc_metadata(user_id=user_id, headers=headers)
+            with rpc_span(
+                "ItineraryService",
+                "ListUserItineraries",
+                headers=headers,
+                server_address=address,
+                attributes={
+                    "enduser.id": user_id,
+                    "itinerary.page_size": page_size,
+                },
+            ) as span:
+                try:
+                    response = await stub.ListUserItineraries(
+                        itinerary_pb2.ListUserItinerariesRequest(
+                            user_id=user_id, page_size=page_size
+                        ),
+                        metadata=metadata,
+                    )
+                except Exception as exc:
+                    span.record_exception(exc)
+                    span.set_status(Status(StatusCode.ERROR, str(exc)))
+                    raise
         return [_proto_to_itinerary_summary(it) for it in response.itineraries]
 
     async def replace_itinerary(
@@ -331,25 +415,64 @@ class ItineraryServiceClient:
         itinerary: Itinerary,
         user_id: str,
         markdown_content: str = "",
+        headers: dict[str, Any] | None = None,
     ) -> Itinerary:
         proto = _itinerary_to_proto(itinerary, markdown_content)
         address = await self._resolve_address()
         async with grpc.aio.insecure_channel(address) as channel:
             stub = itinerary_pb2_grpc.ItineraryServiceStub(channel)
-            metadata = [("x-user-id", user_id)]
-            response = await stub.ReplaceItinerary(
-                itinerary_pb2.ReplaceItineraryRequest(id=itinerary_id, itinerary=proto),
-                metadata=metadata,
-            )
+            metadata = _grpc_metadata(user_id=user_id, headers=headers)
+            with rpc_span(
+                "ItineraryService",
+                "ReplaceItinerary",
+                headers=headers,
+                server_address=address,
+                attributes={
+                    "enduser.id": user_id,
+                    "itinerary.id": itinerary_id,
+                    "itinerary.destination": itinerary.destination,
+                },
+            ) as span:
+                try:
+                    response = await stub.ReplaceItinerary(
+                        itinerary_pb2.ReplaceItineraryRequest(
+                            id=itinerary_id, itinerary=proto
+                        ),
+                        metadata=metadata,
+                    )
+                except Exception as exc:
+                    span.record_exception(exc)
+                    span.set_status(Status(StatusCode.ERROR, str(exc)))
+                    raise
         saved, _ = _proto_to_itinerary(response.itinerary)
         return saved.model_copy(update={"id": response.itinerary.id})
 
-    async def delete_itinerary(self, itinerary_id: str, user_id: str) -> None:
+    async def delete_itinerary(
+        self,
+        itinerary_id: str,
+        user_id: str,
+        headers: dict[str, Any] | None = None,
+    ) -> None:
         address = await self._resolve_address()
         async with grpc.aio.insecure_channel(address) as channel:
             stub = itinerary_pb2_grpc.ItineraryServiceStub(channel)
-            metadata = [("x-user-id", user_id)]
-            await stub.DeleteItinerary(
-                itinerary_pb2.DeleteItineraryRequest(id=itinerary_id),
-                metadata=metadata,
-            )
+            metadata = _grpc_metadata(user_id=user_id, headers=headers)
+            with rpc_span(
+                "ItineraryService",
+                "DeleteItinerary",
+                headers=headers,
+                server_address=address,
+                attributes={
+                    "enduser.id": user_id,
+                    "itinerary.id": itinerary_id,
+                },
+            ) as span:
+                try:
+                    await stub.DeleteItinerary(
+                        itinerary_pb2.DeleteItineraryRequest(id=itinerary_id),
+                        metadata=metadata,
+                    )
+                except Exception as exc:
+                    span.record_exception(exc)
+                    span.set_status(Status(StatusCode.ERROR, str(exc)))
+                    raise

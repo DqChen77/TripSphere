@@ -4,7 +4,10 @@ import logging
 
 from httpx import AsyncClient
 from langchain_core.tools import tool
+from opentelemetry.trace import Status, StatusCode
 from pydantic import BaseModel, Field
+
+from itinerary_planner.observability.tracing import inject_trace_context, rpc_span
 
 logger = logging.getLogger(__name__)
 
@@ -38,17 +41,36 @@ async def geocoding_tool(address: str, city: str = "") -> GeocodeResult:
         "city": city,
     }
     async with AsyncClient() as client:
-        response = await client.get(endpoint, params=params)
-        response.raise_for_status()
-        data = response.json()
-        if data["status"] == "1" and data["infocode"] == "10000":
-            longitude, latitude = data["geocodes"][0]["location"].split(",")
-            return GeocodeResult(
-                name=data["geocodes"][0]["formatted_address"],
-                latitude=float(latitude),
-                longitude=float(longitude),
-                address=data["geocodes"][0]["formatted_address"],
-            )
-        else:
+        with rpc_span(
+            "AmapGeocoding",
+            "v3.geocode.geo",
+            rpc_system="http",
+            server_address="restapi.amap.com",
+            attributes={"tool.name": "geocoding_tool", "geocode.city": city or ""},
+        ) as span:
+            try:
+                response = await client.get(
+                    endpoint,
+                    params=params,
+                    headers=inject_trace_context({}),
+                )
+                span.set_attribute("http.response.status_code", response.status_code)
+                response.raise_for_status()
+            except Exception as exc:
+                span.record_exception(exc)
+                span.set_status(Status(StatusCode.ERROR, str(exc)))
+                raise
+
+            data = response.json()
+            if data["status"] == "1" and data["infocode"] == "10000":
+                longitude, latitude = data["geocodes"][0]["location"].split(",")
+                return GeocodeResult(
+                    name=data["geocodes"][0]["formatted_address"],
+                    latitude=float(latitude),
+                    longitude=float(longitude),
+                    address=data["geocodes"][0]["formatted_address"],
+                )
+
+            span.set_status(Status(StatusCode.ERROR, data.get("info", "unknown_error")))
             logger.error("Geocoding failed: %s", data["info"])
             raise ValueError(f"Geocoding failed: {data['info']}")

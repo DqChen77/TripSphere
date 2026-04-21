@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime, timedelta
+from time import perf_counter
 from typing import Annotated, Any
 
 from langchain_core.messages import ToolMessage
@@ -26,7 +27,9 @@ from pydantic import BaseModel, Field
 
 from itinerary_planner.config.settings import get_settings
 from itinerary_planner.nacos.naming import NacosNaming
+from itinerary_planner.observability.tracing import tool_span
 from itinerary_planner.tools.attractions import search_attractions_nearby
+from itinerary_planner.tools.hotel import search_hotels_nearby
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +44,63 @@ def _add_days(date_str: str, days: int) -> str:
     """Add *days* to a YYYY-MM-DD string; returns YYYY-MM-DD."""
     d = datetime.fromisoformat(date_str) + timedelta(days=days)
     return d.strftime("%Y-%m-%d")
+
+
+def _normalize_activity(activity: dict[str, Any]) -> dict[str, Any]:
+    location = activity.get("location") or {}
+    estimated_cost = activity.get("estimated_cost") or {}
+    return {
+        **activity,
+        "id": activity.get("id") or f"activity-{uuid.uuid4().hex[:8]}",
+        "description": activity.get("description") or "",
+        "category": activity.get("category") or "sightseeing",
+        "kind": activity.get("kind") or "custom",
+        "attraction_id": activity.get("attraction_id"),
+        "hotel_id": activity.get("hotel_id"),
+        "location": {
+            "name": location.get("name") or activity.get("name") or "",
+            "longitude": float(location.get("longitude", 0.0)),
+            "latitude": float(location.get("latitude", 0.0)),
+            "address": location.get("address") or "",
+        },
+        "estimated_cost": {
+            "amount": float(estimated_cost.get("amount", 0)),
+            "currency": estimated_cost.get("currency", "CNY"),
+        },
+    }
+
+
+def _state_headers(state: dict[str, Any]) -> dict[str, Any] | None:
+    copilotkit = state.get("copilotkit")
+    if not isinstance(copilotkit, dict):
+        return None
+    headers = copilotkit.get("headers")
+    if isinstance(headers, dict):
+        return headers
+    return None
+
+
+def _next_day_date(itinerary: dict[str, Any], day_plans: list[dict[str, Any]]) -> str:
+    end_date = itinerary.get("end_date")
+    if isinstance(end_date, str) and end_date:
+        return _add_days(end_date, 1)
+    if day_plans:
+        last_date = day_plans[-1].get("date")
+        if isinstance(last_date, str) and last_date:
+            return _add_days(last_date, 1)
+    start_date = itinerary.get("start_date")
+    if isinstance(start_date, str) and start_date:
+        return start_date
+    return datetime.now().date().isoformat()
+
+
+def _pick_center_coordinates(day_plans: list[dict[str, Any]]) -> tuple[float, float]:
+    for dp in day_plans:
+        for act in dp.get("activities", []):
+            loc = act.get("location") or {}
+            if loc.get("longitude") and loc.get("latitude"):
+                return float(loc["longitude"]), float(loc["latitude"])
+    return _FALLBACK_LONGITUDE, _FALLBACK_LATITUDE
 
 
 def _recompute_summary(itinerary: dict[str, Any]) -> dict[str, Any]:
@@ -67,6 +127,7 @@ def _update(
     tool_call_id: str,
     message: str,
     new_itinerary: dict[str, Any],
+    extra_update: dict[str, Any] | None = None,
 ) -> Command:  # type: ignore[type-arg]
     """Return a Command that updates itinerary + adds a ToolMessage.
 
@@ -80,12 +141,13 @@ def _update(
             "⚠️ Cannot apply change: itinerary has no ID "
             "(frontend state not yet synced – please retry).",
         )
-    return Command(
-        update={
-            "itinerary": _recompute_summary(new_itinerary),
-            "messages": [ToolMessage(content=message, tool_call_id=tool_call_id)],
-        }
-    )
+    update: dict[str, Any] = {
+        "itinerary": _recompute_summary(new_itinerary),
+        "messages": [ToolMessage(content=message, tool_call_id=tool_call_id)],
+    }
+    if extra_update is not None:
+        update.update(extra_update)
+    return Command(update=update)
 
 
 # ── Inline tools ───────────────────────────────────────────────────────────
@@ -303,49 +365,117 @@ def add_day(
     tool_call_id: Annotated[str, InjectedToolCallId],
     state: Annotated[dict[str, Any], InjectedState],
 ) -> Command:  # type: ignore[type-arg]
-    """Add a brand-new day to the itinerary, appended after the last existing day.
+    """Apply a pre-planned new day and append it to itinerary.
 
     Arguments:
-        date: The date of the new day (YYYY-MM-DD)
-        activities: List of activities to add to the new day
-        notes: Notes for the new day
+        date: Reserved compatibility arg. Actual date comes from pending plan.
+        activities: Reserved compatibility arg. Actual activities come from pending plan.
+        notes: Reserved compatibility arg. Notes come from pending plan when available.
         tool_call_id: The ID of the tool call
         state: The state of the itinerary
 
     Returns:
-    Command that updates the itinerary with the new day
-
-    Use when the user asks to add another day, extend the trip, or add a
-    Nth day that does not yet exist. All activities must be in the same
-    destination city as the rest of the itinerary.
+    Command that updates the itinerary with the new day.
     """
     itinerary: dict[str, Any] = dict(state.get("itinerary") or {})
     day_plans: list[dict[str, Any]] = list(itinerary.get("day_plans") or [])
+    headers = _state_headers(state)
+    with tool_span(
+        "add_day",
+        headers=headers,
+        attributes={"trip.day.existing_count": len(day_plans)},
+    ) as span:
+        start = perf_counter()
+        pending_plan = state.get("pending_day_plan")
+        if not isinstance(pending_plan, dict):
+            span.set_attribute("tool.outcome", "rejected")
+            span.set_attribute("tool.fallback_reason", "missing_pending_day_plan")
+            span.set_attribute("tool.latency_ms", round((perf_counter() - start) * 1000, 2))
+            return _ok(
+                tool_call_id,
+                "⚠️ 新增一天前请先调用 plan_new_day 进行规划，然后再调用 add_day。",
+            )
 
-    new_day_number = len(day_plans) + 1
-    clean_notes = notes if notes not in ("", "undefined", "null", None) else ""
-    new_day: dict[str, Any] = {
-        "day_number": new_day_number,
-        "date": date,
-        "activities": [
-            {
-                **a,
-                "id": a.get("id") or f"activity-{uuid.uuid4().hex[:8]}",
-                "estimated_cost": {
-                    "amount": float((a.get("estimated_cost") or {}).get("amount", 0)),
-                    "currency": (a.get("estimated_cost") or {}).get("currency", "CNY"),
-                },
-            }
-            for a in activities
-        ],
-        "notes": clean_notes,
-    }
-    new_itinerary = {
-        **itinerary,
-        "day_plans": [*day_plans, new_day],
-        "end_date": date,
-    }
-    return _update(tool_call_id, f"Day {new_day_number} ({date}) added.", new_itinerary)
+        pending_date = pending_plan.get("date")
+        pending_activities = pending_plan.get("activities")
+        pending_notes = pending_plan.get("notes")
+        if (
+            not isinstance(pending_date, str)
+            or pending_date.strip() == ""
+            or not isinstance(pending_activities, list)
+            or len(pending_activities) == 0
+        ):
+            span.set_attribute("tool.outcome", "rejected")
+            span.set_attribute("tool.fallback_reason", "invalid_pending_day_plan")
+            span.set_attribute("tool.latency_ms", round((perf_counter() - start) * 1000, 2))
+            return Command(
+                update={
+                    "pending_day_plan": None,
+                    "messages": [
+                        ToolMessage(
+                            content=(
+                                "⚠️ 规划结果不完整，已清理无效草案。"
+                                "请重新调用 plan_new_day 后再执行 add_day。"
+                            ),
+                            tool_call_id=tool_call_id,
+                        )
+                    ],
+                }
+            )
+
+        clean_notes = (
+            pending_notes
+            if isinstance(pending_notes, str)
+            and pending_notes not in ("", "undefined", "null")
+            else ""
+        )
+        normalized_activities = [
+            _normalize_activity(a) for a in pending_activities if isinstance(a, dict)
+        ]
+        if not normalized_activities:
+            span.set_attribute("tool.outcome", "rejected")
+            span.set_attribute("tool.fallback_reason", "empty_pending_activities")
+            span.set_attribute("tool.latency_ms", round((perf_counter() - start) * 1000, 2))
+            return Command(
+                update={
+                    "pending_day_plan": None,
+                    "messages": [
+                        ToolMessage(
+                            content=(
+                                "⚠️ 规划草案没有可写入的活动。"
+                                "请重新调用 plan_new_day 生成活动后再执行 add_day。"
+                            ),
+                            tool_call_id=tool_call_id,
+                        )
+                    ],
+                }
+            )
+
+        new_day_number = len(day_plans) + 1
+        new_day: dict[str, Any] = {
+            "day_number": new_day_number,
+            "date": pending_date,
+            "activities": normalized_activities,
+            "notes": clean_notes,
+        }
+        new_itinerary = {
+            **itinerary,
+            "day_plans": [*day_plans, new_day],
+            "end_date": pending_date,
+        }
+        if not new_itinerary.get("start_date"):
+            new_itinerary["start_date"] = pending_date
+
+        span.set_attribute("tool.outcome", "ok")
+        span.set_attribute("trip.day.target_day_number", new_day_number)
+        span.set_attribute("trip.plan.activity_count", len(normalized_activities))
+        span.set_attribute("tool.latency_ms", round((perf_counter() - start) * 1000, 2))
+        return _update(
+            tool_call_id,
+            f"Day {new_day_number} ({pending_date}) added from planned draft.",
+            new_itinerary,
+            extra_update={"pending_day_plan": None},
+        )
 
 
 @tool
@@ -378,6 +508,285 @@ def update_markdown(
 
 
 # ── Async factory tool (needs Nacos for attraction lookup) ─────────────────
+
+
+def make_plan_new_day_tool(nacos_naming: NacosNaming) -> Any:
+    """Return an async 'plan_new_day' tool that proposes one new day plan."""
+
+    class _PlanActivity(BaseModel):
+        name: str = Field(description="Activity / attraction / hotel name")
+        description: str = Field(description="Short description (<= 40 chars)")
+        category: str = Field(
+            description="sightseeing|cultural|shopping|dining|entertainment|transportation|nature"
+        )
+        start_time: str = Field(description="HH:MM")
+        end_time: str = Field(description="HH:MM")
+        estimated_cost: float = Field(description="Estimated cost in CNY")
+        longitude: float = Field(description="Longitude")
+        latitude: float = Field(description="Latitude")
+        address: str = Field(description="Full address")
+        kind: str = Field(
+            default="attraction_visit",
+            description="attraction_visit|hotel_stay|transport|custom",
+        )
+
+    class _PlanResult(BaseModel):
+        activities: list[_PlanActivity] = Field(description="Planned activities")
+        notes: str = Field(default="", description="Optional day notes")
+
+    @tool("plan_new_day")
+    async def plan_new_day(
+        preference: str,
+        notes: str,
+        target_date: str | None,
+        tool_call_id: Annotated[str, InjectedToolCallId],
+        state: Annotated[dict[str, Any], InjectedState],
+    ) -> Command:  # type: ignore[type-arg]
+        """Plan one new day draft from realtime candidates without persisting."""
+        itinerary: dict[str, Any] = dict(state.get("itinerary") or {})
+        day_plans: list[dict[str, Any]] = list(itinerary.get("day_plans") or [])
+        headers = _state_headers(state)
+        destination = str(itinerary.get("destination") or "").strip()
+        day_number = len(day_plans) + 1
+        date = target_date or _next_day_date(itinerary, day_plans)
+        fallback_reasons: list[str] = []
+
+        with tool_span(
+            "plan_new_day",
+            headers=headers,
+            attributes={
+                "trip.day.target_day_number": day_number,
+                "trip.day.has_target_date": bool(target_date),
+                "itinerary.destination": destination,
+            },
+        ) as span:
+            start = perf_counter()
+
+            if not destination:
+                span.set_attribute("tool.outcome", "rejected")
+                span.set_attribute("tool.fallback_reason", "missing_destination")
+                span.set_attribute("tool.latency_ms", round((perf_counter() - start) * 1000, 2))
+                return _ok(
+                    tool_call_id,
+                    "⚠️ 当前行程缺少目的地信息，请先确认行程后再新增一天。",
+                )
+
+            if target_date:
+                try:
+                    datetime.fromisoformat(target_date)
+                except ValueError:
+                    span.set_attribute("tool.outcome", "rejected")
+                    span.set_attribute("tool.fallback_reason", "invalid_target_date")
+                    span.set_attribute(
+                        "tool.latency_ms", round((perf_counter() - start) * 1000, 2)
+                    )
+                    return _ok(
+                        tool_call_id,
+                        "⚠️ target_date 需要是 YYYY-MM-DD 格式，请修正后重试。",
+                    )
+
+            center_lon, center_lat = _pick_center_coordinates(day_plans)
+            attraction_candidates = []
+            hotel_candidates = []
+            attraction_map: dict[str, Any] = {}
+            hotel_map: dict[str, Any] = {}
+
+            try:
+                attraction_result = await search_attractions_nearby(
+                    nacos_naming=nacos_naming,
+                    center_longitude=center_lon,
+                    center_latitude=center_lat,
+                    radius_km=25.0,
+                    limit=20,
+                )
+                attraction_candidates = attraction_result.attractions
+                attraction_map = {a.name: a for a in attraction_candidates}
+            except Exception as exc:
+                logger.warning("plan_new_day attraction search failed: %s", exc)
+                span.record_exception(exc)
+                fallback_reasons.append("attraction_service_error")
+
+            try:
+                hotel_result = await search_hotels_nearby(
+                    nacos_naming=nacos_naming,
+                    center_longitude=center_lon,
+                    center_latitude=center_lat,
+                    radius_km=8.0,
+                    limit=6,
+                )
+                hotel_candidates = hotel_result.hotels
+                hotel_map = {h.name: h for h in hotel_candidates}
+            except Exception as exc:
+                logger.warning("plan_new_day hotel search failed: %s", exc)
+                span.record_exception(exc)
+                fallback_reasons.append("hotel_service_error")
+
+            attractions_text = (
+                "\n".join(
+                    f"- {a.name}（{a.description}，lat={a.latitude:.4f}, lon={a.longitude:.4f}）"
+                    for a in attraction_candidates
+                )
+                or f"暂无实时景点候选，请根据 {destination} 合理生成。"
+            )
+            hotels_text = (
+                "\n".join(
+                    f"- {h.name}（{h.address}，lat={h.latitude:.4f}, lon={h.longitude:.4f}）"
+                    for h in hotel_candidates
+                )
+                or f"暂无实时酒店候选，可不安排酒店活动。"
+            )
+
+            from langchain_openai import ChatOpenAI  # local import to avoid circular deps
+
+            settings = get_settings()
+            chat_model = ChatOpenAI(
+                model="gpt-4o-mini",
+                temperature=0.4,
+                api_key=settings.openai.api_key,
+                base_url=settings.openai.base_url,
+            )
+
+            prompt = (
+                f"为{destination}行程新增第{day_number}天（日期 {date}）。\n"
+                f"用户偏好：{preference or '未指定'}\n"
+                f"补充备注：{notes or '无'}\n\n"
+                f"景点候选：\n{attractions_text}\n\n"
+                f"酒店候选：\n{hotels_text}\n\n"
+                "请生成 3-4 个活动，时间不得重叠，全部在目的地城市范围。"
+                "优先复用候选中的真实名称与坐标。"
+            )
+
+            planned_activities: list[dict[str, Any]] = []
+            planned_notes = notes
+            try:
+                structured_llm = chat_model.with_structured_output(_PlanResult)
+                result: _PlanResult = _PlanResult.model_validate(
+                    await structured_llm.ainvoke(prompt)
+                )
+                planned_notes = result.notes or notes
+                for act in result.activities:
+                    matched_attraction = attraction_map.get(act.name)
+                    matched_hotel = hotel_map.get(act.name)
+                    kind = act.kind
+                    if matched_hotel and kind == "attraction_visit":
+                        kind = "hotel_stay"
+
+                    planned_activities.append(
+                        _normalize_activity(
+                            {
+                                "name": act.name,
+                                "description": act.description,
+                                "start_time": act.start_time,
+                                "end_time": act.end_time,
+                                "category": act.category,
+                                "kind": kind,
+                                "location": {
+                                    "name": act.name,
+                                    "longitude": (
+                                        matched_attraction.longitude
+                                        if matched_attraction
+                                        else matched_hotel.longitude
+                                        if matched_hotel
+                                        else act.longitude
+                                    ),
+                                    "latitude": (
+                                        matched_attraction.latitude
+                                        if matched_attraction
+                                        else matched_hotel.latitude
+                                        if matched_hotel
+                                        else act.latitude
+                                    ),
+                                    "address": (
+                                        matched_attraction.address
+                                        if matched_attraction
+                                        else matched_hotel.address
+                                        if matched_hotel
+                                        else act.address
+                                    ),
+                                },
+                                "estimated_cost": {
+                                    "amount": act.estimated_cost,
+                                    "currency": "CNY",
+                                },
+                                "attraction_id": (
+                                    matched_attraction.id if matched_attraction else None
+                                ),
+                                "hotel_id": matched_hotel.id if matched_hotel else None,
+                            }
+                        )
+                    )
+            except Exception as exc:
+                logger.error("plan_new_day LLM planning failed: %s", exc)
+                span.record_exception(exc)
+                fallback_reasons.append("llm_plan_error")
+
+            if not planned_activities and attraction_candidates:
+                fallback_reasons.append("template_from_attractions")
+                slot_pairs = [("09:00", "11:00"), ("12:00", "13:30"), ("14:30", "17:00")]
+                for idx, attraction in enumerate(attraction_candidates[:3]):
+                    start_time, end_time = slot_pairs[idx]
+                    planned_activities.append(
+                        _normalize_activity(
+                            {
+                                "name": attraction.name,
+                                "description": attraction.description,
+                                "start_time": start_time,
+                                "end_time": end_time,
+                                "category": "sightseeing",
+                                "kind": "attraction_visit",
+                                "location": {
+                                    "name": attraction.name,
+                                    "longitude": attraction.longitude,
+                                    "latitude": attraction.latitude,
+                                    "address": attraction.address,
+                                },
+                                "estimated_cost": {"amount": 80, "currency": "CNY"},
+                                "attraction_id": attraction.id,
+                                "hotel_id": None,
+                            }
+                        )
+                    )
+
+            if not planned_activities:
+                span.set_attribute("tool.outcome", "fallback")
+                span.set_attribute("tool.fallback_reason", "no_plan_candidates")
+                span.set_attribute("tool.latency_ms", round((perf_counter() - start) * 1000, 2))
+                return _ok(
+                    tool_call_id,
+                    "⚠️ 暂时无法生成可执行的一天安排，请补充偏好（例如美食/亲子/轻松）后重试。",
+                )
+
+            outcome = "fallback" if fallback_reasons else "ok"
+            span.set_attribute("tool.outcome", outcome)
+            span.set_attribute("trip.search.attraction_count", len(attraction_candidates))
+            span.set_attribute("trip.search.hotel_count", len(hotel_candidates))
+            span.set_attribute("trip.plan.activity_count", len(planned_activities))
+            if fallback_reasons:
+                span.set_attribute("tool.fallback_reason", ",".join(sorted(set(fallback_reasons))))
+            span.set_attribute("tool.latency_ms", round((perf_counter() - start) * 1000, 2))
+
+            pending_day_plan = {
+                "date": date,
+                "activities": planned_activities,
+                "notes": planned_notes,
+                "source": "plan_new_day",
+            }
+            return Command(
+                update={
+                    "pending_day_plan": pending_day_plan,
+                    "messages": [
+                        ToolMessage(
+                            content=(
+                                f"已完成第 {day_number} 天草案（{date}，"
+                                f"{len(planned_activities)} 个活动）。请调用 add_day 写入。"
+                            ),
+                            tool_call_id=tool_call_id,
+                        )
+                    ],
+                }
+            )
+
+    return plan_new_day
 
 
 def make_regenerate_day_tool(nacos_naming: NacosNaming) -> Any:
@@ -555,8 +964,8 @@ def make_regenerate_day_tool(nacos_naming: NacosNaming) -> Any:
 
 # ── Public convenience: all tools except the factory one ──────────────────
 
-# Tools that need no Nacos; regenerate_day is added via
-# make_regenerate_day_tool(nacos_naming) when Nacos is enabled.
+# Tools that need no Nacos; regenerate_day/plan_new_day are added via
+# make_*_tool(nacos_naming) when Nacos is enabled.
 INLINE_TOOLS = [
     update_itinerary_day,
     add_activity,
