@@ -7,6 +7,7 @@ from tripsphere.common.v1 import map_pb2
 from tripsphere.hotel.v1 import hotel_pb2, hotel_pb2_grpc
 
 from itinerary_planner.nacos.naming import NacosNaming
+from itinerary_planner.observability.fault import inject_fault, maybe_mutate
 from itinerary_planner.observability.tracing import inject_trace_context, rpc_span
 
 logger = logging.getLogger(__name__)
@@ -75,10 +76,11 @@ async def search_hotels_nearby(
             },
         ) as span:
             try:
-                response = await stub.GetHotelsNearby(
-                    request,
-                    metadata=list(inject_trace_context({}).items()),
-                )
+                async with inject_fault("rpc.hotel.GetHotelsNearby"):
+                    response = await stub.GetHotelsNearby(
+                        request,
+                        metadata=list(inject_trace_context({}).items()),
+                    )
             except Exception as exc:
                 span.record_exception(exc)
                 span.set_status(Status(StatusCode.ERROR, str(exc)))
@@ -142,4 +144,7 @@ async def search_hotels_nearby(
             )
         )
 
-    return HotelSearchResult(hotels=hotel_details)
+    return maybe_mutate(
+        "tool.hotel.response",
+        HotelSearchResult(hotels=hotel_details),
+    )

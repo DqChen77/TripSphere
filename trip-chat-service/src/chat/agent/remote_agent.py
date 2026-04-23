@@ -8,6 +8,7 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 
 from chat.nacos.ai import NacosAI
+from chat.observability.fault import should_drop
 from chat.observability.tracing import (
     build_a2a_metadata,
     enrich_current_span_with_experiment,
@@ -24,7 +25,15 @@ def a2a_request_meta_provider(
 ) -> dict[str, Any]:
     headers: dict[str, Any] = ctx.session.state.get("headers", {})
     enrich_current_span_with_experiment(headers)
-    return build_a2a_metadata(headers)
+    metadata = build_a2a_metadata(headers)
+    # F10 fault hook: ``a2a.trace=drop`` simulates a broken trace context
+    # propagation so we can validate that observability gaps are detected
+    # by the AgentOps pipeline.  Strips W3C / baggage keys but keeps the
+    # business headers so the remote agent still sees the experiment id.
+    if should_drop("a2a.trace", headers=headers):
+        for key in ("traceparent", "tracestate", "baggage"):
+            metadata.pop(key, None)
+    return metadata
 
 
 class RemoteAgentsFactory:
@@ -45,6 +54,15 @@ class RemoteAgentsFactory:
         return [agent for task in tasks if (agent := task.result()) is not None]
 
     async def _resolve_remote_agent(self, agent_name: str) -> RemoteA2aAgent | None:
+        # F4/F10 fault hook: ``agent.<name>=drop`` simulates the remote
+        # sub-agent disappearing (Nacos AI returns nothing) so the root
+        # agent has to fall back without delegation.  When fault injection
+        # is disabled this is a near-zero-cost branch.
+        if should_drop(f"agent.{agent_name}"):
+            logger.warning(
+                "remote agent '%s' dropped by fault injection", agent_name
+            )
+            return None
         try:
             agent_card = await self._nacos_ai.get_agent_card(agent_name)
         except Exception:

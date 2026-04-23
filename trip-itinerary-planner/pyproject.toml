@@ -10,7 +10,12 @@ dependencies = [
     "langchain>=0.3.14",
     "langchain-core>=0.3.28",
     "langchain-openai>=0.2.14",
-    "nacos-sdk-python>=3.0.3",
+    "nacos-sdk-python>=3.0.4",
+    # Pin a2a-sdk: nacos-sdk-python's dependency declaration is unbounded so
+    # uv would otherwise resolve to a2a-sdk 1.0.0 whose package layout drops
+    # `a2a.types.AgentCard`, breaking nacos-sdk-python's import chain.
+    # Mirror the version chat-service is already running on.
+    "a2a-sdk==0.3.22",
     "openinference-instrumentation-langchain>=0.1.58",
     "opentelemetry-distro[otlp]>=0.58b0",
     "pydantic-settings>=2.11.0",
@@ -50,6 +55,11 @@ select = ["E", "F", "B", "I"]
 [tool.mypy]
 strict = true
 python_version = "3.12"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-q"
 
 [tool.pyright]
 typeCheckingMode = "strict"

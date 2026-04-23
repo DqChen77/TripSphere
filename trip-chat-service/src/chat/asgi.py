@@ -22,6 +22,11 @@ from chat.config.settings import Settings, get_settings
 from chat.nacos.ai import NacosAI
 from chat.nacos.naming import NacosNaming
 from chat.nacos.utils import client_shutdown
+from chat.observability.fault import (
+    FaultRegistry,
+    reset_fault_context,
+    set_fault_context,
+)
 from chat.observability.tracing import chat_entry_span
 from chat.routers.health import health
 
@@ -86,6 +91,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     settings = get_settings()
     logger.info(f"Loaded settings: {settings}")
 
+    FaultRegistry.instance().bootstrap()
+
     try:
         await _init_infra(app, settings)
         logger.info("Registering service instance...")
@@ -114,12 +121,19 @@ def create_app() -> FastAPI:
         if request.url.path == "/api/v1/health":
             return await call_next(request)
 
-        with chat_entry_span(
-            method=request.method, path=request.url.path, headers=request.headers
-        ) as span:
-            response = await call_next(request)
-            span.set_attribute("http.response.status_code", response.status_code)
-            return response
+        # Install the fault context for the whole request scope so any
+        # ADK callback / tool / A2A delegation downstream can read the
+        # experiment headers via contextvars.
+        fault_token = set_fault_context(request.headers)
+        try:
+            with chat_entry_span(
+                method=request.method, path=request.url.path, headers=request.headers
+            ) as span:
+                response = await call_next(request)
+                span.set_attribute("http.response.status_code", response.status_code)
+                return response
+        finally:
+            reset_fault_context(fault_token)
 
     # Configure CORS
     app.add_middleware(

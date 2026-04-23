@@ -28,7 +28,7 @@ Flow per user turn
 import json
 import logging
 from time import perf_counter
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Any, Literal, TypedDict, cast
 
 from langchain_core.messages import AnyMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
@@ -43,6 +43,11 @@ from opentelemetry.trace import Status, StatusCode
 
 from itinerary_planner.config.settings import get_settings
 from itinerary_planner.nacos.naming import NacosNaming
+from itinerary_planner.observability.fault import (
+    force_route_decision,
+    invoke_with_fault,
+    should_clear_state,
+)
 from itinerary_planner.observability.tracing import (
     chat_turn_span,
     experiment_attributes,
@@ -119,7 +124,13 @@ def _keep_itinerary(
     frontend hasn't yet pushed the itinerary into the graph state.  Without this
     guard, that empty default would overwrite a valid itinerary already stored in
     the MemorySaver checkpoint.
+
+    F8 fault hook: ``state.itinerary=clear`` injects a state-corruption
+    experiment by returning ``None``, simulating "the itinerary was wiped
+    mid-turn".  The hook is a no-op when fault injection is disabled.
     """
+    if should_clear_state("state.itinerary"):
+        return None
     if new is not None and new.get("id"):
         return new
     return old
@@ -249,7 +260,9 @@ def create_chat_graph(nacos_naming: NacosNaming | None = None) -> CompiledStateG
 
             start = perf_counter()
             try:
-                response = await model_with_tools.ainvoke(conversation, config)
+                response = await invoke_with_fault(
+                    "llm.chat_agent", model_with_tools, conversation, config
+                )
             except Exception as exc:
                 latency_ms = round((perf_counter() - start) * 1000, 2)
                 turn_span.set_attribute("chat.llm.latency_ms", latency_ms)
@@ -303,7 +316,10 @@ def create_chat_graph(nacos_naming: NacosNaming | None = None) -> CompiledStateG
                     "chat.route.backend_tool_call_count": 0,
                 }
             )
-            return "__end__"
+            return cast(
+                Literal["tools", "__end__"],
+                force_route_decision("route.should_continue", "__end__"),
+            )
         frontend_names = {
             t.get("function", {}).get("name") or t.get("name")
             for t in (state.get("copilotkit") or {}).get("actions", [])
@@ -313,7 +329,11 @@ def create_chat_graph(nacos_naming: NacosNaming | None = None) -> CompiledStateG
             tc["name"] for tc in tool_calls if tc["name"] not in frontend_names
         )
         has_backend = len(backend_tool_names) > 0
-        decision = "tools" if has_backend else "__end__"
+        decision: Literal["tools", "__end__"] = "tools" if has_backend else "__end__"
+        decision = cast(
+            Literal["tools", "__end__"],
+            force_route_decision("route.should_continue", decision),
+        )
 
         logger.info(
             (

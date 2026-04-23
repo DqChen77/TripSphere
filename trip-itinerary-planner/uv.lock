@@ -940,6 +940,7 @@ name = "itinerary-planner"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "a2a-sdk" },
     { name = "ag-ui-langgraph" },
     { name = "fastapi" },
     { name = "grpcio" },
@@ -968,6 +969,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "a2a-sdk", specifier = "==0.3.22" },
     { name = "ag-ui-langgraph", specifier = ">=0.0.32" },
     { name = "fastapi", specifier = ">=0.135.1" },
     { name = "grpcio", specifier = ">=1.75.1" },
@@ -975,7 +977,7 @@ requires-dist = [
     { name = "langchain-core", specifier = ">=0.3.28" },
     { name = "langchain-openai", specifier = ">=0.2.14" },
     { name = "langgraph", specifier = ">=0.3.25" },
-    { name = "nacos-sdk-python", specifier = ">=3.0.3" },
+    { name = "nacos-sdk-python", specifier = ">=3.0.4" },
     { name = "openinference-instrumentation-langchain", specifier = ">=0.1.58" },
     { name = "opentelemetry-distro", extras = ["otlp"], specifier = ">=0.58b0" },
     { name = "pydantic-settings", specifier = ">=2.11.0" },
@@ -1489,7 +1491,7 @@ wheels = [
 
 [[package]]
 name = "nacos-sdk-python"
-version = "3.0.3"
+version = "3.0.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "a2a" },
@@ -1504,9 +1506,9 @@ dependencies = [
     { name = "pycryptodome" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/93/95/503992c18b0ce0ee148a4c9c1a2249f384d1749b1a4568f588c6bfbe31a2/nacos_sdk_python-3.0.3.tar.gz", hash = "sha256:f9bf03303a84f8a7f506d58217c5f0f36481e91cfd78b6b214bcba9ef0ca454c", size = 79307, upload-time = "2026-01-19T07:56:33.074Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/79/ff/54866f457714838962edd098924d532a226b6523eacaf7c3335ef25ff413/nacos_sdk_python-3.0.4.tar.gz", hash = "sha256:c3ac364dbeed4d5f5f7577859a2f0f5c6890626d424cb5ffef2efe4d5ab72c21", size = 79721, upload-time = "2026-01-21T06:22:25.482Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2b/a1/1d840f6ca56383a2df630e70acbc2dc9b6c86ba18472f4d6337e5d7e19ab/nacos_sdk_python-3.0.3-py3-none-any.whl", hash = "sha256:8185f86c4384130318054c20f53ea511ba993ecea58724ccfe2f877d725e5df0", size = 109097, upload-time = "2026-01-19T07:56:31.349Z" },
+    { url = "https://files.pythonhosted.org/packages/9c/b3/9247387bdfe34444e631141015f3b9664b77c1daa624a478aba9ba4ae398/nacos_sdk_python-3.0.4-py3-none-any.whl", hash = "sha256:59e241a4a9aa6f1d856128671ee6e31aff1505d53cce2175eca1bd2e1253f283", size = 109206, upload-time = "2026-01-21T06:22:22.947Z" },
 ]
 
 [[package]]

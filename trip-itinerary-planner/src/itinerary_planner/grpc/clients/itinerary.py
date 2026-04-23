@@ -19,6 +19,7 @@ from tripsphere.itinerary.v1 import itinerary_pb2, itinerary_pb2_grpc
 
 from itinerary_planner.models.activity import Activity, ActivityLocation, Cost
 from itinerary_planner.models.itinerary import DayPlan, Itinerary, ItinerarySummary
+from itinerary_planner.observability.fault import inject_fault
 from itinerary_planner.observability.tracing import inject_trace_context, rpc_span
 
 if TYPE_CHECKING:
@@ -332,10 +333,11 @@ class ItineraryServiceClient:
                 },
             ) as span:
                 try:
-                    response = await stub.CreateItinerary(
-                        itinerary_pb2.CreateItineraryRequest(itinerary=proto),
-                        metadata=metadata,
-                    )
+                    async with inject_fault("rpc.itinerary.create", headers=headers):
+                        response = await stub.CreateItinerary(
+                            itinerary_pb2.CreateItineraryRequest(itinerary=proto),
+                            metadata=metadata,
+                        )
                 except Exception as exc:
                     span.record_exception(exc)
                     span.set_status(Status(StatusCode.ERROR, str(exc)))
@@ -366,10 +368,11 @@ class ItineraryServiceClient:
                 },
             ) as span:
                 try:
-                    response = await stub.GetItinerary(
-                        itinerary_pb2.GetItineraryRequest(id=itinerary_id),
-                        metadata=metadata,
-                    )
+                    async with inject_fault("rpc.itinerary.get", headers=headers):
+                        response = await stub.GetItinerary(
+                            itinerary_pb2.GetItineraryRequest(id=itinerary_id),
+                            metadata=metadata,
+                        )
                 except Exception as exc:
                     span.record_exception(exc)
                     span.set_status(Status(StatusCode.ERROR, str(exc)))
@@ -397,12 +400,13 @@ class ItineraryServiceClient:
                 },
             ) as span:
                 try:
-                    response = await stub.ListUserItineraries(
-                        itinerary_pb2.ListUserItinerariesRequest(
-                            user_id=user_id, page_size=page_size
-                        ),
-                        metadata=metadata,
-                    )
+                    async with inject_fault("rpc.itinerary.list", headers=headers):
+                        response = await stub.ListUserItineraries(
+                            itinerary_pb2.ListUserItinerariesRequest(
+                                user_id=user_id, page_size=page_size
+                            ),
+                            metadata=metadata,
+                        )
                 except Exception as exc:
                     span.record_exception(exc)
                     span.set_status(Status(StatusCode.ERROR, str(exc)))
@@ -434,12 +438,13 @@ class ItineraryServiceClient:
                 },
             ) as span:
                 try:
-                    response = await stub.ReplaceItinerary(
-                        itinerary_pb2.ReplaceItineraryRequest(
-                            id=itinerary_id, itinerary=proto
-                        ),
-                        metadata=metadata,
-                    )
+                    async with inject_fault("rpc.itinerary.replace", headers=headers):
+                        response = await stub.ReplaceItinerary(
+                            itinerary_pb2.ReplaceItineraryRequest(
+                                id=itinerary_id, itinerary=proto
+                            ),
+                            metadata=metadata,
+                        )
                 except Exception as exc:
                     span.record_exception(exc)
                     span.set_status(Status(StatusCode.ERROR, str(exc)))
@@ -468,10 +473,11 @@ class ItineraryServiceClient:
                 },
             ) as span:
                 try:
-                    await stub.DeleteItinerary(
-                        itinerary_pb2.DeleteItineraryRequest(id=itinerary_id),
-                        metadata=metadata,
-                    )
+                    async with inject_fault("rpc.itinerary.delete", headers=headers):
+                        await stub.DeleteItinerary(
+                            itinerary_pb2.DeleteItineraryRequest(id=itinerary_id),
+                            metadata=metadata,
+                        )
                 except Exception as exc:
                     span.record_exception(exc)
                     span.set_status(Status(StatusCode.ERROR, str(exc)))

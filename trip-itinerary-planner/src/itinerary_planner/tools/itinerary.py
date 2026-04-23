@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field
 
 from itinerary_planner.config.settings import get_settings
 from itinerary_planner.nacos.naming import NacosNaming
+from itinerary_planner.observability.fault import should_clear_state
 from itinerary_planner.observability.tracing import tool_span
 from itinerary_planner.tools.attractions import search_attractions_nearby
 from itinerary_planner.tools.hotel import search_hotels_nearby
@@ -765,12 +766,16 @@ def make_plan_new_day_tool(nacos_naming: NacosNaming) -> Any:
                 span.set_attribute("tool.fallback_reason", ",".join(sorted(set(fallback_reasons))))
             span.set_attribute("tool.latency_ms", round((perf_counter() - start) * 1000, 2))
 
-            pending_day_plan = {
+            pending_day_plan: dict[str, Any] | None = {
                 "date": date,
                 "activities": planned_activities,
                 "notes": planned_notes,
                 "source": "plan_new_day",
             }
+            # F8: state.pending_day_plan=clear simulates a checkpoint corruption
+            # where the draft is silently dropped before add_day reads it.
+            if should_clear_state("state.pending_day_plan"):
+                pending_day_plan = None
             return Command(
                 update={
                     "pending_day_plan": pending_day_plan,

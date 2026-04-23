@@ -53,6 +53,10 @@ services:
       - MONGO_URI=${MONGO_URI:-mongodb://root:fudanse@mongodb:27017}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-api-key}
       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://higress:8080/v1}
+      # Fault injection controls (default OFF; see docs/fault-injection-quickstart.md)
+      - FAULT_INJECTION_ENABLED=${FAULT_INJECTION_ENABLED:-false}
+      - FAULT_INJECTION_SCENARIO=${FAULT_INJECTION_SCENARIO:-}
+      - FAULT_INJECTION_FILE=${FAULT_INJECTION_FILE:-}
     depends_on:
       nacos:
         condition: service_healthy
@@ -134,6 +138,10 @@ services:
       - NACOS_SERVER_ADDRESS=${NACOS_SERVER_ADDRESS:-nacos:8848}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-api-key}
       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://higress:8080/v1}
+      # Fault injection controls (default OFF; see docs/fault-injection-quickstart.md)
+      - FAULT_INJECTION_ENABLED=${FAULT_INJECTION_ENABLED:-false}
+      - FAULT_INJECTION_SCENARIO=${FAULT_INJECTION_SCENARIO:-}
+      - FAULT_INJECTION_FILE=${FAULT_INJECTION_FILE:-}
     depends_on:
       nacos:
         condition: service_healthy

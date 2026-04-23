@@ -12,6 +12,7 @@ from itinerary_planner.common.deps import (
     ItineraryServiceClientDep,
     provide_nacos_naming,
 )
+from itinerary_planner.common.fault_deps import ExperimentHeaders
 from itinerary_planner.models.itinerary import Itinerary, TravelInterest, TripPace
 from itinerary_planner.models.planning import PlanningProgressEvent
 from itinerary_planner.nacos.naming import NacosNaming
@@ -89,6 +90,7 @@ async def plan_itinerary(
     nacos_naming: Annotated[NacosNaming, Depends(provide_nacos_naming)],
     user_id: CurrentUserId,
     svc: ItineraryServiceClientDep,
+    experiment_headers: ExperimentHeaders,
 ) -> PlanItineraryResponse:
     logger.info("Planning itinerary for %s (user=%s)", request.destination, user_id)
 
@@ -109,12 +111,15 @@ async def plan_itinerary(
             "messages", []
         )
 
-        # Persist to itinerary service via gRPC (strong consistency required)
+        # Persist to itinerary service via gRPC (strong consistency required).
+        # Forward experiment headers so the gRPC client can attach them to
+        # metadata and so the fault framework can target rpc.itinerary.create.
         try:
             saved = await svc.create_itinerary(
                 itinerary=itinerary,
                 user_id=user_id,
                 markdown_content=markdown_content,
+                headers=experiment_headers or None,
             )
         except Exception as exc:
             logger.exception("Failed to persist itinerary via gRPC")
@@ -163,6 +168,7 @@ async def plan_itinerary_stream(
     request: PlanItineraryRequest,
     nacos_naming: Annotated[NacosNaming, Depends(provide_nacos_naming)],
     user_id: CurrentUserId,
+    experiment_headers: ExperimentHeaders,  # noqa: ARG001 - reserved for future gRPC calls
 ) -> StreamingResponse:
     """Streaming SSE planning endpoint — does not persist; client fetches the
     full result from the non-streaming endpoint or gRPC directly."""

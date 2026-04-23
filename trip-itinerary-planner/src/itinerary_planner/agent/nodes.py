@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from itinerary_planner.agent.state import PlanningState
 from itinerary_planner.config.settings import get_settings
+from itinerary_planner.observability.fault import invoke_with_fault
 from itinerary_planner.models.activity import Activity, ActivityLocation, Cost
 from itinerary_planner.models.itinerary import (
     DayPlan,
@@ -150,7 +151,9 @@ async def research_and_plan(state: PlanningState) -> dict[str, Any]:
     )
 
     try:
-        itinerary_plan = await structured_llm.ainvoke(prompt)  # pyright: ignore
+        itinerary_plan = await invoke_with_fault(
+            "llm.research_and_plan.structured", structured_llm, prompt
+        )
         itinerary_plan = CompleteItineraryPlan.model_validate(itinerary_plan)
 
         # Store attraction details for coordinate lookup
@@ -473,7 +476,7 @@ async def generate_markdown(state: PlanningState) -> dict[str, Any]:
     prompt = MARKDOWN_GENERATION_PROMPT.format(itinerary_json=itinerary_json)
 
     try:
-        result = await chat_model.ainvoke(prompt)
+        result = await invoke_with_fault("llm.generate_markdown", chat_model, prompt)
         markdown_content = str(result.content)
     except Exception as e:
         logger.error(f"Markdown generation failed: {e}")

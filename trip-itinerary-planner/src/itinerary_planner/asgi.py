@@ -15,6 +15,11 @@ from itinerary_planner.config.logging import setup_logging
 from itinerary_planner.config.settings import get_settings
 from itinerary_planner.grpc.clients.itinerary import ItineraryServiceClient
 from itinerary_planner.nacos.naming import NacosNaming
+from itinerary_planner.observability.fault import (
+    FaultRegistry,
+    reset_fault_context,
+    set_fault_context,
+)
 from itinerary_planner.observability.tracing import chat_entry_span
 from itinerary_planner.routers.planning import planning
 
@@ -28,6 +33,8 @@ LangChainInstrumentor().instrument()
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     settings = get_settings()
     logger.info("Loaded settings: %s", settings)
+
+    FaultRegistry.instance().bootstrap()
 
     try:
         app.state.nacos_naming = await NacosNaming.create_naming(
@@ -75,25 +82,31 @@ def create_fastapi_app() -> FastAPI:
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        if request.url.path != "/":
-            return await call_next(request)
+        # Always install a fault context so any handler (chat or REST)
+        # can see the experiment / fault headers carried on this request.
+        fault_token = set_fault_context(request.headers)
+        try:
+            if request.url.path != "/":
+                return await call_next(request)
 
-        with chat_entry_span(
-            method=request.method,
-            path=request.url.path,
-            headers=request.headers,
-        ) as span:
-            try:
-                response = await call_next(request)
-            except Exception as exc:
-                span.record_exception(exc)
-                span.set_status(Status(StatusCode.ERROR, str(exc)))
-                raise
+            with chat_entry_span(
+                method=request.method,
+                path=request.url.path,
+                headers=request.headers,
+            ) as span:
+                try:
+                    response = await call_next(request)
+                except Exception as exc:
+                    span.record_exception(exc)
+                    span.set_status(Status(StatusCode.ERROR, str(exc)))
+                    raise
 
-            span.set_attribute("http.response.status_code", response.status_code)
-            if response.status_code >= 500:
-                span.set_status(Status(StatusCode.ERROR))
-            return response
+                span.set_attribute("http.response.status_code", response.status_code)
+                if response.status_code >= 500:
+                    span.set_status(Status(StatusCode.ERROR))
+                return response
+        finally:
+            reset_fault_context(fault_token)
 
     app.include_router(planning, prefix="/api/v1")
     return app

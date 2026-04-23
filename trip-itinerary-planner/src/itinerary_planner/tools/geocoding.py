@@ -7,6 +7,7 @@ from langchain_core.tools import tool
 from opentelemetry.trace import Status, StatusCode
 from pydantic import BaseModel, Field
 
+from itinerary_planner.observability.fault import inject_fault, maybe_mutate
 from itinerary_planner.observability.tracing import inject_trace_context, rpc_span
 
 logger = logging.getLogger(__name__)
@@ -49,11 +50,12 @@ async def geocoding_tool(address: str, city: str = "") -> GeocodeResult:
             attributes={"tool.name": "geocoding_tool", "geocode.city": city or ""},
         ) as span:
             try:
-                response = await client.get(
-                    endpoint,
-                    params=params,
-                    headers=inject_trace_context({}),
-                )
+                async with inject_fault("tool.geocoding"):
+                    response = await client.get(
+                        endpoint,
+                        params=params,
+                        headers=inject_trace_context({}),
+                    )
                 span.set_attribute("http.response.status_code", response.status_code)
                 response.raise_for_status()
             except Exception as exc:
@@ -64,12 +66,13 @@ async def geocoding_tool(address: str, city: str = "") -> GeocodeResult:
             data = response.json()
             if data["status"] == "1" and data["infocode"] == "10000":
                 longitude, latitude = data["geocodes"][0]["location"].split(",")
-                return GeocodeResult(
+                result = GeocodeResult(
                     name=data["geocodes"][0]["formatted_address"],
                     latitude=float(latitude),
                     longitude=float(longitude),
                     address=data["geocodes"][0]["formatted_address"],
                 )
+                return maybe_mutate("tool.geocoding.response", result)
 
             span.set_status(Status(StatusCode.ERROR, data.get("info", "unknown_error")))
             logger.error("Geocoding failed: %s", data["info"])
