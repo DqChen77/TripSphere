@@ -23,3 +23,9 @@ volumes/
 
 # Environment configuration
 .env
+
+# Python virtual environments
+.venv/
+
+# Locust run artifacts
+artifacts/locust/

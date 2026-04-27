@@ -1,0 +1,157 @@
+# TripSphere Locust 故障场景配置
+#
+# 结构：
+#   single / combo  →  场景组（single 用于单点归因，combo 用于组合压力测试）
+#     <scene_name>:
+#       description: 说明
+#       faults:
+#         - target:      DSL target，如 tool.geocoding / rpc.attraction.GetAttractionsNearby
+#           primitive:   latency | exception | error | mutate
+#           value:       延迟 ms / 异常类名 / gRPC 状态码 / mutate 动作
+#           message:     （可选）异常/错误附加消息
+#           probability: 0.0~1.0，缺省 1.0
+#
+# 每个 fault 段最终拼成 x-fault-scenario DSL：
+#   <target>.<primitive>=<value>[,message=<msg>][,probability=<p>]
+# 多条用 ";" 连接后整体写入请求头。
+
+# ── 单故障场景 ─────────────────────────────────────────────────────────────────
+# 用于"一次只激活一个主变量"的归因实验（Q2 / Q4）。
+single:
+
+  geocode_latency:
+    description: "高德地理编码 4s 延迟，整链仍成功（默认坐标降级）"
+    faults:
+      - target: tool.geocoding
+        primitive: latency
+        value: 4000
+        probability: 1.0
+
+  geocode_latency_30p:
+    description: "高德地理编码 4s 延迟，30% 概率触发，用于观察延迟分布"
+    faults:
+      - target: tool.geocoding
+        primitive: latency
+        value: 4000
+        probability: 0.3
+
+  attraction_exception:
+    description: "景点 gRPC 异常，候选为空，触发幻觉路径，内容质量退化"
+    faults:
+      - target: rpc.attraction.GetAttractionsNearby
+        primitive: exception
+        value: RuntimeError
+        message: injected_attr_down
+        probability: 1.0
+
+  attraction_exception_50p:
+    description: "景点 gRPC 异常，50% 概率触发，模拟间歇性服务抖动"
+    faults:
+      - target: rpc.attraction.GetAttractionsNearby
+        primitive: exception
+        value: RuntimeError
+        message: injected_attr_down
+        probability: 0.5
+
+  itinerary_unavailable_10p:
+    description: "持久化 gRPC UNAVAILABLE，10% 概率，约 10% 请求返回 502"
+    faults:
+      - target: rpc.itinerary.create
+        primitive: error
+        value: UNAVAILABLE
+        message: injected_itinerary_down
+        probability: 0.1
+
+  itinerary_unavailable_full:
+    description: "持久化 gRPC UNAVAILABLE，100% 概率，验证强一致性失败用户面"
+    faults:
+      - target: rpc.itinerary.create
+        primitive: error
+        value: UNAVAILABLE
+        message: injected_itinerary_down
+        probability: 1.0
+
+  llm_research_exception:
+    description: "结构化规划 LLM 异常，行程骨架为空，markdown 走本地兜底"
+    faults:
+      - target: llm.research_and_plan.structured
+        primitive: exception
+        value: RuntimeError
+        message: injected_llm_down
+        probability: 1.0
+
+  attraction_truncate:
+    description: "景点列表截断为 1 条，验证候选不足下的生成质量退化"
+    faults:
+      - target: tool.attractions.response
+        primitive: mutate
+        value: truncate
+        message: "field=attractions,n=1"
+        probability: 1.0
+
+# ── 组合故障场景 ────────────────────────────────────────────────────────────────
+# 每个故障独立设置 probability，模拟真实事故中的多点间歇退化。
+# 注意：故障是否命中由服务端 FaultRegistry 独立判定（每条 fault 各自抽样）。
+# 实际命中次数以 Tempo trace 中 fault.injected=true 为准，
+# Locust 侧只记录"声明的 DSL 和请求结果"。
+combo:
+
+  cascade_degrade:
+    description: >
+      延迟 + 景点异常组合（geocoding 30% + attraction 20%），
+      模拟多点间歇退化，观察延迟和内容质量同时劣化的分布
+    faults:
+      - target: tool.geocoding
+        primitive: latency
+        value: 3000
+        probability: 0.3
+      - target: rpc.attraction.GetAttractionsNearby
+        primitive: exception
+        value: RuntimeError
+        message: injected_attr_down
+        probability: 0.2
+
+  degraded_with_persist_risk:
+    description: >
+      延迟 + 景点异常 + 持久化间歇失败（geocoding 30% + attraction 20% + itinerary 10%），
+      验证高压下是否出现级联失败或成功率急剧下降
+    faults:
+      - target: tool.geocoding
+        primitive: latency
+        value: 3000
+        probability: 0.3
+      - target: rpc.attraction.GetAttractionsNearby
+        primitive: exception
+        value: RuntimeError
+        message: injected_attr_down
+        probability: 0.2
+      - target: rpc.itinerary.create
+        primitive: error
+        value: UNAVAILABLE
+        message: injected_itinerary_down
+        probability: 0.1
+
+  full_stress:
+    description: >
+      最大压力场景：地理编码延迟 40% + 景点异常 30% + LLM 异常 10% + 持久化失败 10%，
+      用于高压象限（Q4）的极限验证
+    faults:
+      - target: tool.geocoding
+        primitive: latency
+        value: 4000
+        probability: 0.4
+      - target: rpc.attraction.GetAttractionsNearby
+        primitive: exception
+        value: RuntimeError
+        message: injected_attr_down
+        probability: 0.3
+      - target: llm.research_and_plan.structured
+        primitive: exception
+        value: RuntimeError
+        message: injected_llm_down
+        probability: 0.1
+      - target: rpc.itinerary.create
+        primitive: error
+        value: UNAVAILABLE
+        message: injected_itinerary_down
+        probability: 0.1
