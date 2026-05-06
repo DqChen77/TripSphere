@@ -1,0 +1,105 @@
+\chapter{实现与靶场落地}
+
+\section{当前实现范围}
+
+截至本文初稿撰写时，TripSphere 已经具备可复现应用层故障注入的核心前置能力，其中最完整的落地对象是 \code{trip-itinerary-planner} 中的 REST 行程规划链。工程文档 \code{docs/fault-injection-quickstart.md} 明确指出，落地代码位于 \code{trip-itinerary-planner/src/itinerary\_planner/observability/fault.py} 和 \code{trip-chat-service/src/chat/observability/fault.py}。这两个模块实现了故障 DSL、运行时注册表、请求上下文匹配、概率门、延迟/异常/gRPC 错误/响应篡改/状态清空/路由扰动/Agent drop 等原语。
+
+需要强调的是，当前已实现程度并不等于三条链路的所有实验都已完成。本文采取保守表述：
+
+\begin{itemize}
+  \item 链路 A 已具备主要靶场能力，包括请求级注入、代表性 target、单请求 demo 和 Locust 脚本前置能力。
+  \item 链路 B 已有设计目标和部分注入能力基础，例如状态和路由相关 target，但完整多轮实验结果仍待补充。
+  \item 链路 C 已有远程 Agent 和 A2A 相关 target 设计，但跨服务完整实验和结果分析仍待补充。
+  \item Prometheus 容器资源采集、OpenTelemetry spanmetrics、Grafana dashboard 和持久化实验记录目录仍属于后续工作。
+\end{itemize}
+
+这种划分保证论文不会把规划内容写成实证结论，同时也说明当前工程已经具备继续实验的基础。
+
+\section{服务启动与全局开关}
+
+TripSphere 使用容器化方式启动服务。由于容器只能读取 \code{docker-compose.yaml} 中显式透传的环境变量，故障注入框架需要在 compose 中为 \code{trip-itinerary-planner} 和 \code{trip-chat-service} 声明以下槽位：
+
+\begin{verbatim}
+FAULT_INJECTION_ENABLED
+FAULT_INJECTION_SCENARIO
+FAULT_INJECTION_FILE
+\end{verbatim}
+
+其中 \code{FAULT\_INJECTION\_ENABLED} 是全局开关，默认关闭。服务启动时，FastAPI lifespan 调用 \code{FaultRegistry.instance().bootstrap()} 读取环境变量和配置文件。该设计意味着修改宿主机环境变量后需要重启容器才能生效，但请求级 \code{x-fault-scenario} 在全局开关已启用后可以即时生效，不需要再次重启。
+
+默认关闭是安全边界。未启用时，装饰器和显式注入函数都走早退路径，业务逻辑等价于未注入版本。启用后，框架才会解析请求上下文和故障规则。
+
+\section{请求级故障注入流程}
+
+链路 A 中最常用的调试方式是请求级注入。实验者发送规划请求时附带 \code{x-experiment-id} 和 \code{x-fault-scenario}。例如：
+
+\begin{verbatim}
+POST /api/v1/itineraries/plannings
+x-user-id: 42
+x-experiment-id: exp-demo
+x-fault-scenario: tool.geocoding.latency=4000
+\end{verbatim}
+
+请求进入 \code{trip-itinerary-planner} 后，中间件把实验头解析到上下文。随后 \code{research\_and\_plan} 节点调用地理编码工具，工具边界检查当前上下文是否包含 \code{tool.geocoding.latency}。如果目标匹配且概率门命中，则在真实业务调用前 sleep 约 4000ms，并在当前 Span 上写入 \code{fault.injected=true}、\code{fault.target=tool.geocoding}、\code{fault.primitive=latency} 和参数值。请求返回后，实验者可以通过 \code{experiment.id} 在 Tempo 中找到该 Trace，并检查端到端耗时是否相对基线增加。
+
+这个流程体现了本文设计的关键闭环：请求头是故障声明，工具边界是注入执行点，Span 属性是命中证据，HTTP 响应和 Locust CSV 是系统响应，实验记录则保存复现条件。
+
+\section{已接入注入点}
+
+根据快速指南，链路 A 当前已接入多个代表性注入点，如表 \ref{tab:chain-a-targets} 所示。
+
+\begin{table}[htbp]
+  \centering
+  \caption{链路 A 已接入的代表性注入点}
+  \label{tab:chain-a-targets}
+  \begin{tabularx}{\textwidth}{p{4cm}Xp{3cm}}
+    \toprule
+    Target & 语义 & 适用故障 \\
+    \midrule
+    \code{tool.geocoding} & 高德地理编码 HTTP 调用前 & latency, exception \\
+    \code{tool.geocoding.response} & 高德响应返回后 & mutate \\
+    \code{rpc.attraction.GetAttractionsNearby} & 景点 gRPC 调用前 & latency, exception, error \\
+    \code{tool.attractions.response} & 景点列表返回后 & mutate \\
+    \code{rpc.hotel.GetHotelsNearby} & 酒店 gRPC 调用前 & latency, exception, error \\
+    \code{tool.hotel.response} & 酒店列表返回后 & mutate \\
+    \code{llm.research\_and\_plan.structured} & 结构化 LLM 调用前 & latency, exception \\
+    \code{llm.generate\_markdown} & Markdown LLM 调用前 & latency, exception \\
+    \code{rpc.itinerary.create} & 行程持久化 gRPC 调用前 & latency, exception, error \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+这些 target 覆盖了链路 A 的关键风险点：外部地图 API、候选数据服务、LLM 生成和最终持久化。它们可以支持单点归因实验，也可以通过分号组合形成级联故障。例如，地理编码延迟与景点异常可以同时注入，用于观察高压下是否出现级联退化。
+
+链路 B 和链路 C 的设计 target 也已在文档中列出。链路 B 包括 \code{llm.chat\_agent}、\code{state.itinerary}、\code{state.pending\_day\_plan} 和 \code{route.should\_continue}；链路 C 包括 \code{agent.order\_assistant} 和 \code{a2a.trace}。这些 target 将作为后续实验覆盖对象。
+
+\section{批量演示脚本}
+
+仓库提供 \code{scripts/fault-demo.sh}，用于链路 A 的单请求批量演示。该脚本覆盖延迟、异常、gRPC 错误、响应篡改、概率门和组合场景等 14 个故障组合，默认目的地为上海。每个用例打印 \code{experiment.id}、HTTP 状态码、实测耗时和设计预期，便于在 Tempo 中检索 \code{fault.injected=true} 的代表 Trace。
+
+演示脚本的价值不在于得到最终论文数据，而在于验证故障注入能力是否可用。正式实验仍需要 Locust 控制负载、记录 CSV、划定时间窗口，并与 Prometheus 和 Tempo 数据对齐。
+
+\section{Locust 压测脚本前置能力}
+
+当前仓库已包含 \code{scripts/locust/fault\_scenarios.yaml}、\code{scripts/locust/locustfile.py}、\code{scripts/locust/pyproject.toml} 和 \code{scripts/locust/run-matrix.sh}。这些文件用于构造链路 A 的四象限实验：低压无故障、低压故障、高压无故障和高压故障。
+
+Locust 脚本通过请求头传递 \code{x-experiment-id} 和 \code{x-fault-scenario}，并解析响应生成 \code{quality.csv}。该文件记录请求级业务质量指标，例如状态码、耗时、day plan 数量、activity 数量和 Markdown 长度。与 Locust 自带的 \code{stats\_stats.csv}、\code{stats\_failures.csv}、\code{stats\_exceptions.csv} 结合，可以初步观察端到端可用性、延迟和内容退化。
+
+但是，本文初稿不直接填写具体实验数值。即使仓库中存在历史 artifacts，也需要明确实验条件、时间窗口、故障 DSL、样本规模和 Trace 证据后才能进入论文结果表格。当前章节只说明工具能力已经具备，不把 artifacts 自动解释为最终实验结论。
+
+\section{可观测落地}
+
+当前注入命中会写入 \code{fault.*} 与 \code{experiment.id} Span 属性，可通过 Tempo TraceQL 串联“实验声明 -> 注入命中 -> 系统响应”。例如默认业务视图可以按 \code{experiment.id} 过滤，并优先查看包含工具、RPC 或聊天入口语义的 Span。链路 A 的典型验证步骤是：
+
+\begin{enumerate}
+  \item 发送带 \code{x-experiment-id} 和 \code{x-fault-scenario} 的规划请求。
+  \item 在 Tempo 中按 \code{experiment.id} 查询整条 Trace。
+  \item 进一步筛选 \code{fault.injected=true}，确认具体 target 和 primitive。
+  \item 对照入口 Span duration、HTTP 状态码和响应质量，判断系统是否按预期退化。
+\end{enumerate}
+
+Prometheus 与 Grafana 方面，当前基础配置尚未形成完整压测级闭环。文档指出，\code{infra/prometheus/prometheus.yaml} 当前主要抓取 Prometheus 自身和 OTel Collector；\code{infra/otel-collector/config.yaml} 尚未配置 spanmetrics connector。因此，容器资源、宿主机指标、Java Actuator、Python 自定义业务指标和故障命中计数转 metrics 仍需后续补齐。
+
+\section{实现小结}
+
+当前实现已经证明本文方案具备工程可行性：故障可以通过请求头声明，可以在 LangGraph 链路 A 的工具/RPC/LLM 边界命中，可以通过 Span 属性留下证据，也可以通过脚本批量演示和 Locust 进行进一步实验。尚未完成的部分主要是链路 B/C 的系统化实验、压测级 metrics 闭环和论文结果表格。后续章节将把这些内容组织为实验设计和待补充结果模板。

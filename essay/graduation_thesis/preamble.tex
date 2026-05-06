@@ -1,0 +1,41 @@
+\usepackage[a4paper,left=3.0cm,right=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{url}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue]{hyperref}
+
+\setcounter{tocdepth}{2}
+\setcounter{secnumdepth}{3}
+\linespread{1.35}
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0pt}
+
+\ctexset{
+  chapter = {
+    name = {第,章},
+    number = \chinese{chapter},
+    format = \centering\heiti\zihao{2},
+    beforeskip = 0pt,
+    afterskip = 24pt
+  },
+  section = {
+    format = \heiti\zihao{3},
+    beforeskip = 18pt,
+    afterskip = 8pt
+  },
+  subsection = {
+    format = \heiti\zihao{4},
+    beforeskip = 12pt,
+    afterskip = 6pt
+  }
+}
+
+\newcommand{\TODO}[1]{\textcolor{red}{[待补充：#1]}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\TripSphere}{TripSphere}

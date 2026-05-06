@@ -1,0 +1,97 @@
+\chapter{TripSphere AI 原生应用架构分析}
+
+\section{系统总体结构}
+
+TripSphere 是一个面向旅行规划、对话修改和订单辅助的 AI 原生应用。它不是单一模型服务，而是由多个 Python 智能体服务、Java gRPC 微服务、第三方 API、LLM 网关和可观测组件共同组成。本文将其作为应用层故障注入靶场，原因在于它同时具备 AI 原生应用的典型结构和传统分布式系统的复杂性。
+
+从当前仓库文档和工程结构看，TripSphere 的核心组件包括：
+
+\begin{itemize}
+  \item \code{trip-itinerary-planner}：Python FastAPI 服务，承载 LangGraph 行程规划工作流和 CopilotKit ReAct 对话图，是本文当前已实现故障注入靶场的主要对象。
+  \item \code{trip-chat-service}：Python FastAPI 服务，承载主聊天入口、ADK 根 Agent、Mem0 记忆和远程 Agent 委托。
+  \item \code{trip-order-assistant}：远程 A2A Agent，负责商品查询、订单草稿和订单提交等任务。
+  \item Java gRPC 微服务：包括景点、酒店、行程、商品和订单等服务，为 Agent 工具提供稳定业务能力。
+  \item 第三方与基础设施：包括高德地理编码 HTTP API、OpenAI 兼容 LLM、Nacos 服务发现、OpenTelemetry Collector、Tempo、Prometheus 和 Grafana。
+\end{itemize}
+
+该结构可以抽象为“Agent 编排层 + 工具访问层 + 业务微服务层 + 可观测层”。Agent 编排层决定任务如何被拆解和路由；工具访问层把 Agent 决策转化为 HTTP、gRPC 或 A2A 调用；业务微服务层保存可持久化的领域对象；可观测层记录 Trace、Metric 和实验属性。应用层故障注入需要同时理解这些层次，因为一个故障可能在上层表现为错误回答，在中层表现为工具 fallback，在底层表现为 RPC 失败。
+
+\section{链路 A：REST 行程规划链}
+
+链路 A 是 TripSphere 中最适合作为首个靶场的主长链。用户通过 \code{POST /api/v1/itineraries/plannings} 提交目的地、日期、兴趣和节奏等信息，系统同步生成行程并写入行程服务。该链路覆盖 HTTP 入口、LangGraph workflow、第三方 HTTP、Java gRPC、LLM 调用和持久化 RPC，具有完整的端到端副作用。
+
+链路 A 的主要步骤如下：
+
+\begin{enumerate}
+  \item FastAPI 路由 \code{plan\_itinerary} 接收请求，并从 \code{x-user-id} 等头部获得用户身份与实验上下文。
+  \item \code{create\_planning\_workflow()} 构造的 LangGraph workflow 被调用，初始状态包含目的地、日期、兴趣和节奏。
+  \item \code{research\_and\_plan} 节点执行调研与初步规划：调用高德地理编码获得坐标，调用景点 gRPC 查询候选景点，调用结构化 LLM 生成日程，再调用酒店 gRPC 查询住宿候选。
+  \item \code{finalize\_itinerary} 节点进行本地组装和活动坐标回填。
+  \item \code{generate\_markdown} 节点再次调用 LLM，生成面向用户展示的 Markdown 行程文本。
+  \item \code{ItineraryServiceClient.create\_itinerary} 调用 Java 行程服务持久化结果，并用保存后的 ID 覆盖本地 ID。
+\end{enumerate}
+
+链路 A 的可靠性特征是：前半段有较多 fallback，后半段持久化失败会使整个请求失败。根据设计文档中的基线行为，地理编码失败时会退回默认上海坐标，景点搜索失败时会以空候选继续，酒店搜索失败时会跳过住宿活动，结构化 LLM 失败时会生成空骨架和通用 highlights，Markdown LLM 失败时会使用 fallback Markdown。但如果最终 \code{create\_itinerary} 失败，用户会看到 HTTP 502。
+
+因此，链路 A 适合验证三类问题。第一，工具或 RPC 变慢时，端到端延迟是否按预期上升，系统是否仍能完成持久化。第二，候选数据缺失或被篡改时，生成质量是否退化，fallback 是否可见。第三，持久化失败时，错误是否被正确暴露，Trace 是否保留足够证据。
+
+\section{链路 B：CopilotKit ReAct 对话链}
+
+链路 B 面向多轮对话和行程修改。用户在前端 CopilotKit 会话中围绕已有 itinerary 继续提出请求，例如新增一天、重新生成某天、添加活动或修改 Markdown。该链路由 \code{trip-itinerary-planner} 中的 LangGraph ReAct 图承载，核心特点是循环、状态和工具交替执行。
+
+链路 B 的主要步骤如下：
+
+\begin{enumerate}
+  \item 前端向 \code{POST /} 发送 CopilotKit 请求，入口中间件记录实验头和会话信息。
+  \item \code{create\_chat\_graph} 构造 ReAct 图，使用 \code{MemorySaver} 保存 checkpoint。
+  \item \code{agent\_node} 调用绑定工具的 LLM，根据当前对话和状态决定是否调用工具。
+  \item \code{should\_continue} 根据模型返回的工具调用决定是否进入 \code{ToolNode}，或结束当前 turn。
+  \item 工具节点执行后写回状态，例如 \code{plan\_new\_day} 生成某天计划，\code{regenerate\_day} 重新生成指定天，\code{update\_itinerary\_day} 修改已有行程。
+  \item AG-UI 状态同步把变更推送回前端。
+\end{enumerate}
+
+链路 B 与链路 A 的差异在于，链路 B 的核心不是单次强一致写库，而是多轮状态演化。一次错误工具调用可能不会立即导致 HTTP 失败，却可能污染后续对话上下文；一次错误路由可能导致 Agent 提前结束，用户看到的是“没有完成任务”；一次 \code{pending\_day\_plan} 丢失可能使前端和后端状态不一致。故障注入价值集中在状态与控制流：清空 \code{state.itinerary}、清空 \code{state.pending\_day\_plan}、强制 \code{should\_continue} 走 \code{\_\_end\_\_} 或 \code{tools}，都能暴露 ReAct 循环对状态异常的承受能力。
+
+当前论文初稿不把链路 B 的实验结果写成已完成结论。它应作为后续实现和实验重点：先接入请求级故障头和状态注入点，再用典型多轮对话场景验证状态清空、路由扰动和工具异常对用户体验的影响。
+
+\section{链路 C：Chat 到 A2A 再到 Order 的跨服务链}
+
+链路 C 体现 TripSphere 的跨服务和跨 Agent 特征。用户在主聊天中提出下单意图，\code{trip-chat-service} 中的 ADK 根 Agent 判断需要委托远程 \code{order\_assistant}，通过 A2A 协议调用远端 Agent。远端 Agent 再访问商品和订单 gRPC 服务，完成商品查询、订单草稿创建和订单提交。
+
+链路 C 的主要步骤如下：
+
+\begin{enumerate}
+  \item \code{trip-chat-service} 的 HTTP 入口接收聊天请求，并提取 \code{x-experiment-id}、\code{x-fault-scenario} 等头部。
+  \item ADK 根 Agent 初始化远程 Agent 列表，通过 Nacos AI 解析 \code{order\_assistant} 的 Agent Card。
+  \item 主 Agent 决定把订单相关任务委托给 \code{RemoteA2aAgent}。
+  \item A2A metadata 携带 W3C Trace Context 和实验头进入远程 \code{trip-order-assistant}。
+  \item 远端 Agent 调用商品服务查询 SKU 或 SPU，创建进程内订单草稿，再调用订单服务提交。
+\end{enumerate}
+
+链路 C 的故障语义不同于 A/B。它跨越多个进程和服务，远程 Agent 的解析失败可能导致整个能力缺失，A2A Trace 断裂会影响实验证据链，订单草稿存放在进程级内存字典中，服务重启或多副本部署可能引入状态丢失。应用层注入可以针对 \code{agent.order\_assistant} 执行 drop，或针对 \code{a2a.trace} 模拟 Trace 关联断开，从而验证主 Agent 在远端不可用时是否有明确 fallback 和错误提示。
+
+当前工程文档已经为链路 C 定义了注入目标，但完整实验仍需后续实现与验证。本文在实验章节给出设计，不填充未执行数据。
+
+\section{三条链路的对比}
+
+三条链路覆盖了 AI 原生应用中不同的可靠性问题。表 \ref{tab:chains} 对它们进行对比。
+
+\begin{table}[htbp]
+  \centering
+  \caption{TripSphere 三条主要链路的结构差异}
+  \label{tab:chains}
+  \begin{tabularx}{\textwidth}{p{2.5cm}XXX}
+    \toprule
+    维度 & 链路 A & 链路 B & 链路 C \\
+    \midrule
+    入口 & REST 规划接口 & CopilotKit 对话入口 & Chat Service 聊天入口 \\
+    编排模型 & LangGraph 线性 workflow & LangGraph ReAct 循环 & ADK 根 Agent + A2A 远程 Agent \\
+    状态主体 & 单次 PlanningState & MemorySaver checkpoint + itinerary 状态 & ADK Session + 订单草稿内存状态 \\
+    终态副作用 & 行程 gRPC 写库 & 前端状态同步为主 & 订单 gRPC 写入 \\
+    典型故障 & 工具慢、候选为空、持久化失败 & 状态丢失、路由错误、工具 fallback & 远端 Agent 丢失、A2A 断链、订单草稿丢失 \\
+    当前状态 & 已作为主要靶场落地 & 规划接入与实验 & 规划接入与实验 \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+从故障注入角度看，链路 A 适合作为第一阶段验证，因为它的输入输出清晰、端到端副作用明确、已有 demo 和 Locust 脚本支持。链路 B 适合验证长对话状态鲁棒性，链路 C 适合验证跨 Agent 与跨服务的 Trace 关联和远端不可用行为。三者共同构成本文所说的 AI 原生应用层故障注入靶场。

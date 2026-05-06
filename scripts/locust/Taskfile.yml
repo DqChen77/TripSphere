@@ -1,0 +1,474 @@
+version: "3"
+
+# ── 全局变量（可通过 task <name> VAR=value 覆盖） ────────────────────────────────
+vars:
+  # 链路选择
+  CHAIN: "a"
+  # 并发用户数
+  USERS: "5"
+  HIGH_USERS: "20"
+  # 每秒生成速率
+  SPAWN: "1"
+  HIGH_SPAWN: "3"
+  # 单象限时长（smoke 短，正式实验长）
+  DURATION: "2m"
+  SMOKE_DURATION: "30s"
+  # 故障场景（留空=baseline）
+  SCENARIO: ""
+  SCENARIO_MODE: "single"
+  # Artifact 输出目录
+  ARTIFACT_DIR: "artifacts/locust"
+  # 链路 B 行程配置
+  CHAIN_B_ITINERARY_ID: "locust-placeholder-itin"
+  CHAIN_B_DESTINATION: "Shanghai"
+
+# ── 通用 env 块（所有 task 共享） ───────────────────────────────────────────────
+env:
+  CHAIN: "{{.CHAIN}}"
+  ARTIFACT_DIR: "{{.ARTIFACT_DIR}}"
+  CHAIN_B_ITINERARY_ID: "{{.CHAIN_B_ITINERARY_ID}}"
+  CHAIN_B_DESTINATION: "{{.CHAIN_B_DESTINATION}}"
+
+tasks:
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 默认：打印帮助
+  # ════════════════════════════════════════════════════════════════════════════
+  default:
+    silent: true
+    cmds:
+      - |
+        echo ""
+        echo "TripSphere Locust Taskfile  (chain={{.CHAIN}})"
+        echo ""
+        echo "── Smoke 快速验证 ──────────────────────────────────────────────"
+        echo "  task smoke          链路 A baseline smoke (30s, 1 user)"
+        echo "  task smoke-b        链路 B baseline smoke (30s, 1 user)"
+        echo "  task smoke-c        链路 C baseline smoke (30s, 1 user)"
+        echo "  task smoke-all      三条链路并行 smoke"
+        echo ""
+        echo "── 单象限 ──────────────────────────────────────────────────────"
+        echo "  task baseline       链路 A baseline-low   (DURATION={{.DURATION}}, USERS={{.USERS}})"
+        echo "  task fault          链路 A fault-low      (SCENARIO=<name>)"
+        echo "  task baseline-b     链路 B baseline-low"
+        echo "  task fault-b        链路 B fault-low      (SCENARIO=chat_llm_latency)"
+        echo "  task baseline-c     链路 C baseline-low"
+        echo "  task fault-c        链路 C fault-low      (SCENARIO=a2a_trace_drop)"
+        echo ""
+        echo "── 四象限矩阵 ──────────────────────────────────────────────────"
+        echo "  task matrix-a       链路 A 完整 2×2 矩阵  (SCENARIO=<name>)"
+        echo "  task matrix-b       链路 B 完整 2×2 矩阵  (SCENARIO=<name>)"
+        echo "  task matrix-c       链路 C 完整 2×2 矩阵  (SCENARIO=<name>)"
+        echo ""
+        echo "── 常用故障场景快捷方式 ────────────────────────────────────────"
+        echo "  task fault-geocode      链路 A: geocode_latency"
+        echo "  task fault-attraction   链路 A: attraction_exception"
+        echo "  task fault-cascade-a    链路 A: cascade_degrade (combo)"
+        echo "  task fault-llm-b        链路 B: chat_llm_latency"
+        echo "  task fault-route-b      链路 B: route_force_end"
+        echo "  task fault-state-b      链路 B: itinerary_state_clear"
+        echo "  task fault-draft-b      链路 B: pending_day_plan_clear"
+        echo "  task fault-trace-c      链路 C: a2a_trace_drop"
+        echo ""
+        echo "── 工具 ────────────────────────────────────────────────────────"
+        echo "  task report CSV=<path>  生成单份 HTML 报告"
+        echo "  task report-latest      对最新 artifact 生成报告"
+        echo "  task lint               语法检查 locustfile.py + generate_report.py"
+        echo "  task scenarios          列出所有可用故障场景"
+        echo "  task clean              清理 artifacts/ 目录"
+        echo ""
+        echo "覆盖变量示例："
+        echo "  task fault-b SCENARIO=chat_llm_exception USERS=3 DURATION=5m"
+        echo "  task matrix-a SCENARIO=cascade_degrade SCENARIO_MODE=combo DURATION=15m"
+        echo ""
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # Smoke 快速验证（30s，1 user，验证脚本可运行）
+  # ════════════════════════════════════════════════════════════════════════════
+  smoke:
+    desc: "链路 A baseline smoke (30s, 1 user)"
+    cmds:
+      - bash run-matrix.sh baseline-low "" 1 1 {{.SMOKE_DURATION}}
+
+  smoke-b:
+    desc: "链路 B baseline smoke (30s, 1 user)"
+    env:
+      CHAIN: "b"
+    cmds:
+      - bash run-matrix.sh baseline-low "" 1 1 {{.SMOKE_DURATION}}
+
+  smoke-c:
+    desc: "链路 C baseline smoke (30s, 1 user)"
+    env:
+      CHAIN: "c"
+    cmds:
+      - bash run-matrix.sh baseline-low "" 1 1 {{.SMOKE_DURATION}}
+
+  smoke-all:
+    desc: "三条链路并行 smoke（各 30s）"
+    deps: [smoke-all-a, smoke-all-b, smoke-all-c]
+
+  smoke-all-a:
+    internal: true
+    cmds:
+      - bash run-matrix.sh baseline-low "" 1 1 {{.SMOKE_DURATION}}
+
+  smoke-all-b:
+    internal: true
+    env:
+      CHAIN: "b"
+    cmds:
+      - bash run-matrix.sh baseline-low "" 1 1 {{.SMOKE_DURATION}}
+
+  smoke-all-c:
+    internal: true
+    env:
+      CHAIN: "c"
+    cmds:
+      - bash run-matrix.sh baseline-low "" 1 1 {{.SMOKE_DURATION}}
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 单象限 — 链路 A
+  # ════════════════════════════════════════════════════════════════════════════
+  baseline:
+    desc: "链路 A baseline-low (USERS={{.USERS}}, DURATION={{.DURATION}})"
+    cmds:
+      - bash run-matrix.sh baseline-low "" {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault:
+    desc: "链路 A fault-low (SCENARIO 必须指定, 如: task fault SCENARIO=geocode_latency)"
+    requires:
+      vars: [SCENARIO]
+    cmds:
+      - bash run-matrix.sh fault-low {{.SCENARIO}} {{.USERS}} {{.SPAWN}} {{.DURATION}} {{.SCENARIO_MODE}}
+
+  baseline-high:
+    desc: "链路 A baseline-high (USERS={{.HIGH_USERS}}, DURATION={{.DURATION}})"
+    cmds:
+      - bash run-matrix.sh baseline-high "" {{.HIGH_USERS}} {{.HIGH_SPAWN}} {{.DURATION}}
+
+  fault-high:
+    desc: "链路 A fault-high (SCENARIO 必须指定)"
+    requires:
+      vars: [SCENARIO]
+    cmds:
+      - bash run-matrix.sh fault-high {{.SCENARIO}} {{.HIGH_USERS}} {{.HIGH_SPAWN}} {{.DURATION}} {{.SCENARIO_MODE}}
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 单象限 — 链路 B
+  # ════════════════════════════════════════════════════════════════════════════
+  baseline-b:
+    desc: "链路 B baseline-low"
+    env:
+      CHAIN: "b"
+    cmds:
+      - bash run-matrix.sh baseline-low "" {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault-b:
+    desc: "链路 B fault-low (SCENARIO={{.SCENARIO}})"
+    env:
+      CHAIN: "b"
+    requires:
+      vars: [SCENARIO]
+    cmds:
+      - bash run-matrix.sh fault-low {{.SCENARIO}} {{.USERS}} {{.SPAWN}} {{.DURATION}} {{.SCENARIO_MODE}}
+
+  baseline-b-high:
+    desc: "链路 B baseline-high"
+    env:
+      CHAIN: "b"
+    cmds:
+      - bash run-matrix.sh baseline-high "" {{.HIGH_USERS}} {{.HIGH_SPAWN}} {{.DURATION}}
+
+  fault-b-high:
+    desc: "链路 B fault-high (SCENARIO 必须指定)"
+    env:
+      CHAIN: "b"
+    requires:
+      vars: [SCENARIO]
+    cmds:
+      - bash run-matrix.sh fault-high {{.SCENARIO}} {{.HIGH_USERS}} {{.HIGH_SPAWN}} {{.DURATION}} {{.SCENARIO_MODE}}
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 单象限 — 链路 C
+  # ════════════════════════════════════════════════════════════════════════════
+  baseline-c:
+    desc: "链路 C baseline-low"
+    env:
+      CHAIN: "c"
+    cmds:
+      - bash run-matrix.sh baseline-low "" {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault-c:
+    desc: "链路 C fault-low (SCENARIO={{.SCENARIO}})"
+    env:
+      CHAIN: "c"
+    requires:
+      vars: [SCENARIO]
+    cmds:
+      - bash run-matrix.sh fault-low {{.SCENARIO}} {{.USERS}} {{.SPAWN}} {{.DURATION}} {{.SCENARIO_MODE}}
+
+  baseline-c-high:
+    desc: "链路 C baseline-high"
+    env:
+      CHAIN: "c"
+    cmds:
+      - bash run-matrix.sh baseline-high "" {{.HIGH_USERS}} {{.HIGH_SPAWN}} {{.DURATION}}
+
+  fault-c-high:
+    desc: "链路 C fault-high (SCENARIO 必须指定)"
+    env:
+      CHAIN: "c"
+    requires:
+      vars: [SCENARIO]
+    cmds:
+      - bash run-matrix.sh fault-high {{.SCENARIO}} {{.HIGH_USERS}} {{.HIGH_SPAWN}} {{.DURATION}} {{.SCENARIO_MODE}}
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 四象限矩阵（顺序跑 baseline-low → fault-low → baseline-high → fault-high）
+  # ════════════════════════════════════════════════════════════════════════════
+  matrix-a:
+    desc: "链路 A 完整 2×2 矩阵 (SCENARIO 必须指定)"
+    requires:
+      vars: [SCENARIO]
+    cmds:
+      - bash run-matrix.sh all {{.SCENARIO}} {{.USERS}} {{.HIGH_USERS}} {{.DURATION}}
+
+  matrix-b:
+    desc: "链路 B 完整 2×2 矩阵 (SCENARIO 必须指定)"
+    env:
+      CHAIN: "b"
+    requires:
+      vars: [SCENARIO]
+    cmds:
+      - bash run-matrix.sh all {{.SCENARIO}} {{.USERS}} {{.HIGH_USERS}} {{.DURATION}}
+
+  matrix-c:
+    desc: "链路 C 完整 2×2 矩阵 (SCENARIO 必须指定)"
+    env:
+      CHAIN: "c"
+    requires:
+      vars: [SCENARIO]
+    cmds:
+      - bash run-matrix.sh all {{.SCENARIO}} {{.USERS}} {{.HIGH_USERS}} {{.DURATION}}
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 快捷故障任务（常用场景一键触发）
+  # ════════════════════════════════════════════════════════════════════════════
+
+  # ── 链路 A ──────────────────────────────────────────────────────────────────
+  fault-geocode:
+    desc: "链路 A: geocode_latency — 高德 4s 延迟"
+    cmds:
+      - bash run-matrix.sh fault-low geocode_latency {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault-geocode-30p:
+    desc: "链路 A: geocode_latency_30p — 高德 30% 概率延迟"
+    cmds:
+      - bash run-matrix.sh fault-low geocode_latency_30p {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault-attraction:
+    desc: "链路 A: attraction_exception — 景点 gRPC 异常"
+    cmds:
+      - bash run-matrix.sh fault-low attraction_exception {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault-attraction-50p:
+    desc: "链路 A: attraction_exception_50p — 景点 50% 概率异常"
+    cmds:
+      - bash run-matrix.sh fault-low attraction_exception_50p {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault-persist:
+    desc: "链路 A: itinerary_unavailable_full — 持久化 100% 不可用"
+    cmds:
+      - bash run-matrix.sh fault-low itinerary_unavailable_full {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault-persist-10p:
+    desc: "链路 A: itinerary_unavailable_10p — 持久化 10% 失败"
+    cmds:
+      - bash run-matrix.sh fault-low itinerary_unavailable_10p {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault-llm-a:
+    desc: "链路 A: llm_research_exception — 结构化 LLM 异常"
+    cmds:
+      - bash run-matrix.sh fault-low llm_research_exception {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault-truncate:
+    desc: "链路 A: attraction_truncate — 景点列表截断为 1 条"
+    cmds:
+      - bash run-matrix.sh fault-low attraction_truncate {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault-cascade-a:
+    desc: "链路 A: cascade_degrade (combo) — geocoding+景点多点退化"
+    env:
+      SCENARIO_MODE: "combo"
+    cmds:
+      - bash run-matrix.sh fault-low cascade_degrade {{.USERS}} {{.SPAWN}} {{.DURATION}} combo
+
+  fault-full-stress:
+    desc: "链路 A: full_stress (combo) — 最大压力四点组合"
+    cmds:
+      - bash run-matrix.sh fault-high full_stress {{.HIGH_USERS}} {{.HIGH_SPAWN}} {{.DURATION}} combo
+
+  # ── 链路 B ──────────────────────────────────────────────────────────────────
+  fault-llm-b:
+    desc: "链路 B: chat_llm_latency — ReAct LLM 5s 延迟"
+    env:
+      CHAIN: "b"
+    cmds:
+      - bash run-matrix.sh fault-low chat_llm_latency {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault-llm-b-err:
+    desc: "链路 B: chat_llm_exception — ReAct LLM 抛异常"
+    env:
+      CHAIN: "b"
+    cmds:
+      - bash run-matrix.sh fault-low chat_llm_exception {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault-route-b:
+    desc: "链路 B: route_force_end — 强制 should_continue=__end__"
+    env:
+      CHAIN: "b"
+    cmds:
+      - bash run-matrix.sh fault-low route_force_end {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault-state-b:
+    desc: "链路 B: itinerary_state_clear — 清空 state.itinerary"
+    env:
+      CHAIN: "b"
+    cmds:
+      - bash run-matrix.sh fault-low itinerary_state_clear {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault-draft-b:
+    desc: "链路 B: pending_day_plan_clear — 清空草案 pending_day_plan"
+    env:
+      CHAIN: "b"
+    cmds:
+      - bash run-matrix.sh fault-low pending_day_plan_clear {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault-cascade-b:
+    desc: "链路 B: chat_cascade (combo) — LLM 延迟 + 状态清空"
+    env:
+      CHAIN: "b"
+    cmds:
+      - bash run-matrix.sh fault-low chat_cascade {{.USERS}} {{.SPAWN}} {{.DURATION}} combo
+
+  fault-state-route-b:
+    desc: "链路 B: chat_state_and_route (combo) — 草案清空 + 强制路由"
+    env:
+      CHAIN: "b"
+    cmds:
+      - bash run-matrix.sh fault-low chat_state_and_route {{.USERS}} {{.SPAWN}} {{.DURATION}} combo
+
+  # ── 链路 C ──────────────────────────────────────────────────────────────────
+  fault-trace-c:
+    desc: "链路 C: a2a_trace_drop — A2A Trace 断链"
+    env:
+      CHAIN: "c"
+    cmds:
+      - bash run-matrix.sh fault-low a2a_trace_drop {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault-trace-c-30p:
+    desc: "链路 C: a2a_trace_drop_30p — A2A Trace 30% 断链"
+    env:
+      CHAIN: "c"
+    cmds:
+      - bash run-matrix.sh fault-low a2a_trace_drop_30p {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault-agent-drop-c:
+    desc: "链路 C: order_agent_drop — order_assistant 启动时 drop (需全局配置)"
+    env:
+      CHAIN: "c"
+    cmds:
+      - |
+        echo "⚠️  order_agent_drop 需要服务端全局启用："
+        echo "   FAULT_INJECTION_SCENARIO=agent.order_assistant.drop=true 重启 trip-chat-service"
+        echo ""
+      - bash run-matrix.sh fault-low order_agent_drop {{.USERS}} {{.SPAWN}} {{.DURATION}}
+
+  fault-cascade-c:
+    desc: "链路 C: order_cascade (combo) — A2A trace 断链 + agent drop"
+    env:
+      CHAIN: "c"
+    cmds:
+      - bash run-matrix.sh fault-low order_cascade {{.USERS}} {{.SPAWN}} {{.DURATION}} combo
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 工具任务
+  # ════════════════════════════════════════════════════════════════════════════
+  report:
+    desc: "生成 HTML 报告。用法: task report CSV=<quality.csv路径>"
+    requires:
+      vars: [CSV]
+    cmds:
+      - uv run --project . python generate_report.py {{.CSV}}
+
+  report-latest:
+    desc: "对 artifacts/ 下最新的 quality.csv 生成报告"
+    cmds:
+      - |
+        latest=$(find artifacts/locust -name "quality.csv" -printf "%T@ %p\n" 2>/dev/null \
+          | sort -rn | head -1 | awk '{print $2}')
+        if [ -z "$latest" ]; then
+          echo "未找到 quality.csv，请先运行压测"
+          exit 1
+        fi
+        echo "最新 CSV: $latest"
+        uv run --project . python generate_report.py "$latest"
+
+  lint:
+    desc: "语法检查 locustfile.py 和 generate_report.py"
+    cmds:
+      - uv run --project . python -m py_compile locustfile.py
+      - echo "locustfile.py  ✓"
+      - uv run --project . python -m py_compile generate_report.py
+      - echo "generate_report.py  ✓"
+
+  scenarios:
+    desc: "列出 fault_scenarios.yaml 中所有可用场景"
+    silent: true
+    cmds:
+      - |
+        uv run --project . python - <<'PYEOF'
+        import yaml
+        with open("fault_scenarios.yaml") as f:
+            cfg = yaml.safe_load(f)
+
+        chain_hints = {
+            # A
+            "geocode_latency": "A", "geocode_latency_30p": "A",
+            "attraction_exception": "A", "attraction_exception_50p": "A",
+            "itinerary_unavailable_10p": "A", "itinerary_unavailable_full": "A",
+            "llm_research_exception": "A", "attraction_truncate": "A",
+            # B
+            "chat_llm_latency": "B", "chat_llm_exception": "B",
+            "chat_llm_exception_50p": "B", "itinerary_state_clear": "B",
+            "pending_day_plan_clear": "B", "route_force_end": "B",
+            # C
+            "order_agent_drop": "C", "a2a_trace_drop": "C",
+            "a2a_trace_drop_30p": "C",
+        }
+        combo_hints = {
+            "cascade_degrade": "A", "degraded_with_persist_risk": "A",
+            "full_stress": "A", "chat_cascade": "B", "chat_state_and_route": "B",
+            "order_cascade": "C",
+        }
+
+        print("\n── single 场景 ───────────────────────────────────────────────")
+        for name, entry in cfg["single"].items():
+            chain = chain_hints.get(name, "?")
+            print(f"  [{chain}] {name:<30s}  {entry['description'][:60]}")
+
+        print("\n── combo 场景 ────────────────────────────────────────────────")
+        for name, entry in cfg["combo"].items():
+            chain = combo_hints.get(name, "?")
+            desc = str(entry.get("description","")).replace("\n","").strip()[:60]
+            print(f"  [{chain}] {name:<30s}  {desc}")
+        print()
+        PYEOF
+
+  clean:
+    desc: "清理 artifacts/locust 目录（保留目录本身）"
+    prompt: "确认删除 artifacts/locust 下所有内容？"
+    cmds:
+      - rm -rf artifacts/locust/*
+      - echo "已清理 artifacts/locust/"

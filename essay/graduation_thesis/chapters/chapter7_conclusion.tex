@@ -1,0 +1,39 @@
+\chapter{总结与展望}
+
+\section{工作总结}
+
+本文围绕“面向 LangGraph 智能体的 AI 原生应用层故障注入机制”展开研究。随着 AI 原生应用从单模型调用演进为 Agent、工具、状态、记忆和传统微服务共同组成的复杂系统，传统资源层混沌工程和事后 AgentOps 观测都难以完整覆盖应用内部的可复现故障。TripSphere 提供了一个典型场景：旅行规划、对话修改和订单辅助分别对应线性 LangGraph workflow、ReAct 状态循环和跨 Agent A2A 委托，适合作为 AI 原生应用层可靠性验证靶场。
+
+本文首先分析了混沌工程、AgentOps、OpenTelemetry GenAI 可观测和 LangGraph 状态图等相关工作，指出现有工具在“主动制造可复现应用层故障”方面仍存在空间。随后，本文对 TripSphere 的总体结构和三条主要链路进行了系统分析，明确链路 A 适合验证端到端规划与持久化，链路 B 适合验证多轮状态和路由鲁棒性，链路 C 适合验证跨 Agent 与跨服务可靠性。
+
+在机制设计方面，本文提出了面向 AI 原生应用层的故障模型，将故障抽象为工具/RPC 延迟、异常、gRPC 错误、响应篡改、状态清空、路由扰动、远程 Agent 丢失和 Trace 断链等类型。围绕这些故障，本文整理了基于请求头 DSL、运行时注册表、上下文传播和 OpenTelemetry Span 属性的低侵入注入方案，使故障声明、注入命中、系统响应和实验记录能够通过 \code{experiment.id} 串联。
+
+在工程落地方面，当前 TripSphere 已经实现了 \code{trip-itinerary-planner} 中链路 A 的主要故障注入靶场能力，包含全局开关、请求级故障头、代表性注入点、Span 证据和批量演示脚本；Locust 脚本也为四象限压测实验提供了前置能力。本文同时明确指出，链路 B/C 的完整实验、Prometheus 资源指标、spanmetrics、Grafana dashboard 和最终量化结果仍待后续实践补充。
+
+\section{主要贡献}
+
+本文的主要贡献可以归纳为三点。
+
+第一，本文从系统视角分析了 AI 原生应用的可靠性问题。相比只评价模型输出，本文把 Agent 编排、工具调用、状态流转、远程 Agent 和底层微服务纳入同一系统，说明故障如何在这些边界上传播。
+
+第二，本文设计了可复现的应用层故障注入机制。通过统一 DSL、请求级实验标识、低侵入插桩和 Span 属性记录，实验者可以对单次请求、单条 Trace 或单个工具调用施加故障，并获得可审计证据。
+
+第三，本文给出了面向毕业论文实证部分的实验方案。四象限压测、三链路故障矩阵、业务质量指标、TraceQL 查询和 YAML 实验记录模板共同构成了后续可复跑、可对比的实验流程。
+
+\section{不足与局限}
+
+本文仍有明显局限。首先，当前实证基础主要集中在链路 A，链路 B 的多轮状态实验和链路 C 的跨 Agent 实验尚未形成完整结果。其次，虽然 Locust 脚本和部分 artifacts 已经存在，但本文初稿没有在缺少完整实验记录的情况下填充量化数值，因此结果分析章节仍以设计和占位为主。再次，Prometheus 和 Grafana 的系统指标闭环尚不完整，容器资源、Java Actuator、spanmetrics 和业务指标还需要进一步接入。最后，LLM 输出本身具有不确定性，如何把内容质量退化转化为稳定可比较指标，也需要更多实验设计。
+
+\section{未来工作}
+
+后续工作可以从以下方向推进。
+
+\begin{enumerate}[label=(\arabic*)]
+  \item \textbf{补齐链路 B/C 注入覆盖。} 在 ReAct 对话链中系统验证状态清空、路由扰动和工具 fallback；在 Chat 到 A2A 到 Order 链中验证远程 Agent 丢失、A2A Trace 断链和订单持久化失败。
+  \item \textbf{完成四象限实验。} 对 geocode-latency、attraction-exception、itinerary-unavailable 和 cascade-degrade 等场景分别运行 baseline/fault 与 low/high 压力组合，填充论文结果表格。
+  \item \textbf{完善 metrics 闭环。} 接入 cAdvisor、node-exporter、Java Actuator 和 OpenTelemetry spanmetrics，使故障命中、入口延迟、错误率和资源使用可以在 Grafana 中统一展示。
+  \item \textbf{固化实验记录。} 建立 \code{experiments/} 目录，保存每次实验的 DSL、负载参数、时间窗口、PromQL、TraceQL、代表 Trace ID 和结论，提升复查与复跑能力。
+  \item \textbf{探索平台化控制面。} 在当前请求头和 JSON 配置基础上，进一步设计 ConfigMap watcher、CRD 或与 Chaos Mesh 的集成，使应用层故障注入可以进入更标准的混沌工程工作流。
+\end{enumerate}
+
+总体而言，本文完成了 TripSphere 作为 AI 原生应用层故障注入靶场的架构分析、机制设计和第一阶段落地说明。后续随着实验结果补齐，该工作可以进一步发展为面向 LangGraph 智能体可靠性验证的可复现 Benchmark。

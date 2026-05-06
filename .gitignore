@@ -29,3 +29,5 @@ volumes/
 
 # Locust run artifacts
 artifacts/locust/
+
+scripts/locust/artifacts/

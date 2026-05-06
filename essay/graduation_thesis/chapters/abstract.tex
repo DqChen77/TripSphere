@@ -1,0 +1,40 @@
+\begin{titlepage}
+  \centering
+  \vspace*{2cm}
+  {\heiti\zihao{2} 面向 LangGraph 智能体的 AI 原生应用层故障注入机制设计与实现\par}
+  \vspace{2cm}
+  {\zihao{3} 复旦大学计算与智能创新学院\par}
+  \vspace{0.8cm}
+  {\zihao{3} 本科毕业论文\par}
+  \vfill
+  \begin{tabular}{rl}
+    学生姓名： & 陈东祺 \\
+    学号： & \TODO{填写学号} \\
+    专业： & \TODO{填写专业} \\
+    指导教师： & \TODO{填写指导教师} \\
+    完成日期： & \today
+  \end{tabular}
+  \vspace*{2cm}
+\end{titlepage}
+
+\chapter*{摘\quad 要}
+\addcontentsline{toc}{chapter}{摘要}
+
+随着大语言模型和智能体编排框架进入真实业务系统，AI 原生应用已经不再是单次模型调用，而是由模型、Agent 状态机、工具调用、记忆系统、跨服务通信和传统后端共同构成的复杂软件系统。传统混沌工程主要面向主机、容器、网络和进程等资源层对象，AgentOps 平台则更侧重 Trace 采集、Bad Case 归档和提示词迭代。二者都难以稳定复现“某个工具调用高延迟”“中间状态被清空”“远程子 Agent 不可达”“模型输出结构被破坏”等 AI 原生应用层故障。因此，如何在不大规模改写业务逻辑的前提下，为 LangGraph 智能体建立可配置、可观测、可复现的应用层故障注入机制，是 AI 原生软件可靠性验证中的一个现实问题。
+
+本文以 TripSphere 智能旅行系统为研究对象，分析其由 \code{trip-itinerary-planner}、\code{trip-chat-service}、远程 Order Agent 以及 Java gRPC 微服务组成的 AI 原生应用架构，并抽象出三条主要链路：REST 行程规划链、CopilotKit ReAct 对话链、Chat 到 A2A 再到 Order 的跨服务链。围绕这些链路，本文提出面向 LangGraph 智能体的应用层故障模型，将故障划分为工具/RPC 延迟与异常、gRPC 错误码、工具响应篡改、状态清空、路由扰动、远程 Agent 丢失等类型；设计了基于实验标识、请求头 DSL、运行时注册表、上下文传播和 OpenTelemetry Span 属性的低侵入注入机制；并在当前已实现的 \code{trip-itinerary-planner} 靶场中说明其落地方式。
+
+本文的主要贡献包括：第一，从系统视角给出 AI 原生应用的层次化架构分析，强调 Agent、工具、状态与底层微服务之间的故障传播关系；第二，设计并整理一套面向应用层的可复现故障注入机制，使单次请求、单条 Trace 和单个工具调用可以被精确注入并留下可审计证据；第三，给出覆盖三条链路的实验矩阵和指标体系，使用 Locust、Tempo、Prometheus 与实验记录模板串联故障声明、注入命中、系统响应和结果分析。当前工程已经实现 TripSphere 中 REST 行程规划链的 LangGraph 靶场与代表性注入点，后续实验结果、链路 B/C 的完整注入覆盖和压测指标将在进一步实践后补充。
+
+\noindent\textbf{关键词：}AI 原生应用，LangGraph，故障注入，混沌工程，可观测性
+
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+As large language models and agent orchestration frameworks move into real software systems, AI-native applications are no longer isolated model calls. They are layered systems composed of models, agent state machines, tool invocations, memory, cross-service communication, and conventional backend services. Traditional chaos engineering primarily targets infrastructure resources such as hosts, containers, networks, and processes, while AgentOps platforms usually focus on trace collection, bad-case analysis, and prompt iteration. Neither is sufficient for reproducibly creating application-layer failures such as slow tool calls, corrupted intermediate state, unavailable remote agents, or malformed model outputs. This thesis studies how to design a configurable, observable, and reproducible fault-injection mechanism for LangGraph-based agents with minimal intrusion into business logic.
+
+Using the TripSphere intelligent travel system as the target application, this thesis analyzes an AI-native architecture consisting of \code{trip-itinerary-planner}, \code{trip-chat-service}, a remote order agent, and Java gRPC microservices. Three major execution paths are identified: a REST itinerary-planning path, a CopilotKit ReAct conversation path, and a cross-service Chat-to-A2A-to-Order path. Based on these paths, the thesis defines an application-layer fault model for LangGraph agents, covering tool and RPC latency, exceptions, gRPC status errors, tool-response mutation, state clearing, route perturbation, and remote-agent drop. It further designs a low-intrusion mechanism based on experiment identifiers, a request-header DSL, a runtime registry, context propagation, and OpenTelemetry span attributes. The current implementation status is described through the implemented \code{trip-itinerary-planner} testbed.
+
+The main contributions are threefold. First, the thesis provides a system-level architecture analysis of AI-native applications and highlights how failures propagate across agents, tools, state, and backend services. Second, it designs a reproducible application-layer fault-injection mechanism that can target a single request, trace, or tool invocation while preserving auditable evidence. Third, it proposes an experiment matrix and metric design for the three execution paths, linking fault declarations, injection evidence, system responses, and analysis through Locust, Tempo, Prometheus, and structured experiment records. The current project has implemented the LangGraph testbed and representative injection points for the REST itinerary-planning path. The remaining experiments, full coverage of the conversation and order paths, and quantitative pressure-test results are intentionally left as future empirical work.
+
+\noindent\textbf{Keywords:} AI-native application, LangGraph, fault injection, chaos engineering, observability

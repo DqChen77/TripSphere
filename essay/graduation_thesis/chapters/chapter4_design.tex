@@ -1,0 +1,146 @@
+\chapter{可复现应用层故障注入机制设计}
+
+\section{设计目标}
+
+TripSphere 的故障注入机制围绕三个目标展开：故障注入、可靠性验证和实验可复现。它不是为了随机破坏系统，而是为了在受控条件下制造具有 AI 原生语义的异常，并观察系统是否按预期降级、失败或恢复。
+
+本文将设计目标细化为以下几点。
+
+\begin{enumerate}[label=(\arabic*)]
+  \item \textbf{低侵入。} 注入逻辑应尽量挂载在工具、RPC、LLM、状态 reducer 或路由函数的边界，而不是改写核心业务流程。默认关闭时，业务路径应快速早退，避免引入额外成本。
+  \item \textbf{可配置。} 故障目标、原语和参数应通过环境变量、配置文件或请求头声明，而不是通过临时代码修改。相同配置应能重复执行。
+  \item \textbf{请求级隔离。} 在调试和实验中，故障应能限定在单个 \code{experiment.id}、单条 HTTP 请求或单条 Trace 内，避免污染其他用户流量。
+  \item \textbf{可观测。} 每次故障命中都应在当前 Span 上记录目标、原语、参数和结果，使实验者能用 Tempo 或后续指标系统验证注入是否发生。
+  \item \textbf{可回滚。} 关闭环境变量、移除请求头或清空配置后，系统应回到正常路径；注入失败不应使框架本身成为新的单点故障。
+\end{enumerate}
+
+\section{应用层故障模型}
+
+本文将 AI 原生应用层故障定义为发生在 Agent 编排、工具调用、状态读写、模型输出、跨 Agent 通信或业务 RPC 边界上的可观察异常。这些故障不同于资源层故障：它们可能不改变容器或网络状态，却会改变 Agent 看到的数据、走过的路径或最终副作用。
+
+表 \ref{tab:fault-model} 给出本文采用的故障分类。
+
+\begin{longtable}{p{1.5cm}p{2.8cm}p{4.2cm}p{4.2cm}}
+  \caption{AI 原生应用层故障分类模型}
+  \label{tab:fault-model}\\
+  \toprule
+  编号 & 类别 & 典型注入点 & 观测重点 \\
+  \midrule
+  \endfirsthead
+  \toprule
+  编号 & 类别 & 典型注入点 & 观测重点 \\
+  \midrule
+  \endhead
+  F1 & 工具/RPC 延迟 & 地理编码、景点、酒店、行程持久化、LLM 调用 & 端到端耗时、p95/p99、超时和排队 \\
+  F2 & 工具/RPC 异常 & Python 工具函数、gRPC client 调用前 & fallback 是否触发、HTTP 状态码 \\
+  F3 & gRPC 错误码 & \code{ItineraryService.CreateItinerary} 等 RPC & 错误分类、502、重试缺口 \\
+  F4 & 工具响应篡改 & 景点/酒店列表、地理编码响应、Markdown 文本 & 内容质量、候选数量、下游传播 \\
+  F5 & 状态清空/篡改 & \code{itinerary}、\code{pending\_day\_plan}、checkpoint & 状态一致性、前后端同步 \\
+  F6 & 路由扰动 & ReAct \code{should\_continue} 条件边 & 是否提前结束、是否错误进入工具 \\
+  F7 & 远程 Agent 丢失 & A2A \code{order\_assistant} & 主 Agent fallback、错误提示 \\
+  F8 & Trace 断链 & A2A metadata、W3C Trace Context & 实验证据是否完整 \\
+  \bottomrule
+\end{longtable}
+
+该分类不是封闭集合，而是第一阶段可落地的故障原语集合。后续可以继续加入服务发现失败、模型幻觉模拟、结构化输出 schema 破坏、记忆污染和部分成功等故障。本文强调的是每个故障都要绑定明确目标、触发条件和观测指标，否则无法形成可复现实验。
+
+\section{故障 DSL}
+
+为了让实验者用统一方式声明故障，TripSphere 采用简洁的请求头 DSL。基本形式为：
+
+\begin{verbatim}
+<target>.<primitive>=<arg1>[,<arg2>][,key=value,...]
+\end{verbatim}
+
+多条故障通过分号连接。例如：
+
+\begin{verbatim}
+tool.geocoding.latency=4000,jitter=200;
+rpc.itinerary.create.error=UNAVAILABLE,probability=0.1;
+state.itinerary.clear=true
+\end{verbatim}
+
+其中 \code{target} 表示注入对象，通常包含组件类型和业务名称；\code{primitive} 表示故障原语；等号右侧表示参数。当前设计中的主要原语如下：
+
+\begin{itemize}
+  \item \code{latency}：在业务调用前 sleep 指定毫秒数，可带 jitter。
+  \item \code{exception}：在调用前抛出 Python 异常，用于测试工具 fallback。
+  \item \code{error}：构造 gRPC 错误码，用于测试 RPC 失败路径。
+  \item \code{mutate}：对响应进行截断、置空、设值或 no-op，用于测试下游对错误数据的处理。
+  \item \code{clear}：清空指定状态字段，用于测试状态鲁棒性。
+  \item \code{force\_route}：强制路由到 \code{\_\_end\_\_} 或 \code{tools}，用于测试 ReAct 控制流。
+  \item \code{drop}：模拟远程 Agent 不可用。
+\end{itemize}
+
+DSL 的优势在于它足够简单，可以通过 \code{x-fault-scenario} 请求头、环境变量或 JSON 文件传递；同时又能覆盖实验所需的主要维度。对于论文实验，DSL 原文也应被写入实验记录，作为可复现配置的一部分。
+
+\section{控制面与数据面}
+
+本文将故障注入框架分为控制面和数据面。控制面负责读取、解析和选择故障；数据面负责在目标边界执行故障并记录证据。
+
+控制面包括以下元素：
+
+\begin{itemize}
+  \item \code{FAULT\_INJECTION\_ENABLED}：全局开关，默认关闭。只有容器启动期读取到启用值时，注入逻辑才会生效。
+  \item \code{FAULT\_INJECTION\_SCENARIO}：启动期常驻故障，适合临时实验或单实例调试。
+  \item \code{FAULT\_INJECTION\_FILE}：JSON 文件形式的故障列表，适合 CI、GitOps 或多实例同步。
+  \item \code{x-experiment-id}：单次实验主键，用于关联请求、Trace、Locust 输出和实验记录。
+  \item \code{x-fault-scenario}：请求级故障 DSL，适合交互式调试和答辩演示。
+\end{itemize}
+
+数据面包括运行时注册表、上下文传播和注入函数。服务启动时，\code{FaultRegistry.instance().bootstrap()} 读取环境变量和文件配置，构造内存中的故障规则。请求进入时，中间件解析实验头，将 \code{experiment.id} 和 \code{fault.scenario} 写入 ContextVar。后续工具、RPC 和状态函数在执行前查询当前上下文与注册表，判断目标是否匹配、概率门是否命中，然后执行延迟、异常、错误或数据变换。
+
+这种设计把控制协议与具体注入点解耦。新增一个注入点时，只需要在目标函数边界加入装饰器或显式调用，不需要修改请求协议。新增一个实验场景时，只需要提供新的 DSL 或 JSON 配置，不需要重新发布代码。
+
+\section{请求上下文与实验隔离}
+
+应用层故障注入最容易引入的风险是误伤正常流量。本文通过请求上下文实现隔离：每个 HTTP 请求携带自己的 \code{x-experiment-id} 和 \code{x-fault-scenario}，中间件把它们放入异步安全的 ContextVar。异步调用链中的工具、RPC 和 LLM 节点读取的是当前请求上下文，而不是全局可变变量。
+
+在链路 A 中，请求头从 FastAPI 入口传入 LangGraph workflow，再传到工具和 gRPC client。对于需要跨服务传播的场景，实验头应进入 gRPC metadata 或 A2A metadata。这样 Tempo 中的 Span 可以按同一个 \code{experiment.id} 聚合，而不同实验之间不会互相污染。
+
+请求级隔离也使实验具备更好的可复现性。实验记录只要包含相同 payload、相同 \code{x-experiment-id} 规则、相同 \code{x-fault-scenario} 和相同负载条件，就可以再次触发近似相同的故障路径。对于带概率的故障，还需要记录概率参数和实际命中次数，不能把“声明故障”和“实际命中”混为一谈。
+
+\section{低侵入插桩策略}
+
+低侵入是本文设计的重要约束。TripSphere 中的注入点应优先放在已有观测边界附近，例如 \code{tool\_span}、\code{rpc\_span}、LLM 调用包装函数和状态 reducer。这样做有三个好处：第一，业务语义清晰；第二，故障命中后可以直接在 Span 上记录证据；第三，默认关闭时对核心路径影响较小。
+
+典型插桩方式包括：
+
+\begin{itemize}
+  \item \textbf{装饰器或包装函数。} 对工具和 RPC client，在调用前执行 \code{inject\_fault}，在返回后执行 \code{maybe\_mutate}。
+  \item \textbf{显式状态钩子。} 对 reducer 或状态写回点，检查是否存在 \code{state.*.clear} 或 mutate 规则。
+  \item \textbf{路由函数钩子。} 对 \code{should\_continue} 等条件路由函数，在返回前检查 \code{force\_route}。
+  \item \textbf{远程 Agent 包装。} 对 \code{RemoteA2aAgent} 解析和调用边界，检查 \code{agent.*.drop} 或 Trace 断链规则。
+\end{itemize}
+
+本文不主张在业务逻辑深处散落大量 if/else。更合理的方式是把注入框架封装为小型基础设施，由业务代码在少量边界点调用。这符合开题报告中“插桩、开关、配置化注入”的低侵入要求。
+
+\section{可观测证据链}
+
+一次故障注入实验必须回答三个问题：声明了什么故障，故障是否真的命中，系统如何响应。为此，注入框架需要把以下属性写入 Span：
+
+\begin{itemize}
+  \item \code{experiment.id}：实验主键。
+  \item \code{fault.scenario}：请求声明的 DSL。
+  \item \code{fault.injected}：当前 Span 是否发生实际注入。
+  \item \code{fault.target}：命中的目标，例如 \code{tool.geocoding}。
+  \item \code{fault.primitive}：命中的原语，例如 \code{latency} 或 \code{error}。
+  \item \code{fault.outcome}：注入结果，例如 \code{delayed}、\code{raised}、\code{mutated} 或 \code{bypassed}。
+  \item \code{fault.params.*}：关键参数，例如延迟毫秒数、gRPC 错误码或概率。
+\end{itemize}
+
+有了这些属性，实验者可以在 Tempo 中查询：
+
+\begin{verbatim}
+{ resource.service.name = "trip-itinerary-planner"
+  && .experiment.id = "exp-demo"
+  && .fault.injected = true }
+\end{verbatim}
+
+这条查询可以直接验证故障是否命中。再结合入口 Span 的总耗时、工具 Span 的 fallback 标记、HTTP 状态码和 Locust 输出，就能形成完整证据链。后续若接入 OpenTelemetry spanmetrics connector，还可以把 \code{fault.injected=true}、入口延迟和错误数转为 Prometheus 时间序列，支持 Grafana 看板聚合。
+
+\section{回滚与安全边界}
+
+故障注入框架本身必须可控。默认状态下，\code{FAULT\_INJECTION\_ENABLED} 未启用，所有注入逻辑应早退。启用后，如果配置文件损坏、字段缺失或 DSL 无法解析，框架不应导致服务启动失败，而应记录 warning 并忽略无效规则。实验结束后，移除环境变量并重启容器，或不再传递请求级故障头，即可回到正常路径。
+
+另外，生产环境中记录 LLM 输入输出可能涉及隐私和数据量问题。本文当前只要求记录故障元数据与必要业务指标，不默认记录完整 prompt、completion 或用户敏感内容。若后续需要对内容进行更细粒度分析，应按照 OpenTelemetry GenAI 语义约定中的 opt-in 原则和外部存储引用模式进行处理\cite{otelGenAISpans}。

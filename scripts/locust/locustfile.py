@@ -1,23 +1,27 @@
-"""TripSphere Locust 压测脚本 — 链路 A：POST /api/v1/itineraries/plannings
+"""TripSphere Locust 压测脚本 — 三链路统一入口
 
-每个 Locust 用户循环发送规划请求，头部注入 experiment_id 和 fault_scenario DSL，
-解析响应的业务质量指标，并追加写入 quality.csv（与 Locust 自带 stats.csv 并列）。
+CHAIN=a  链路 A：POST /api/v1/itineraries/plannings（REST 规划链）
+CHAIN=b  链路 B：POST / AG-UI ReAct 对话（trip-itinerary-planner 聊天 Agent）
+CHAIN=c  链路 C：POST / AG-UI ADK 跨服务（trip-chat-service → order_assistant）
 
 环境变量（也可通过 run-matrix.sh 传入）：
-  TARGET_HOST     HTTP 地址，默认 http://localhost:24215
+  CHAIN           a | b | c，默认 a
+  TARGET_HOST     HTTP 地址（每条链路有独立默认值）
   EXPERIMENT_ID   实验主键，写入 x-experiment-id 头
   FAULT_SCENARIO  fault_scenarios.yaml 中的场景名，空字符串 = baseline
   SCENARIO_MODE   single | combo，默认 single
   USER_ID         x-user-id，默认 42
-  PAYLOAD_MODE    fixed | mixed，默认 fixed（目的地固定为上海）
-  MATRIX_CELL     四象限标签（baseline-low/fault-low/baseline-high/fault-high）
+  PAYLOAD_MODE    fixed | mixed（仅链路 A），默认 fixed
+  MATRIX_CELL     四象限标签（baseline-low / fault-low / …）
   ARTIFACT_DIR    输出目录，默认 artifacts/locust
-  SEED            payload 目的地采样随机种子，默认 42；不影响服务端概率门
+  SEED            随机种子，默认 42（链路 A 目的地采样）
+  CHAIN_B_ITINERARY_ID  预置行程 ID（不填则用占位 ID，工具调用可能返回 404）
+  CHAIN_B_DESTINATION   行程目的地，默认 Shanghai
 
 故障命中说明：
-  每个故障的 probability 由服务端 FaultRegistry 独立抽样决定，Locust 只透传 DSL。
-  实际命中次数请通过 Tempo TraceQL `fault.injected=true` 查询，
-  本脚本侧的 quality.csv 只记录"声明的 DSL 和请求结果"，两者严格区分。
+  x-fault-scenario DSL 由 Locust 透传给服务端 FaultRegistry 独立抽样。
+  实际命中次数请通过 Tempo TraceQL 查询 fault.injected=true，
+  quality.csv 只记录"声明的 DSL 和请求结果"。
 """
 
 import csv
@@ -30,14 +34,22 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from locust import HttpUser, between, events, task
+from locust import HttpUser, between, events
 
-# ── 配置 ────────────────────────────────────────────────────────────────────────
+# ── 公共配置 ─────────────────────────────────────────────────────────────────────
 
 _SCRIPT_DIR = Path(__file__).parent
 _SCENARIOS_FILE = _SCRIPT_DIR / "fault_scenarios.yaml"
 
-TARGET_HOST = os.environ.get("TARGET_HOST", "http://localhost:24215")
+CHAIN = os.environ.get("CHAIN", "a").lower().strip()
+
+_CHAIN_DEFAULT_HOSTS: dict[str, str] = {
+    "a": "http://localhost:24215",
+    "b": "http://localhost:24215",
+    "c": "http://localhost:24210",
+}
+TARGET_HOST = os.environ.get("TARGET_HOST", _CHAIN_DEFAULT_HOSTS.get(CHAIN, "http://localhost:24215"))
+
 EXPERIMENT_ID = os.environ.get("EXPERIMENT_ID", f"locust-{int(time.time())}")
 FAULT_SCENARIO = os.environ.get("FAULT_SCENARIO", "")
 SCENARIO_MODE = os.environ.get("SCENARIO_MODE", "single")
@@ -47,11 +59,12 @@ MATRIX_CELL = os.environ.get("MATRIX_CELL", "baseline-low")
 ARTIFACT_DIR = Path(os.environ.get("ARTIFACT_DIR", "artifacts/locust")) / EXPERIMENT_ID
 SEED = int(os.environ.get("SEED", "42"))
 
-# 降级检测阈值（可通过环境变量调整）
+CHAIN_B_ITINERARY_ID = os.environ.get("CHAIN_B_ITINERARY_ID", "locust-placeholder-itin")
+CHAIN_B_DESTINATION = os.environ.get("CHAIN_B_DESTINATION", "Shanghai")
+
+# 链路 A 降级阈值
 DEGRADE_MIN_DAY_PLANS = int(os.environ.get("DEGRADE_MIN_DAY_PLANS", "1"))
 DEGRADE_MIN_ACTIVITIES = int(os.environ.get("DEGRADE_MIN_ACTIVITIES", "1"))
-# 每天平均活动数低于此值视为活动内容稀疏降级（activity_count / day_plan_count）
-# 默认 2.0：3 天行程总活动数 ≤ 6 时触发；正常情况约 4 活动/天
 DEGRADE_MIN_ACTIVITIES_PER_DAY = float(os.environ.get("DEGRADE_MIN_ACTIVITIES_PER_DAY", "2.0"))
 DEGRADE_MIN_MARKDOWN_LEN = int(os.environ.get("DEGRADE_MIN_MARKDOWN_LEN", "200"))
 
@@ -63,19 +76,13 @@ _INTERESTS_POOL = [
     ["history", "culture"],
     ["food", "nature"],
 ]
-
 _rng = random.Random(SEED)
 
 
 # ── DSL 构建 ─────────────────────────────────────────────────────────────────────
 
 def _build_fault_dsl(scenarios_file: Path, scenario_name: str, mode: str) -> str:
-    """从 fault_scenarios.yaml 中读取场景，拼接 x-fault-scenario DSL 字符串。
-
-    空场景名返回空字符串（baseline 不注入故障）。
-    多个 fault 条目用 ";" 连接，每个条目格式：
-      <target>.<primitive>=<value>[,message=<msg>][,probability=<p>]
-    """
+    """从 fault_scenarios.yaml 读取场景，拼接 x-fault-scenario DSL。"""
     if not scenario_name:
         return ""
     if not scenarios_file.exists():
@@ -93,9 +100,7 @@ def _build_fault_dsl(scenarios_file: Path, scenario_name: str, mode: str) -> str
     for fault in entry["faults"]:
         segment = f"{fault['target']}.{fault['primitive']}={fault['value']}"
         if "message" in fault:
-            raw_msg = str(fault["message"])
-            # message 里若包含 = 号（如 "field=attractions,n=1"），整段作为 message 值透传
-            segment += f",message={raw_msg}"
+            segment += f",message={fault['message']}"
         prob = fault.get("probability")
         if prob is not None and prob != 1.0:
             segment += f",probability={prob}"
@@ -106,188 +111,51 @@ def _build_fault_dsl(scenarios_file: Path, scenario_name: str, mode: str) -> str
 _FAULT_DSL: str = _build_fault_dsl(_SCENARIOS_FILE, FAULT_SCENARIO, SCENARIO_MODE)
 
 
-# ── Payload 工厂 ─────────────────────────────────────────────────────────────────
+# ── 公共 HTTP 头 ──────────────────────────────────────────────────────────────────
 
-def _make_payload() -> dict[str, Any]:
-    if PAYLOAD_MODE == "fixed":
-        return {
-            "destination": "Shanghai",
-            "start_date": "2026-05-01",
-            "end_date": "2026-05-03",
-            "interests": ["culture"],
-            "pace": "moderate",
-        }
-    return {
-        "destination": _rng.choice(_DESTINATIONS),
-        "start_date": "2026-05-01",
-        "end_date": "2026-05-03",
-        "interests": _rng.choice(_INTERESTS_POOL),
-        "pace": "moderate",
+def _base_headers(request_id: str) -> dict[str, str]:
+    headers: dict[str, str] = {
+        "Content-Type": "application/json",
+        "x-user-id": USER_ID,
+        "x-experiment-id": EXPERIMENT_ID,
+        "x-request-id": request_id,
     }
+    if _FAULT_DSL:
+        headers["x-fault-scenario"] = _FAULT_DSL
+    return headers
 
 
-# ── 响应质量解析 ──────────────────────────────────────────────────────────────────
-
-def _parse_quality(body: bytes, status_code: int) -> dict[str, Any]:
-    """从规划接口响应体中提取业务质量指标。
-
-    成功响应的结构：
-      { itinerary: { id, day_plans: [{ activities: [...] }] }, markdown_content, messages }
-    """
-    empty: dict[str, Any] = {
-        "itinerary_id": "",
-        "day_plan_count": 0,
-        "activity_count": 0,
-        "markdown_length": 0,
-        "has_id": False,
-    }
-    if status_code not in (200, 201) or not body:
-        return empty
-    try:
-        data: dict[str, Any] = json.loads(body)
-        itinerary = data.get("itinerary") or {}
-        day_plans: list[Any] = itinerary.get("day_plans") or []
-        activity_count = sum(
-            len(day.get("activities") or []) for day in day_plans
-        )
-        markdown = data.get("markdown_content") or ""
-        itin_id = itinerary.get("id", "")
-        return {
-            "itinerary_id": itin_id,
-            "day_plan_count": len(day_plans),
-            "activity_count": activity_count,
-            "markdown_length": len(markdown),
-            "has_id": bool(itin_id),
-        }
-    except Exception:
-        return empty
-
-
-_DEFAULT_COORDS = (121.4737, 31.2304)  # 高德降级时的默认上海中心坐标
-_COORD_CLUSTER_THRESHOLD = 0.01        # 度；活动坐标散布小于此值视为"聚集于同一点"
-_GEOCODING_FALLBACK_THRESHOLD = 0.5   # 度；距上海默认点的最大允许距离
-
-
-def _extract_activity_coords(data: dict[str, Any]) -> list[tuple[float, float]]:
-    """从响应体中提取所有活动的 (longitude, latitude)，排除全零坐标。"""
-    coords: list[tuple[float, float]] = []
-    itinerary = data.get("itinerary") or {}
-    for day in itinerary.get("day_plans") or []:
-        for act in day.get("activities") or []:
-            loc = act.get("location") or {}
-            lon = float(loc.get("longitude") or 0.0)
-            lat = float(loc.get("latitude") or 0.0)
-            if lon != 0.0 or lat != 0.0:
-                coords.append((lon, lat))
-    return coords
-
-
-def _detect_geocoding_fallback(coords: list[tuple[float, float]], destination: str) -> bool:
-    """判断活动坐标是否显示高德地理编码降级。
-
-    两种判定逻辑（任一成立即认为降级）：
-    1. 目的地不是上海，但大多数活动坐标距上海默认中心点 < 0.5 度
-       （说明用了默认上海坐标而非真实地址）
-    2. 所有活动坐标互相之间的散布 < 0.01 度
-       （说明所有活动坐标完全相同，是单一 fallback 中心点的典型特征）
-    """
-    if not coords or len(coords) < 2:
-        return False
-
-    lon_vals = [c[0] for c in coords]
-    lat_vals = [c[1] for c in coords]
-
-    # 规则 2：坐标聚集于同一点（适用于所有目的地包括上海）
-    lon_spread = max(lon_vals) - min(lon_vals)
-    lat_spread = max(lat_vals) - min(lat_vals)
-    if lon_spread < _COORD_CLUSTER_THRESHOLD and lat_spread < _COORD_CLUSTER_THRESHOLD:
-        return True
-
-    # 规则 1：非上海目的地但坐标落在上海默认中心附近
-    if "shanghai" not in destination.lower():
-        near_default = sum(
-            1 for lon, lat in coords
-            if abs(lon - _DEFAULT_COORDS[0]) < _GEOCODING_FALLBACK_THRESHOLD
-            and abs(lat - _DEFAULT_COORDS[1]) < _GEOCODING_FALLBACK_THRESHOLD
-        )
-        if near_default / len(coords) >= 0.8:
-            return True
-
-    return False
-
-
-def _detect_degradation(
-    quality: dict[str, Any],
-    status_code: int,
-    raw_body: bytes,
-    destination: str,
-) -> tuple[bool, str]:
-    """在 HTTP 成功响应中检测业务质量退化信号。
-
-    返回 (degraded: bool, signals: 逗号分隔字符串)。
-    降级 ≠ 错误：HTTP 仍然 2xx，但系统走了 fallback 路径导致产物质量下降。
-
-    信号说明：
-      geocoding_fallback  活动坐标聚集于同一点或落在上海默认坐标附近，说明高德降级
-      no_day_plans        day_plan_count 低于阈值 → 结构化 LLM 或景点双失败，骨架为空
-      no_activities       有 day_plans 但活动总数低于阈值 → 景点/酒店服务降级
-      short_markdown      markdown 长度低于阈值 → markdown LLM 失败，走本地兜底
-      no_id               has_id=False 但状态码成功 → 持久化异常边缘情况
-
-    注意：geocoding_fallback 在固定目的地为上海时规则 1 不适用，
-    规则 2（坐标完全聚集）仍然有效。Tempo trace 的 fault.fallback_path 是最终判据。
-    """
-    if status_code not in (200, 201):
-        return False, ""
-
-    signals: list[str] = []
-
-    # geocoding 降级检测（需要解析活动坐标）
-    try:
-        data: dict[str, Any] = json.loads(raw_body) if raw_body else {}
-        coords = _extract_activity_coords(data)
-        if _detect_geocoding_fallback(coords, destination):
-            signals.append("geocoding_fallback")
-    except Exception:
-        pass
-
-    if quality["day_plan_count"] < DEGRADE_MIN_DAY_PLANS:
-        signals.append("no_day_plans")
-    else:
-        if quality["activity_count"] < DEGRADE_MIN_ACTIVITIES:
-            signals.append("no_activities")
-        elif quality["day_plan_count"] > 0:
-            avg_per_day = quality["activity_count"] / quality["day_plan_count"]
-            if avg_per_day < DEGRADE_MIN_ACTIVITIES_PER_DAY:
-                signals.append("sparse_activities")   # 活动数量稀疏，attraction 服务可能降级
-    if quality["markdown_length"] < DEGRADE_MIN_MARKDOWN_LEN:
-        signals.append("short_markdown")
-    if not quality["has_id"]:
-        signals.append("no_id")
-
-    return bool(signals), ",".join(signals)
-
-
-# ── CSV 输出 ─────────────────────────────────────────────────────────────────────
+# ── CSV 超集字段 ──────────────────────────────────────────────────────────────────
 
 _CSV_FIELDS = [
     "ts",
     "request_id",
     "experiment_id",
     "matrix_cell",
+    "chain",
     "fault_scenario_name",
     "scenario_mode",
     "fault_dsl",
     "status_code",
     "elapsed_ms",
+    # 链路 A
     "itinerary_id",
     "day_plan_count",
     "activity_count",
     "markdown_length",
     "has_id",
-    # 降级检测：HTTP 成功但业务质量退化（fallback 路径被激活）
-    # 与 error 字段互斥：error 非空时 degraded 无意义，不填
-    # 具体 fallback 原因需通过 Tempo trace fault.fallback_path 属性确认
+    # 链路 B / C 共用 turn_type
+    "turn_type",
+    # 链路 B
+    "text_chars",
+    "tool_calls_count",
+    "state_snapshot_seen",
+    "run_error_seen",
+    # 链路 C
+    "order_draft_seen",
+    "order_submit_seen",
+    "remote_agent_delegated",
+    # 通用
     "degraded",
     "degradation_signals",
     "error",
@@ -306,19 +174,19 @@ def _on_init(environment: Any, **_: Any) -> None:
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
     csv_path = ARTIFACT_DIR / "quality.csv"
     _quality_file = csv_path.open("w", newline="", encoding="utf-8")
-    _quality_writer = csv.DictWriter(_quality_file, fieldnames=_CSV_FIELDS)
+    _quality_writer = csv.DictWriter(_quality_file, fieldnames=_CSV_FIELDS, extrasaction="ignore")
     _quality_writer.writeheader()
     _quality_file.flush()
 
     print(f"\n[TripSphere Locust]")
+    print(f"  chain         : {CHAIN}")
     print(f"  experiment_id : {EXPERIMENT_ID}")
     print(f"  matrix_cell   : {MATRIX_CELL}")
     print(f"  fault_scenario: {FAULT_SCENARIO or '<baseline>'}")
     print(f"  scenario_mode : {SCENARIO_MODE}")
     print(f"  fault_dsl     : {_FAULT_DSL or '<none>'}")
+    print(f"  target_host   : {TARGET_HOST}")
     print(f"  artifact_dir  : {ARTIFACT_DIR}")
-    print(f"  degrade thresholds: day_plans>={DEGRADE_MIN_DAY_PLANS}, "
-          f"activities>={DEGRADE_MIN_ACTIVITIES}, markdown>={DEGRADE_MIN_MARKDOWN_LEN}")
 
 
 @events.quitting.add_listener
@@ -329,11 +197,10 @@ def _on_quit(environment: Any, **_: Any) -> None:
         _quality_file.close()
         _quality_file = None
 
-    # 打印降级摘要
     total = _total_success + _total_degraded
     rate = (_total_degraded / total * 100) if total > 0 else 0.0
     print(f"\n{'='*60}")
-    print(f"[TripSphere Locust] Degradation Summary")
+    print(f"[TripSphere Locust] Degradation Summary (chain={CHAIN})")
     print(f"  experiment_id  : {EXPERIMENT_ID}")
     print(f"  matrix_cell    : {MATRIX_CELL}")
     print(f"  fault_scenario : {FAULT_SCENARIO or '<baseline>'}")
@@ -348,79 +215,542 @@ def _on_quit(environment: Any, **_: Any) -> None:
     print(f"{'='*60}\n")
 
 
-# ── Locust 用户 ───────────────────────────────────────────────────────────────────
+def _write_row(row: dict[str, Any]) -> None:
+    global _total_success, _total_degraded
+    if _quality_writer is None:
+        return
+    degraded = row.get("degraded", False)
+    status_code = row.get("status_code", 0)
+    if status_code in (200, 201):
+        if degraded:
+            _total_degraded += 1
+            for sig in str(row.get("degradation_signals", "")).split(","):
+                if sig:
+                    _degradation_counts[sig] = _degradation_counts.get(sig, 0) + 1
+        else:
+            _total_success += 1
+    _quality_writer.writerow(row)
+    _quality_file.flush()
 
-class PlannerUser(HttpUser):
-    """模拟 TripSphere 链路 A：POST /api/v1/itineraries/plannings"""
 
-    host = TARGET_HOST
-    wait_time = between(1, 3)
+def _base_row(request_id: str, status_code: int, elapsed_ms: int, error: str = "") -> dict[str, Any]:
+    return {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "request_id": request_id,
+        "experiment_id": EXPERIMENT_ID,
+        "matrix_cell": MATRIX_CELL,
+        "chain": CHAIN,
+        "fault_scenario_name": FAULT_SCENARIO,
+        "scenario_mode": SCENARIO_MODE,
+        "fault_dsl": _FAULT_DSL,
+        "status_code": status_code,
+        "elapsed_ms": elapsed_ms,
+        "degraded": False,
+        "degradation_signals": "",
+        "error": error,
+        "itinerary_id": "",
+        "day_plan_count": 0,
+        "activity_count": 0,
+        "markdown_length": 0,
+        "has_id": False,
+        "turn_type": "",
+        "text_chars": 0,
+        "tool_calls_count": 0,
+        "state_snapshot_seen": False,
+        "run_error_seen": False,
+        "order_draft_seen": False,
+        "order_submit_seen": False,
+        "remote_agent_delegated": False,
+    }
 
-    @task
-    def plan_itinerary(self) -> None:
-        global _total_success, _total_degraded
 
-        payload = _make_payload()
-        destination: str = payload["destination"]
-        request_id = str(uuid.uuid4())
-        headers: dict[str, str] = {
-            "Content-Type": "application/json",
-            "x-user-id": USER_ID,
-            "x-experiment-id": EXPERIMENT_ID,
-            "x-request-id": request_id,
+# ── SSE 解析 ─────────────────────────────────────────────────────────────────────
+
+def _parse_sse_events(body: bytes) -> list[dict[str, Any]]:
+    """解析 SSE 响应体，返回所有 data: {...} 行解析后的事件列表。"""
+    events_list: list[dict[str, Any]] = []
+    try:
+        text = body.decode("utf-8", errors="replace")
+    except Exception:
+        return events_list
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("data:"):
+            payload = line[5:].strip()
+            if payload:
+                try:
+                    events_list.append(json.loads(payload))
+                except json.JSONDecodeError:
+                    pass
+    return events_list
+
+
+# ── 链路 A：REST 规划链 ──────────────────────────────────────────────────────────
+
+def _make_chain_a_payload() -> dict[str, Any]:
+    if PAYLOAD_MODE == "fixed":
+        return {
+            "destination": "Shanghai",
+            "start_date": "2026-05-01",
+            "end_date": "2026-05-03",
+            "interests": ["culture"],
+            "pace": "moderate",
         }
-        if _FAULT_DSL:
-            headers["x-fault-scenario"] = _FAULT_DSL
+    return {
+        "destination": _rng.choice(_DESTINATIONS),
+        "start_date": "2026-05-01",
+        "end_date": "2026-05-03",
+        "interests": _rng.choice(_INTERESTS_POOL),
+        "pace": "moderate",
+    }
 
-        t_start = time.monotonic()
 
-        with self.client.post(
-            "/api/v1/itineraries/plannings",
-            json=payload,
-            headers=headers,
-            catch_response=True,
-            name="/api/v1/itineraries/plannings",
-        ) as resp:
-            elapsed_ms = int((time.monotonic() - t_start) * 1000)
-            quality = _parse_quality(resp.content, resp.status_code)
+def _parse_chain_a_quality(body: bytes, status_code: int) -> dict[str, Any]:
+    empty: dict[str, Any] = {
+        "itinerary_id": "",
+        "day_plan_count": 0,
+        "activity_count": 0,
+        "markdown_length": 0,
+        "has_id": False,
+    }
+    if status_code not in (200, 201) or not body:
+        return empty
+    try:
+        data: dict[str, Any] = json.loads(body)
+        itinerary = data.get("itinerary") or {}
+        day_plans: list[Any] = itinerary.get("day_plans") or []
+        activity_count = sum(len(day.get("activities") or []) for day in day_plans)
+        markdown = data.get("markdown_content") or ""
+        itin_id = itinerary.get("id", "")
+        return {
+            "itinerary_id": itin_id,
+            "day_plan_count": len(day_plans),
+            "activity_count": activity_count,
+            "markdown_length": len(markdown),
+            "has_id": bool(itin_id),
+        }
+    except Exception:
+        return empty
 
-            if resp.status_code in (200, 201):
-                resp.success()
-                error_text = ""
-            else:
-                error_text = (resp.text or "")[:300]
-                resp.failure(f"HTTP {resp.status_code}")
 
-            degraded, degradation_signals = _detect_degradation(
-                quality, resp.status_code, resp.content, destination
-            )
+_DEFAULT_COORDS = (121.4737, 31.2304)
+_COORD_CLUSTER_THRESHOLD = 0.01
+_GEOCODING_FALLBACK_THRESHOLD = 0.5
 
-            # 累计降级统计
-            if resp.status_code in (200, 201):
-                if degraded:
-                    _total_degraded += 1
-                    for sig in degradation_signals.split(","):
-                        if sig:
-                            _degradation_counts[sig] = _degradation_counts.get(sig, 0) + 1
-                else:
-                    _total_success += 1
 
-            if _quality_writer is not None:
-                _quality_writer.writerow(
-                    {
-                        "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                        "request_id": request_id,
-                        "experiment_id": EXPERIMENT_ID,
-                        "matrix_cell": MATRIX_CELL,
-                        "fault_scenario_name": FAULT_SCENARIO,
-                        "scenario_mode": SCENARIO_MODE,
-                        "fault_dsl": _FAULT_DSL,
-                        "status_code": resp.status_code,
-                        "elapsed_ms": elapsed_ms,
-                        "degraded": degraded,
-                        "degradation_signals": degradation_signals,
-                        "error": error_text,
-                        **quality,
-                    }
-                )
-                _quality_file.flush()
+def _extract_activity_coords(data: dict[str, Any]) -> list[tuple[float, float]]:
+    coords: list[tuple[float, float]] = []
+    itinerary = data.get("itinerary") or {}
+    for day in itinerary.get("day_plans") or []:
+        for act in day.get("activities") or []:
+            loc = act.get("location") or {}
+            lon = float(loc.get("longitude") or 0.0)
+            lat = float(loc.get("latitude") or 0.0)
+            if lon != 0.0 or lat != 0.0:
+                coords.append((lon, lat))
+    return coords
+
+
+def _detect_geocoding_fallback(coords: list[tuple[float, float]], destination: str) -> bool:
+    if not coords or len(coords) < 2:
+        return False
+    lon_vals = [c[0] for c in coords]
+    lat_vals = [c[1] for c in coords]
+    lon_spread = max(lon_vals) - min(lon_vals)
+    lat_spread = max(lat_vals) - min(lat_vals)
+    if lon_spread < _COORD_CLUSTER_THRESHOLD and lat_spread < _COORD_CLUSTER_THRESHOLD:
+        return True
+    if "shanghai" not in destination.lower():
+        near_default = sum(
+            1 for lon, lat in coords
+            if abs(lon - _DEFAULT_COORDS[0]) < _GEOCODING_FALLBACK_THRESHOLD
+            and abs(lat - _DEFAULT_COORDS[1]) < _GEOCODING_FALLBACK_THRESHOLD
+        )
+        if near_default / len(coords) >= 0.8:
+            return True
+    return False
+
+
+def _detect_chain_a_degradation(
+    quality: dict[str, Any],
+    status_code: int,
+    raw_body: bytes,
+    destination: str,
+) -> tuple[bool, str]:
+    if status_code not in (200, 201):
+        return False, ""
+    signals: list[str] = []
+    try:
+        data: dict[str, Any] = json.loads(raw_body) if raw_body else {}
+        coords = _extract_activity_coords(data)
+        if _detect_geocoding_fallback(coords, destination):
+            signals.append("geocoding_fallback")
+    except Exception:
+        pass
+    if quality["day_plan_count"] < DEGRADE_MIN_DAY_PLANS:
+        signals.append("no_day_plans")
+    else:
+        if quality["activity_count"] < DEGRADE_MIN_ACTIVITIES:
+            signals.append("no_activities")
+        elif quality["day_plan_count"] > 0:
+            avg_per_day = quality["activity_count"] / quality["day_plan_count"]
+            if avg_per_day < DEGRADE_MIN_ACTIVITIES_PER_DAY:
+                signals.append("sparse_activities")
+    if quality["markdown_length"] < DEGRADE_MIN_MARKDOWN_LEN:
+        signals.append("short_markdown")
+    if not quality["has_id"]:
+        signals.append("no_id")
+    return bool(signals), ",".join(signals)
+
+
+def _chain_a_task(self: "HttpUser") -> None:
+    """链路 A 任务：POST /api/v1/itineraries/plannings"""
+    payload = _make_chain_a_payload()
+    destination: str = payload["destination"]
+    request_id = str(uuid.uuid4())
+    headers = _base_headers(request_id)
+    t_start = time.monotonic()
+    with self.client.post(
+        "/api/v1/itineraries/plannings",
+        json=payload,
+        headers=headers,
+        catch_response=True,
+        name="/api/v1/itineraries/plannings",
+    ) as resp:
+        elapsed_ms = int((time.monotonic() - t_start) * 1000)
+        quality = _parse_chain_a_quality(resp.content, resp.status_code)
+        if resp.status_code in (200, 201):
+            resp.success()
+            error_text = ""
+        else:
+            error_text = (resp.text or "")[:300]
+            resp.failure(f"HTTP {resp.status_code}")
+        degraded, degradation_signals = _detect_chain_a_degradation(
+            quality, resp.status_code, resp.content, destination
+        )
+        row = _base_row(request_id, resp.status_code, elapsed_ms, error_text)
+        row.update(quality)
+        row["degraded"] = degraded
+        row["degradation_signals"] = degradation_signals
+        _write_row(row)
+
+
+# ── 链路 B：AG-UI ReAct 对话 ──────────────────────────────────────────────────────
+
+# 固定对话剧本：每个 Locust 用户实例按顺序循环执行
+_CHAIN_B_TURNS = [
+    {
+        "turn_type": "query_itinerary",
+        "message": "请告诉我当前行程的目的地和天数安排。",
+        "expects_tool": False,
+    },
+    {
+        "turn_type": "plan_new_day",
+        "message": "帮我新增一天的行程，安排一些文化类景点。",
+        "expects_tool": True,
+    },
+    {
+        "turn_type": "regenerate_day",
+        "message": "请重新生成第1天的活动安排，偏向美食体验。",
+        "expects_tool": True,
+    },
+]
+
+
+def _make_chain_b_payload(thread_id: str, run_id: str, message: str) -> dict[str, Any]:
+    """构造 AG-UI RunAgentInput（camelCase）。
+
+    state 中注入最小行程数据，让 chat agent 有上下文可用。
+    工具调用（plan_new_day / regenerate_day）需要后端存在该行程，
+    否则工具返回 404 — 仍是有效的降级信号。
+    """
+    return {
+        "threadId": thread_id,
+        "runId": run_id,
+        "state": {
+            "itinerary": {
+                "id": CHAIN_B_ITINERARY_ID,
+                "destination": CHAIN_B_DESTINATION,
+                "start_date": "2026-05-01",
+                "end_date": "2026-05-03",
+                "day_plans": [],
+            },
+            "copilotkit": {"actions": []},
+            "markdown_content": "",
+            "pending_day_plan": None,
+        },
+        "messages": [
+            {
+                "id": str(uuid.uuid4()),
+                "role": "user",
+                "content": message,
+            }
+        ],
+        "tools": [],
+        "context": [],
+        "forwardedProps": {},
+    }
+
+
+def _parse_chain_b_sse(
+    sse_events: list[dict[str, Any]],
+    expects_tool: bool,
+) -> tuple[bool, str, dict[str, Any]]:
+    """分析链路 B SSE 事件流，返回 (degraded, signals, metrics)。"""
+    text_chars = 0
+    tool_calls_count = 0
+    state_snapshot_seen = False
+    run_error_seen = False
+
+    for ev in sse_events:
+        ev_type = ev.get("type", "")
+        if ev_type in ("TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_CHUNK"):
+            text_chars += len(ev.get("delta", ""))
+        elif ev_type == "TOOL_CALL_START":
+            tool_calls_count += 1
+        elif ev_type in ("STATE_SNAPSHOT", "STATE_DELTA"):
+            state_snapshot_seen = True
+        elif ev_type == "RUN_ERROR":
+            run_error_seen = True
+
+    signals: list[str] = []
+    if run_error_seen:
+        signals.append("llm_error")
+    if expects_tool and tool_calls_count == 0 and not run_error_seen:
+        signals.append("no_tool_calls")
+    if not state_snapshot_seen and not run_error_seen:
+        signals.append("no_state_update")
+    if text_chars == 0 and not run_error_seen:
+        signals.append("no_response_text")
+
+    return bool(signals), ",".join(signals), {
+        "text_chars": text_chars,
+        "tool_calls_count": tool_calls_count,
+        "state_snapshot_seen": state_snapshot_seen,
+        "run_error_seen": run_error_seen,
+    }
+
+
+def _chain_b_task(self: "HttpUser") -> None:
+    """链路 B 任务：POST / (AG-UI ReAct 对话 turn)"""
+    turn = _CHAIN_B_TURNS[self._b_turn_idx % len(_CHAIN_B_TURNS)]  # type: ignore[attr-defined]
+    self._b_turn_idx += 1  # type: ignore[attr-defined]
+    turn_type: str = turn["turn_type"]
+    expects_tool: bool = turn["expects_tool"]  # type: ignore[assignment]
+    message: str = turn["message"]
+
+    run_id = str(uuid.uuid4())
+    request_id = str(uuid.uuid4())
+    payload = _make_chain_b_payload(self._b_thread_id, run_id, message)  # type: ignore[attr-defined]
+    headers = _base_headers(request_id)
+    headers["Accept"] = "text/event-stream"
+
+    t_start = time.monotonic()
+    with self.client.post(
+        "/",
+        json=payload,
+        headers=headers,
+        catch_response=True,
+        name="/ (chat-turn)",
+    ) as resp:
+        elapsed_ms = int((time.monotonic() - t_start) * 1000)
+        if resp.status_code in (200, 201):
+            resp.success()
+            error_text = ""
+        else:
+            error_text = (resp.text or "")[:300]
+            resp.failure(f"HTTP {resp.status_code}")
+
+        sse_events_list = _parse_sse_events(resp.content)
+        degraded, signals, metrics = _parse_chain_b_sse(sse_events_list, expects_tool)
+
+        row = _base_row(request_id, resp.status_code, elapsed_ms, error_text)
+        row["turn_type"] = turn_type
+        row.update(metrics)
+        row["degraded"] = degraded
+        row["degradation_signals"] = signals
+        _write_row(row)
+
+
+# ── 链路 C：AG-UI ADK 跨服务 ─────────────────────────────────────────────────────
+
+_CHAIN_C_TASKS_DEF = [
+    {
+        "task_type": "order_create_draft",
+        "message": "我想预订一个酒店房间，SKU id 是 sku-hotel-001，请帮我创建订单草稿。",
+        "expects_delegation": True,
+    },
+    {
+        "task_type": "order_submit",
+        "message": "刚才创建的订单草稿，请帮我提交下单，我确认预订。",
+        "expects_delegation": True,
+    },
+]
+
+# ADK 通过 transfer_to_agent 工具委托给子 Agent
+_ADK_TRANSFER_TOOL = "transfer_to_agent"
+# order_assistant 相关文本信号（匹配 TOOL_CALL_ARGS 或响应文本）
+_ORDER_DRAFT_SIGNALS = frozenset(["order_draft", "订单草稿"])
+_ORDER_SUBMIT_SIGNALS = frozenset(["submit_order", "下单", "已提交", "创建成功", "订单已"])
+
+
+def _make_chain_c_payload(thread_id: str, run_id: str, message: str) -> dict[str, Any]:
+    """构造 trip-chat-service AG-UI RunAgentInput。
+
+    x-user-id / x-experiment-id / x-fault-scenario 从 HTTP 头传递；
+    make_extract_headers 会把它们读取到 state["headers"] 中，
+    供 ADK 回调和 A2A 元数据使用。
+    """
+    return {
+        "threadId": thread_id,
+        "runId": run_id,
+        "state": {},
+        "messages": [
+            {
+                "id": str(uuid.uuid4()),
+                "role": "user",
+                "content": message,
+            }
+        ],
+        "tools": [],
+        "context": [],
+        "forwardedProps": {},
+    }
+
+
+def _parse_chain_c_sse(
+    sse_events: list[dict[str, Any]],
+    expects_delegation: bool,
+) -> tuple[bool, str, dict[str, Any]]:
+    """分析链路 C SSE 事件流，返回 (degraded, signals, metrics)。
+
+    ADK 通过 transfer_to_agent 工具委托给子 Agent，不直接暴露内部工具名。
+    检测策略：
+      - remote_agent_delegated: TOOL_CALL_START.toolCallName == "transfer_to_agent"
+      - order_draft_seen:       TOOL_CALL_ARGS 或文本响应含订单草稿相关词
+      - order_submit_seen:      文本响应含提交/下单完成相关词
+    """
+    order_draft_seen = False
+    order_submit_seen = False
+    remote_agent_delegated = False
+    run_error_seen = False
+    text_chars = 0
+    response_text = ""
+    tool_args_text = ""
+
+    for ev in sse_events:
+        ev_type = ev.get("type", "")
+        if ev_type in ("TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_CHUNK"):
+            delta = ev.get("delta", "")
+            text_chars += len(delta)
+            response_text += delta
+        elif ev_type == "TOOL_CALL_START":
+            tool_name: str = (
+                ev.get("toolCallName") or ev.get("functionName") or ev.get("function_name") or ""
+            ).lower()
+            if tool_name == _ADK_TRANSFER_TOOL:
+                remote_agent_delegated = True
+        elif ev_type == "TOOL_CALL_ARGS":
+            tool_args_text += ev.get("delta", "")
+        elif ev_type == "RUN_ERROR":
+            run_error_seen = True
+
+    # 通过 TOOL_CALL_ARGS 或响应文本判断是否涉及订单草稿/提交
+    combined = (tool_args_text + response_text).lower()
+    if any(sig in combined for sig in _ORDER_DRAFT_SIGNALS):
+        order_draft_seen = True
+    if any(sig in combined for sig in _ORDER_SUBMIT_SIGNALS):
+        order_submit_seen = True
+
+    signals: list[str] = []
+    if run_error_seen:
+        signals.append("run_error")
+    if expects_delegation and not remote_agent_delegated and not run_error_seen:
+        signals.append("no_delegation")
+    if text_chars == 0 and not run_error_seen:
+        signals.append("no_response_text")
+    if _FAULT_DSL and "a2a.trace" in _FAULT_DSL:
+        signals.append("a2a_trace_drop_declared")
+
+    return bool(signals), ",".join(signals), {
+        "order_draft_seen": order_draft_seen,
+        "order_submit_seen": order_submit_seen,
+        "remote_agent_delegated": remote_agent_delegated,
+    }
+
+
+def _chain_c_task(self: "HttpUser") -> None:
+    """链路 C 任务：POST / (AG-UI ADK 订单任务)"""
+    task_def = _CHAIN_C_TASKS_DEF[self._c_task_idx % len(_CHAIN_C_TASKS_DEF)]  # type: ignore[attr-defined]
+    self._c_task_idx += 1  # type: ignore[attr-defined]
+    task_type: str = task_def["task_type"]
+    expects_delegation: bool = task_def["expects_delegation"]  # type: ignore[assignment]
+    message: str = task_def["message"]
+
+    # 链路 C 每次用新 thread_id（订单对话无需跨请求保持 checkpoint）
+    thread_id = str(uuid.uuid4())
+    run_id = str(uuid.uuid4())
+    request_id = str(uuid.uuid4())
+    payload = _make_chain_c_payload(thread_id, run_id, message)
+    headers = _base_headers(request_id)
+    headers["Accept"] = "text/event-stream"
+
+    t_start = time.monotonic()
+    with self.client.post(
+        "/",
+        json=payload,
+        headers=headers,
+        catch_response=True,
+        name="/ (order-task)",
+    ) as resp:
+        elapsed_ms = int((time.monotonic() - t_start) * 1000)
+        if resp.status_code in (200, 201):
+            resp.success()
+            error_text = ""
+        else:
+            error_text = (resp.text or "")[:300]
+            resp.failure(f"HTTP {resp.status_code}")
+
+        sse_events_list = _parse_sse_events(resp.content)
+        degraded, signals, metrics = _parse_chain_c_sse(sse_events_list, expects_delegation)
+
+        row = _base_row(request_id, resp.status_code, elapsed_ms, error_text)
+        row["turn_type"] = task_type
+        row.update(metrics)
+        row["degraded"] = degraded
+        row["degradation_signals"] = signals
+        _write_row(row)
+
+
+# ── 链路路由：根据 CHAIN 暴露单一 HttpUser ────────────────────────────────────────
+
+if CHAIN == "b":
+
+    class LocustUser(HttpUser):
+        """链路 B — AG-UI ReAct 对话（trip-itinerary-planner）"""
+        host = TARGET_HOST
+        wait_time = between(2, 5)
+        tasks = [_chain_b_task]
+
+        def on_start(self) -> None:
+            self._b_thread_id = str(uuid.uuid4())
+            self._b_turn_idx = 0
+
+elif CHAIN == "c":
+
+    class LocustUser(HttpUser):  # type: ignore[no-redef]
+        """链路 C — AG-UI ADK 跨服务（trip-chat-service）"""
+        host = TARGET_HOST
+        wait_time = between(3, 8)
+        tasks = [_chain_c_task]
+
+        def on_start(self) -> None:
+            self._c_task_idx = 0
+
+else:  # "a"
+
+    class LocustUser(HttpUser):  # type: ignore[no-redef]
+        """链路 A — REST 规划接口（trip-itinerary-planner）"""
+        host = TARGET_HOST
+        wait_time = between(1, 3)
+        tasks = [_chain_a_task]

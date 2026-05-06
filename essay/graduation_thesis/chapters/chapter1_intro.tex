@@ -1,0 +1,52 @@
+\chapter{引言}
+
+\section{研究背景}
+
+大语言模型的应用形态正在从“输入提示词并返回文本”的单次调用，演进为由智能体、工具、状态、记忆和外部服务共同组成的 AI 原生应用。以 LangGraph 为代表的编排框架把智能体执行过程显式建模为状态图：节点负责模型推理、工具调用或局部业务逻辑，边负责条件路由与循环控制，状态在多轮执行中被不断读写和归并。这种方式提升了复杂任务的表达能力，也把传统软件系统中的可靠性问题带入了 Agent 层。
+
+在 TripSphere 这类旅行场景中，用户并不只期待模型生成一段建议，而是希望系统完成一条长链路：解析目的地和偏好，调用地理编码服务，查询景点和酒店，生成结构化行程，落库持久化，并在后续对话中继续修改或下单。整个过程既包含 LLM 的不确定性，也包含 HTTP、gRPC、服务发现、状态同步和数据库写入等传统工程因素。故障不再只表现为“模型回答不好”，还可能表现为某个工具超时、某段状态丢失、某个远程 Agent 不可达、结构化输出被破坏但下游仍继续执行。
+
+混沌工程为分布式系统可靠性验证提供了重要方法。Netflix Chaos Monkey 及后续 Chaos Engineering 实践强调在受控条件下主动注入故障，观察系统是否偏离稳态，并据此改进容错能力\cite{basiri2016chaos,netflixChaosMonkey}。然而，传统工具主要面向资源层和基础设施层，例如终止实例、制造网络延迟、施加 CPU 或磁盘压力。它们可以验证微服务在 Pod 失效或网络抖动下是否稳定，却很难精确制造“仅本次请求的景点工具返回空列表”“仅某个 LangGraph turn 的 \code{itinerary} 状态被清空”这类 AI 原生应用层故障。
+
+另一方面，AgentOps 和 LLMOps 平台正在快速发展。LangSmith、AgentOps、Langfuse 等工具已经能够记录模型调用、工具调用、Token 用量、Trace 路径和 Bad Case；OpenTelemetry 社区也在推进 GenAI 与 Agent Span 的语义约定，将 \code{invoke\_agent}、\code{execute\_tool}、\code{gen\_ai.operation.name} 等概念纳入统一观测模型\cite{otelAgentObservability,otelGenAIAgentSpans,otelGenAIMetrics}。这些进展说明 AI Agent 的可观测性正在标准化，但“看到故障”并不等于“能稳定复现故障”。在工程排障、鲁棒性评估和论文实验中，仍需要一个可以声明故障、重复执行、关联 Trace 并回收证据的实验靶场。
+
+本文关注的正是这一缺口：在不大规模改写业务代码的前提下，为 LangGraph 智能体构建可复现的应用层故障注入机制。该机制不替代传统混沌工程，也不替代 AgentOps 平台，而是连接二者：它在 Agent、工具、状态和 RPC 边界上制造可控异常，并把注入参数、命中证据和系统响应写入可观测数据，使实验能够被复查和复跑。
+
+\section{研究目的与意义}
+
+本文的研究目的可以概括为三点。
+
+第一，建立 AI 原生应用的系统观。AI 原生应用的可靠性不应只从模型输出质量评价，也不应只从底层服务可用性评价，而应把 Agent 编排、工具调用、状态流转和传统微服务视为一个整体。TripSphere 提供了一个典型样本：它既有 LangGraph 线性规划工作流，也有 ReAct 对话循环和跨服务 A2A 委托，能够覆盖多种故障传播路径。
+
+第二，设计可配置的应用层故障注入机制。本文希望把常见故障抽象为统一原语，例如延迟、异常、gRPC 错误、响应篡改、状态清空、强制路由和远端 Agent 丢失。实验者可以通过请求头或配置文件声明故障目标与参数，而不是临时修改业务代码。这样可以让单次请求、单条 Trace、单个工具调用成为可控实验对象。
+
+第三，形成可复现的可靠性验证流程。一次合格的故障注入实验不应只给出“请求失败了”这样的结论，而应包含实验编号、故障 DSL、负载条件、注入命中证据、端到端延迟、Fallback 行为、业务质量变化和恢复情况。本文将 Locust、Tempo、Prometheus 与实验记录模板串联起来，为后续量化实验提供规范化路径。
+
+从工程意义看，本文工作可以帮助开发者在近似真实的 AI 原生链路中主动复现坏场景，降低 Bad Case 难以重现的问题。从学术与实践意义看，本文把混沌工程从资源层扩展到 LangGraph 应用层，补充了 Agent 可观测工具在主动实验能力上的不足，也为 AI 原生软件 Benchmark 和鲁棒性评估提供了基础设施。
+
+\section{研究内容}
+
+围绕上述目标，本文主要开展以下工作。
+
+\begin{enumerate}[label=(\arabic*)]
+  \item \textbf{AI 原生应用架构分析。} 基于 TripSphere 当前工程结构，梳理 \code{trip-itinerary-planner}、\code{trip-chat-service}、远程 Order Agent 与 Java gRPC 微服务之间的调用关系，抽象出 REST 规划链、CopilotKit ReAct 对话链和 Chat 到 A2A 再到 Order 的跨服务链。
+  \item \textbf{应用层故障模型设计。} 从工具、RPC、LLM、状态、路由、远程 Agent 和持久化等维度定义故障类型，并给出每类故障的典型注入点和预期观测信号。
+  \item \textbf{低侵入注入机制设计。} 设计基于 \code{FaultRegistry}、请求上下文、实验头、DSL 和 OpenTelemetry Span 属性的注入框架，使故障可以通过配置或请求头声明，并在运行时精确命中目标。
+  \item \textbf{TripSphere 靶场落地。} 总结当前已实现的 \code{trip-itinerary-planner} LangGraph 靶场和链路 A 注入点，说明开关、回滚、请求级注入和 Trace 证据如何工作。对于尚未完整实践的链路 B/C，本文保留实现与实验占位。
+  \item \textbf{实验方案与指标体系。} 设计面向三条链路的故障注入实验矩阵，使用 Locust 构造负载，使用 Tempo 验证注入命中，使用 Prometheus/Grafana 观察系统指标，并以结构化记录保证实验可复现。
+\end{enumerate}
+
+\section{本文贡献}
+
+本文的贡献不是提出新的智能体算法，而是建立一个面向 AI 原生应用可靠性验证的工程化实验框架。具体包括：
+
+\begin{itemize}
+  \item \textbf{系统化的 AI 原生应用架构分析。} 本文从 Agent、工具、状态、远程服务和可观测边界出发，给出 TripSphere 三条主要链路的结构化分析，说明不同链路在状态主体、终态副作用、Fallback 密度和 Trace 边界上的差异。
+  \item \textbf{可复现的应用层故障模型。} 本文将 AI 原生应用中的典型异常抽象为可声明的故障原语，并绑定到明确代码位置和 Span 维度，避免故障实验停留在口头描述。
+  \item \textbf{低侵入的注入与观测闭环。} 本文设计并整理了基于请求头 DSL、运行时注册表、上下文传播和 OpenTelemetry 属性的机制，使故障声明、注入命中、系统响应和实验结论可以通过同一个 \code{experiment.id} 串联。
+  \item \textbf{面向论文实证的实验规划。} 本文给出链路 A/B/C 的故障注入实验矩阵和四象限压测方案，并明确哪些结果已具备前置能力、哪些结果仍待实验补充，不使用未实践数据。
+\end{itemize}
+
+\section{论文结构}
+
+本文后续结构如下。第二章介绍混沌工程、故障注入、AgentOps、OpenTelemetry GenAI 可观测和 LangGraph 相关前导知识。第三章分析 TripSphere 的 AI 原生应用架构与三条主要链路。第四章提出应用层故障模型和可复现注入机制。第五章说明当前工程实现与靶场落地情况。第六章给出实验设计、指标体系和待补充结果模板。第七章总结全文并讨论后续工作。

@@ -5,19 +5,28 @@
 #     <scene_name>:
 #       description: 说明
 #       faults:
-#         - target:      DSL target，如 tool.geocoding / rpc.attraction.GetAttractionsNearby
-#           primitive:   latency | exception | error | mutate
-#           value:       延迟 ms / 异常类名 / gRPC 状态码 / mutate 动作
+#         - target:      DSL target，如 tool.geocoding / llm.chat_agent / a2a.trace
+#           primitive:   latency | exception | error | mutate | clear | drop | force_route
+#           value:       延迟 ms / 异常类名 / gRPC 状态码 / mutate 动作 / true / 路由值
 #           message:     （可选）异常/错误附加消息
 #           probability: 0.0~1.0，缺省 1.0
 #
 # 每个 fault 段最终拼成 x-fault-scenario DSL：
 #   <target>.<primitive>=<value>[,message=<msg>][,probability=<p>]
 # 多条用 ";" 连接后整体写入请求头。
+#
+# 链路对照：
+#   CHAIN=a  使用链路 A 场景（tool.geocoding / rpc.attraction.* / llm.research_and_plan.* 等）
+#   CHAIN=b  使用链路 B 场景（llm.chat_agent / state.* / route.should_continue）
+#   CHAIN=c  使用链路 C 场景（agent.order_assistant / a2a.trace）
 
-# ── 单故障场景 ─────────────────────────────────────────────────────────────────
-# 用于"一次只激活一个主变量"的归因实验（Q2 / Q4）。
+# ══════════════════════════════════════════════════════════════════════════════
+# 单点故障场景（single）
+# 用途：一次只激活一个主变量，用于单点归因实验（Q2 / Q4 象限）
+# ══════════════════════════════════════════════════════════════════════════════
 single:
+
+  # ── 链路 A ─────────────────────────────────────────────────────────────────
 
   geocode_latency:
     description: "高德地理编码 4s 延迟，整链仍成功（默认坐标降级）"
@@ -89,12 +98,115 @@ single:
         message: "field=attractions,n=1"
         probability: 1.0
 
-# ── 组合故障场景 ────────────────────────────────────────────────────────────────
-# 每个故障独立设置 probability，模拟真实事故中的多点间歇退化。
-# 注意：故障是否命中由服务端 FaultRegistry 独立判定（每条 fault 各自抽样）。
-# 实际命中次数以 Tempo trace 中 fault.injected=true 为准，
-# Locust 侧只记录"声明的 DSL 和请求结果"。
+  # ── 链路 B ─────────────────────────────────────────────────────────────────
+  # 注入点（均已在 chat_agent.py / tools/itinerary.py 实现）：
+  #   llm.chat_agent        invoke_with_fault → ReAct 主 LLM 调用前
+  #   state.itinerary       _keep_itinerary reducer 写入前清空（primitive=clear）
+  #   state.pending_day_plan plan_new_day 草案写回前清空（primitive=clear）
+  #   route.should_continue 强制 __end__ 或 tools（primitive=force_route）
+
+  chat_llm_latency:
+    description: "ReAct 主 LLM 调用增加 5s 延迟，观察 turn 耗时和 StateSnapshot 延迟"
+    faults:
+      - target: llm.chat_agent
+        primitive: latency
+        value: 5000
+        probability: 1.0
+
+  chat_llm_exception:
+    description: "ReAct 主 LLM 调用抛异常，RUN_ERROR 触发，turn 中断，观察用户侧感知"
+    faults:
+      - target: llm.chat_agent
+        primitive: exception
+        value: RuntimeError
+        message: injected_chat_llm_down
+        probability: 1.0
+
+  chat_llm_exception_50p:
+    description: "ReAct 主 LLM 50% 概率异常，模拟间歇性 LLM 抖动"
+    faults:
+      - target: llm.chat_agent
+        primitive: exception
+        value: RuntimeError
+        message: injected_chat_llm_down
+        probability: 0.5
+
+  itinerary_state_clear:
+    description: >
+      state.itinerary reducer 注入清空（返回 None），
+      观察 _keep_itinerary 防空覆盖逻辑是否拦截并保留旧值
+    faults:
+      - target: state.itinerary
+        primitive: clear
+        value: "true"
+        probability: 1.0
+
+  pending_day_plan_clear:
+    description: >
+      plan_new_day 草案写回前清空 pending_day_plan，
+      触发 add_day 的 missing_pending_day_plan 拒绝路径
+    faults:
+      - target: state.pending_day_plan
+        primitive: clear
+        value: "true"
+        probability: 1.0
+
+  route_force_end:
+    description: >
+      should_continue 强制返回 __end__，工具调用被跳过，
+      观察 LLM 生成 tool_calls 时 Agent 是否直接收尾（预期 no_tool_calls 信号）
+    faults:
+      - target: route.should_continue
+        primitive: force_route
+        value: "__end__"
+        probability: 1.0
+
+  # ── 链路 C ─────────────────────────────────────────────────────────────────
+  # 注入点：
+  #   agent.order_assistant  _resolve_remote_agent drop（启动阶段，需全局配置）
+  #   a2a.trace              a2a_request_meta_provider 剥离 W3C trace 头（per-request）
+  #
+  # 说明：agent.order_assistant.drop 在服务启动时生效（FAULT_INJECTION_SCENARIO
+  # 环境变量），per-request x-fault-scenario 头对该 target 无效。
+  # a2a.trace.drop 支持 per-request 头注入。
+
+  order_agent_drop:
+    description: >
+      order_assistant 远程子 Agent 启动时 drop，主 Agent 无法委托，
+      观察根 Agent 的 fallback 回复和 Trace 中子 Agent 缺失信号。
+      实验需要：服务端 FAULT_INJECTION_SCENARIO=agent.order_assistant.drop=true
+    faults:
+      - target: agent.order_assistant
+        primitive: drop
+        value: "true"
+        probability: 1.0
+
+  a2a_trace_drop:
+    description: >
+      A2A 请求元数据中剥离 W3C trace 传播头（traceparent / tracestate / baggage），
+      模拟跨服务 Trace 上下文断裂，观察 Tempo 中链路 C 的 Trace 是否出现断链
+    faults:
+      - target: a2a.trace
+        primitive: drop
+        value: "true"
+        probability: 1.0
+
+  a2a_trace_drop_30p:
+    description: "A2A Trace 30% 概率断链，模拟间歇性可观测性缺失"
+    faults:
+      - target: a2a.trace
+        primitive: drop
+        value: "true"
+        probability: 0.3
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 组合故障场景（combo）
+# 用途：每个故障独立设置 probability，模拟真实多点间歇退化
+# 注意：实际命中以 Tempo trace 中 fault.injected=true 为准
+# ══════════════════════════════════════════════════════════════════════════════
 combo:
+
+  # ── 链路 A ─────────────────────────────────────────────────────────────────
 
   cascade_degrade:
     description: >
@@ -155,3 +267,49 @@ combo:
         value: UNAVAILABLE
         message: injected_itinerary_down
         probability: 0.1
+
+  # ── 链路 B ─────────────────────────────────────────────────────────────────
+
+  chat_cascade:
+    description: >
+      LLM 50% 延迟 + state.itinerary 30% 清空，
+      观察多点退化下 StateSnapshot 更新率和 turn 完成质量
+    faults:
+      - target: llm.chat_agent
+        primitive: latency
+        value: 4000
+        probability: 0.5
+      - target: state.itinerary
+        primitive: clear
+        value: "true"
+        probability: 0.3
+
+  chat_state_and_route:
+    description: >
+      草案清空（100%）+ 强制路由提前结束（30%），
+      验证多工具 turn 的容错边界和 Agent 异常路由处理
+    faults:
+      - target: state.pending_day_plan
+        primitive: clear
+        value: "true"
+        probability: 1.0
+      - target: route.should_continue
+        primitive: force_route
+        value: "__end__"
+        probability: 0.3
+
+  # ── 链路 C ─────────────────────────────────────────────────────────────────
+
+  order_cascade:
+    description: >
+      A2A trace 50% 断链 + order_assistant agent drop（需全局配置），
+      验证最坏情况下根 Agent 的 fallback 覆盖率和 Trace 可见性
+    faults:
+      - target: a2a.trace
+        primitive: drop
+        value: "true"
+        probability: 0.5
+      - target: agent.order_assistant
+        primitive: drop
+        value: "true"
+        probability: 1.0
