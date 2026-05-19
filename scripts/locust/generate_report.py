@@ -377,7 +377,9 @@ def generate_html(csv_path: Path, out_path: Path) -> None:
             "降级信号：<code>run_error</code>=RUN_ERROR 事件，"
             "<code>no_delegation</code>=远端 Agent 未被委托，"
             "<code>no_response_text</code>=无文本输出，"
-            "<code>a2a_trace_drop_declared</code>=声明了 A2A Trace 断链（实际断链需在 Tempo 确认）。"
+            "<code>a2a_trace_drop_declared</code>=声明了 A2A Trace 断链（实际断链需在 Tempo 确认），"
+            "<code>no_order_draft</code>=order_create_draft turn 结束但未见草单创建，"
+            "<code>no_order_submit</code>=order_submit turn 结束但未见下单成功。"
             "<br>注意：<code>agent.order_assistant.drop</code> 在服务启动阶段生效，"
             "需配合 FAULT_INJECTION_SCENARIO 环境变量使用。"
         )

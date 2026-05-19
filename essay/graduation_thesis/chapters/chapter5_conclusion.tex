@@ -8,7 +8,7 @@
 
 在机制设计方面，本文提出了面向 AI 原生应用层的故障模型，将故障抽象为工具/RPC 延迟、异常、gRPC 错误、响应篡改、状态清空、路由扰动、远程 Agent 丢失和 Trace 断链等类型。围绕这些故障，本文整理了基于请求头 DSL、运行时注册表、上下文传播和 OpenTelemetry Span 属性的低侵入注入方案，使故障声明、注入命中、系统响应和实验记录能够通过 \code{experiment.id} 串联。
 
-在工程落地方面，当前 TripSphere 已经实现了 \code{trip-itinerary-planner} 中链路 A 的主要故障注入靶场能力，包含全局开关、请求级故障头、代表性注入点、Span 证据和批量演示脚本；Locust 脚本也为四象限压测实验提供了前置能力。本文同时明确指出，链路 B/C 的完整实验、Prometheus 资源指标、spanmetrics、Grafana dashboard 和最终量化结果仍待后续实践补充。
+在靶场落地方面，TripSphere 已经形成覆盖三条链路的应用层故障注入实验闭环。本文基于 Locust artifacts 对链路 A/B/C 分别完成 baseline-low、baseline-high、fault-low 和 fault-high 四象限对比，记录了 HTTP 成功率、端到端延迟、降级信号、StateSnapshot 更新率、订单提交率等指标。结果表明，AI 原生链路中存在明显的 HTTP 可见性盲区和 fail-fast 延迟反转现象，仅依赖响应码和延迟无法判断真实业务质量。
 
 \section{主要贡献}
 
@@ -18,22 +18,22 @@
 
 第二，本文设计了可复现的应用层故障注入机制。通过统一 DSL、请求级实验标识、低侵入插桩和 Span 属性记录，实验者可以对单次请求、单条 Trace 或单个工具调用施加故障，并获得可审计证据。
 
-第三，本文给出了面向毕业论文实证部分的实验方案。四象限压测、三链路故障矩阵、业务质量指标、TraceQL 查询和 YAML 实验记录模板共同构成了后续可复跑、可对比的实验流程。
+第三，本文给出了面向毕业论文实证部分的实验结果。四象限压测、三链路故障矩阵、业务质量指标、TraceQL 查询和链路故障案例共同构成了可复查、可复跑、可对比的实验流程。
 
 \section{不足与局限}
 
-本文仍有明显局限。首先，当前实证基础主要集中在链路 A，链路 B 的多轮状态实验和链路 C 的跨 Agent 实验尚未形成完整结果。其次，虽然 Locust 脚本和部分 artifacts 已经存在，但本文初稿没有在缺少完整实验记录的情况下填充量化数值，因此结果分析章节仍以设计和占位为主。再次，Prometheus 和 Grafana 的系统指标闭环尚不完整，容器资源、Java Actuator、spanmetrics 和业务指标还需要进一步接入。最后，LLM 输出本身具有不确定性，如何把内容质量退化转化为稳定可比较指标，也需要更多实验设计。
+本文仍有明显局限。首先，实验主要基于本地或单机环境运行，负载规模和外部 API 条件与真实生产环境仍有差距，结论更适合说明故障传播机制而非容量上限。其次，Prometheus 和 Grafana 的系统指标闭环尚不完整，容器资源、Java Actuator、spanmetrics 和业务指标还需要进一步接入。再次，LLM 输出本身具有不确定性，相同故障条件下的文本质量可能波动，后续仍需引入更稳定的结构化质量评价。最后，部分故障包含概率门，实验结果受实际命中次数影响，需要在更大样本下进一步复验。
 
 \section{未来工作}
 
 后续工作可以从以下方向推进。
 
 \begin{enumerate}[label=(\arabic*)]
-  \item \textbf{补齐链路 B/C 注入覆盖。} 在 ReAct 对话链中系统验证状态清空、路由扰动和工具 fallback；在 Chat 到 A2A 到 Order 链中验证远程 Agent 丢失、A2A Trace 断链和订单持久化失败。
-  \item \textbf{完成四象限实验。} 对 geocode-latency、attraction-exception、itinerary-unavailable 和 cascade-degrade 等场景分别运行 baseline/fault 与 low/high 压力组合，填充论文结果表格。
+  \item \textbf{扩大实验样本。} 在更长时间窗口和更多并发档位下复跑三链路四象限实验，提高概率故障命中统计的稳定性。
+  \item \textbf{细化故障场景。} 将当前组合故障拆分为更多单点故障实验，进一步区分 LLM、工具、状态、RPC 和 Trace 断链各自的独立影响。
   \item \textbf{完善 metrics 闭环。} 接入 cAdvisor、node-exporter、Java Actuator 和 OpenTelemetry spanmetrics，使故障命中、入口延迟、错误率和资源使用可以在 Grafana 中统一展示。
   \item \textbf{固化实验记录。} 建立 \code{experiments/} 目录，保存每次实验的 DSL、负载参数、时间窗口、PromQL、TraceQL、代表 Trace ID 和结论，提升复查与复跑能力。
   \item \textbf{探索平台化控制面。} 在当前请求头和 JSON 配置基础上，进一步设计 ConfigMap watcher、CRD 或与 Chaos Mesh 的集成，使应用层故障注入可以进入更标准的混沌工程工作流。
 \end{enumerate}
 
-总体而言，本文完成了 TripSphere 作为 AI 原生应用层故障注入靶场的架构分析、机制设计和第一阶段落地说明。后续随着实验结果补齐，该工作可以进一步发展为面向 LangGraph 智能体可靠性验证的可复现 Benchmark。
+总体而言，本文完成了 TripSphere 作为 AI 原生应用层故障注入靶场的架构分析、机制设计、工程落地和首轮实验验证。后续随着实验样本扩大、指标闭环完善和平台化控制面接入，该工作可以进一步发展为面向 LangGraph 智能体可靠性验证的可复现 Benchmark。

@@ -182,6 +182,9 @@ services:
       - NACOS_SERVER_ADDRESS=${NACOS_SERVER_ADDRESS:-nacos:8848}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-api-key}
       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://higress:8080/v1}
+      - FAULT_INJECTION_ENABLED=${FAULT_INJECTION_ENABLED:-false}
+      - FAULT_INJECTION_SCENARIO=${FAULT_INJECTION_SCENARIO:-}
+      - FAULT_INJECTION_FILE=${FAULT_INJECTION_FILE:-}
     depends_on:
       nacos:
         condition: service_healthy

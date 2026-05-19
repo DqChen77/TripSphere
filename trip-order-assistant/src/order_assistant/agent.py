@@ -11,10 +11,13 @@ from google.adk.agents import LlmAgent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.models.lite_llm import LiteLlm
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
 from google.adk.tools.long_running_tool import LongRunningFunctionTool
 from google.adk.tools.tool_context import ToolContext
 
 from order_assistant.config.settings import get_settings
+from order_assistant.observability.fault import inject_fault, set_fault_context
 from order_assistant.tools.order import OrderToolset
 from order_assistant.tools.order_draft import OrderDraftToolset
 from order_assistant.tools.product import ProductToolset
@@ -74,6 +77,16 @@ def before_agent_callback(callback_context: CallbackContext) -> None:
         "experiment_id": a2a_metadata.get("x-experiment-id"),
         "fault_scenario": a2a_metadata.get("x-fault-scenario"),
     }
+    set_fault_context(a2a_metadata)
+
+
+async def before_model_callback(
+    callback_context: CallbackContext,
+    llm_request: LlmRequest,
+) -> LlmResponse | None:
+    async with inject_fault("llm.order_assistant"):
+        pass
+    return None
 
 
 def create_agent(model: str = "openai/gpt-4o") -> LlmAgent:
@@ -89,6 +102,7 @@ def create_agent(model: str = "openai/gpt-4o") -> LlmAgent:
         model=LiteLlm(model=model),
         instruction=root_instruction,
         before_agent_callback=before_agent_callback,
+        before_model_callback=before_model_callback,
         tools=[
             OrderToolset(),
             ProductToolset(),

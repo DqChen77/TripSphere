@@ -13,6 +13,7 @@ from order_assistant.agent import AGENT_NAME, create_agent, load_agent_card
 from order_assistant.config.settings import get_settings
 from order_assistant.nacos.ai import NacosAI
 from order_assistant.nacos.utils import client_shutdown
+from order_assistant.observability.fault import FaultRegistry
 
 # Suppress ADK Experimental Warnings
 warnings.filterwarnings("ignore", module=".*")
@@ -31,6 +32,7 @@ async def lifespan(app: Starlette) -> AsyncGenerator[None, None]:
 
     agent_card: AgentCard | None = None
     try:
+        FaultRegistry.instance().bootstrap()
         app.state.nacos_ai = await NacosAI.create_nacos_ai(
             agent_name=AGENT_NAME,
             port=settings.uvicorn.port,

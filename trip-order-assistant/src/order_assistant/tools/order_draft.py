@@ -21,6 +21,7 @@ from order_assistant.mappers.order_mapper import (
     order_source_to_proto,
 )
 from order_assistant.nacos.naming import get_nacos_naming
+from order_assistant.observability.fault import inject_fault, should_clear_state
 from order_assistant.observability.tracing import rpc_span, tool_span
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,12 @@ class OrderDraftToolset(BaseToolset):
                 return {
                     "status": "error",
                     "message": "User ID is missing in the headers",
+                    "result": None,
+                }
+            if should_clear_state("state.order_draft"):
+                return {
+                    "status": "error",
+                    "message": "injected: order_draft cleared",
                     "result": None,
                 }
             ORDER_DRAFTS[order_draft_id] = {
@@ -200,9 +207,10 @@ class OrderDraftToolset(BaseToolset):
                         server_address=server_address,
                         attributes={"order_draft.id": order_draft_id, "sku.id": sku_id},
                     ):
-                        response = await stub.GetSkuById(
-                            product_pb2.GetSkuByIdRequest(id=sku_id)
-                        )
+                        async with inject_fault("rpc.product.GetSkuById"):
+                            response = await stub.GetSkuById(
+                                product_pb2.GetSkuByIdRequest(id=sku_id)
+                            )
                 except grpc.RpcError as e:
                     logger.error(f"Failed to get SKU by ID {sku_id}: {e}")
                     status: status_pb2.Status = rpc_status.from_call(e)  # type: ignore
@@ -272,9 +280,10 @@ class OrderDraftToolset(BaseToolset):
                         server_address=server_address,
                         attributes={"order_draft.id": order_draft_id, "sku.id": sku_id},
                     ):
-                        response = await stub.GetSkuById(
-                            product_pb2.GetSkuByIdRequest(id=sku_id)
-                        )
+                        async with inject_fault("rpc.product.GetSkuById"):
+                            response = await stub.GetSkuById(
+                                product_pb2.GetSkuByIdRequest(id=sku_id)
+                            )
                 except grpc.RpcError as e:
                     logger.error(f"Failed to get SKU by ID {sku_id}: {e}")
                     status: status_pb2.Status = rpc_status.from_call(e)  # type: ignore
@@ -336,27 +345,28 @@ class OrderDraftToolset(BaseToolset):
                         server_address=server_address,
                         attributes={"order_draft.id": order_draft_id},
                     ):
-                        response = await stub.CreateOrder(
-                            order_pb2.CreateOrderRequest(
-                                user_id=ORDER_DRAFTS[order_draft_id]["user_id"],
-                                request_id=str(uuid4()),
-                                items=[
-                                    order_pb2.CreateOrderItem(
-                                        sku_id=item["sku_id"],
-                                        date=date_to_proto(item["date"]),
-                                        end_date=date_to_proto(item["end_date"]),
-                                        quantity=item["quantity"],
-                                    )
-                                    for item in ORDER_DRAFTS[order_draft_id]["items"]
-                                ],
-                                contact=contact_info_to_proto(
-                                    ORDER_DRAFTS[order_draft_id]["contact"]
-                                ),
-                                source=order_source_to_proto(
-                                    ORDER_DRAFTS[order_draft_id]["source"]
-                                ),
+                        async with inject_fault("rpc.order.CreateOrder"):
+                            response = await stub.CreateOrder(
+                                order_pb2.CreateOrderRequest(
+                                    user_id=ORDER_DRAFTS[order_draft_id]["user_id"],
+                                    request_id=str(uuid4()),
+                                    items=[
+                                        order_pb2.CreateOrderItem(
+                                            sku_id=item["sku_id"],
+                                            date=date_to_proto(item["date"]),
+                                            end_date=date_to_proto(item["end_date"]),
+                                            quantity=item["quantity"],
+                                        )
+                                        for item in ORDER_DRAFTS[order_draft_id]["items"]
+                                    ],
+                                    contact=contact_info_to_proto(
+                                        ORDER_DRAFTS[order_draft_id]["contact"]
+                                    ),
+                                    source=order_source_to_proto(
+                                        ORDER_DRAFTS[order_draft_id]["source"]
+                                    ),
+                                )
                             )
-                        )
                 except grpc.RpcError as e:
                     logger.error(f"Failed to create order: {e}")
                     status: status_pb2.Status = rpc_status.from_call(e)  # type: ignore

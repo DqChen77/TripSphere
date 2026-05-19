@@ -1,3 +1,4 @@
-1. 不要写类似“代码位于...的地方” 无人在意论文里这种词汇
-2. 小标题取得太多了 尽可能控制在一页里，可以参考 /home/cdq/TripSphere/docs/毕业论文.pdf 中别人写的毕业论文目录样式。像第六章这么多的内容可以简化为实验环境设置等等。也不用这么多章内容，比如第五章就可以拆到别的章节里去。请自己规划一下
-3. 我准备进行case study，对链路故障案例进行研究，研究在当前故障注入下系统发生的故障等。帮我在论文中安排空出空间
+1. chain-a baseline中的degradation是AI Provider方的内容审查导致的失败
+2. chain-c baseline中的degradation是order-assistant 向 order-service 发起创建订单的 gRPC 请求时，payload 中 items 列表为空（草单虽然创建成功 draft=True，但 submit 阶段传入的 items 为空），server-side validation 拒绝了请求。agent 随即回复了错误提示文本，但这属于真实的应用层 bug
+
+

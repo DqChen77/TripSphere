@@ -161,6 +161,15 @@ _run_cell() {
 
     printf '\nDone: %s\n' "$out_dir"
     _print_tempo_hints "$experiment_id"
+
+    if [[ -f "${out_dir}/quality.csv" ]]; then
+        printf 'Generating degradation report...\n'
+        uv run --project "${SCRIPT_DIR}" python3 "${SCRIPT_DIR}/generate_report.py" \
+            "${out_dir}/quality.csv" 2>&1 | tail -3
+        printf 'Degradation report: %s/degradation_report.html\n\n' "$out_dir"
+    else
+        printf 'No quality.csv found, skipping degradation report.\n\n'
+    fi
 }
 
 # ── 入口 ─────────────────────────────────────────────────────────────────────────

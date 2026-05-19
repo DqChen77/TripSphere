@@ -1,0 +1,9 @@
+experiment_id,chain,matrix_cell,fault_scenario_name,signal,count,pct_of_degraded,pct_of_total,degraded_total,total_requests
+locust-chaina-baseline-high-none-202605071606,a,baseline-high,,geocoding_fallback,15,100.0,10.14,15,148
+locust-chaina-baseline-high-none-202605071606,a,baseline-high,,sparse_activities,15,100.0,10.14,15,148
+locust-chaina-baseline-low-none-202605071601,a,baseline-low,,geocoding_fallback,4,100.0,11.76,4,34
+locust-chaina-baseline-low-none-202605071601,a,baseline-low,,sparse_activities,4,100.0,11.76,4,34
+locust-chaina-fault-high-geocode_latency-202605071616,a,fault-high,geocode_latency,geocoding_fallback,13,100.0,10.0,13,130
+locust-chaina-fault-high-geocode_latency-202605071616,a,fault-high,geocode_latency,sparse_activities,13,100.0,10.0,13,130
+locust-chaina-fault-low-geocode_latency-202605071611,a,fault-low,geocode_latency,geocoding_fallback,1,100.0,3.03,1,33
+locust-chaina-fault-low-geocode_latency-202605071611,a,fault-low,geocode_latency,sparse_activities,1,100.0,3.03,1,33

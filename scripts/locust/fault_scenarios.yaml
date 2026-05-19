@@ -199,6 +199,40 @@ single:
         value: "true"
         probability: 0.3
 
+  order_llm_exception:
+    description: "order_assistant LLM 调用抛异常，RUN_ERROR 触发，订单 turn 中断，观察用户侧感知"
+    faults:
+      - target: llm.order_assistant
+        primitive: exception
+        value: RuntimeError
+        message: injected_order_llm_down
+        probability: 1.0
+
+  order_llm_latency:
+    description: "order_assistant LLM 调用增加 5s 延迟，观察订单流程 turn 耗时"
+    faults:
+      - target: llm.order_assistant
+        primitive: latency
+        value: 5000
+        probability: 1.0
+
+  order_sku_rpc_error:
+    description: "产品 SKU gRPC UNAVAILABLE，100% 概率，触发加单失败路径，观察草单内容质量退化"
+    faults:
+      - target: rpc.product.GetSkuById
+        primitive: error
+        value: UNAVAILABLE
+        message: injected_product_down
+        probability: 1.0
+
+  order_draft_clear:
+    description: "创建订单草单时注入清空，草单未写入，观察后续加单/提交的失败路径"
+    faults:
+      - target: state.order_draft
+        primitive: clear
+        value: "true"
+        probability: 1.0
+
 # ══════════════════════════════════════════════════════════════════════════════
 # 组合故障场景（combo）
 # 用途：每个故障独立设置 probability，模拟真实多点间歇退化
@@ -313,3 +347,84 @@ combo:
         primitive: drop
         value: "true"
         probability: 1.0
+
+  order_tool_cascade:
+    description: >
+      order_assistant LLM 延迟 5s @50% + 产品 SKU gRPC 失败 @30%，
+      模拟多点间歇退化，观察订单流程耗时劣化与草单成功率下降
+    faults:
+      - target: llm.order_assistant
+        primitive: latency
+        value: 5000
+        probability: 0.5
+      - target: rpc.product.GetSkuById
+        primitive: error
+        value: UNAVAILABLE
+        message: injected_product_down
+        probability: 0.3
+
+  # ── 最终实验场景（final）────────────────────────────────────────────────────
+  # 用于论文三条链路正式实验，每条链路一个 combo，覆盖多层独立故障路径
+
+  chaina_final:
+    description: >
+      Chain A 最终实验：外部 HTTP 高延迟 50% + 景点 gRPC 异常 40% + 持久化 UNAVAILABLE 20%，
+      覆盖三层独立故障路径，验证降级路径完整性与持久化失败用户面表现。
+    faults:
+      - target: tool.geocoding
+        primitive: latency
+        value: 5000
+        probability: 0.5
+      - target: rpc.attraction.GetAttractionsNearby
+        primitive: exception
+        value: RuntimeError
+        message: injected_attr_down
+        probability: 0.4
+      - target: rpc.itinerary.create
+        primitive: error
+        value: UNAVAILABLE
+        message: injected_persist_down
+        probability: 0.2
+
+  chainb_final:
+    description: >
+      Chain B 最终实验：ReAct LLM 异常 40% + state.itinerary 清空 25% + pending_day_plan 清空 35%，
+      覆盖 LLM 层、状态层、工具协调层三类链路 B 特有故障，验证 ReAct 多点退化行为。
+    faults:
+      - target: llm.chat_agent
+        primitive: exception
+        value: RuntimeError
+        message: injected_chat_llm_down
+        probability: 0.4
+      - target: state.itinerary
+        primitive: clear
+        value: "true"
+        probability: 0.25
+      - target: state.pending_day_plan
+        primitive: clear
+        value: "true"
+        probability: 0.35
+
+  chainc_final:
+    description: >
+      Chain C 最终实验：A2A trace 断链 30% + order_assistant LLM 异常 40% + 商品 SKU gRPC 失败 30% + 草单状态清空 20%，
+      覆盖可观测性层、LLM 层、工具 gRPC 层、状态层四类链路 C 故障，无需服务重启，全部 per-request 注入。
+    faults:
+      - target: a2a.trace
+        primitive: drop
+        value: "true"
+        probability: 0.3
+      - target: llm.order_assistant
+        primitive: exception
+        value: RuntimeError
+        message: injected_order_llm_down
+        probability: 0.4
+      - target: rpc.product.GetSkuById
+        primitive: error
+        value: UNAVAILABLE
+        message: injected_product_down
+        probability: 0.3
+      - target: state.order_draft
+        primitive: clear
+        value: "true"
+        probability: 0.2

@@ -13,6 +13,7 @@ from grpc_status import rpc_status
 from tripsphere.product.v1 import product_pb2, product_pb2_grpc
 
 from order_assistant.nacos.naming import get_nacos_naming
+from order_assistant.observability.fault import inject_fault
 from order_assistant.observability.tracing import rpc_span, tool_span
 
 logger = logging.getLogger(__name__)
@@ -66,9 +67,10 @@ class ProductToolset(BaseToolset):
                         server_address=server_address,
                         attributes={"spu.id": spu_id},
                     ):
-                        response = await stub.GetSpuById(
-                            product_pb2.GetSpuByIdRequest(id=spu_id)
-                        )
+                        async with inject_fault("rpc.product.GetSpuById"):
+                            response = await stub.GetSpuById(
+                                product_pb2.GetSpuByIdRequest(id=spu_id)
+                            )
                 except grpc.RpcError as e:
                     logger.error(f"Failed to get SPU by ID {spu_id}: {e}")
                     status: status_pb2.Status = rpc_status.from_call(e)  # type: ignore
@@ -112,9 +114,10 @@ class ProductToolset(BaseToolset):
                         server_address=server_address,
                         attributes={"sku.id": sku_id},
                     ):
-                        response = await stub.GetSkuById(
-                            product_pb2.GetSkuByIdRequest(id=sku_id)
-                        )
+                        async with inject_fault("rpc.product.GetSkuById"):
+                            response = await stub.GetSkuById(
+                                product_pb2.GetSkuByIdRequest(id=sku_id)
+                            )
                 except grpc.RpcError as e:
                     logger.error(f"Failed to get SKU by ID {sku_id}: {e}")
                     status: status_pb2.Status = rpc_status.from_call(e)  # type: ignore
